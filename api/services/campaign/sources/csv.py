@@ -1,6 +1,7 @@
 import csv
 import hashlib
 from io import StringIO
+import re
 from typing import List, Optional
 
 import httpx
@@ -94,10 +95,21 @@ class CSVSyncService(CampaignSourceSyncService):
             # Create context variables dict
             context_vars = dict(zip(headers, padded_row))
 
-            # Skip if no phone number
-            if not context_vars.get("phone_number"):
-                logger.debug(f"Skipping row {idx}: no phone_number")
+            phone_val = str(context_vars.get("phone_number", "")).strip()
+            if not phone_val:
+                logger.debug(f"Skkipping row {idx}: no phone_number")
                 continue
+
+            # Auto-format phone numbers without +
+            clean_digits = re.sub(r"[^\d+]", "", phone_val)
+            if clean_digits and not clean_digits.startswith("+"):
+                if len(clean_digits) == 10:
+                    clean_digits = "+1" + clean_digits
+                elif len(clean_digits) == 11 and clean_digits.startswith("1"):
+                    clean_digits = "+" + clean_digits
+                else:
+                    clean_digits = "+" + clean_digits
+            context_vars["phone_number"] = clean_digits
 
             # Generate unique source UUID: csv_{hash(source_id)}_row_{idx}
             source_uuid = f"csv_{file_hash}_row_{idx}"
