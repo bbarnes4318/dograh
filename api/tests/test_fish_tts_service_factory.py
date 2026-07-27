@@ -73,8 +73,10 @@ def test_create_fish_tts_service_passes_settings():
     kwargs = mock_service.call_args.kwargs
     assert kwargs["api_key"] == "test-key"
     assert kwargs["output_format"] == "pcm"
-    # Sample rate is resolved from the pipeline StartFrame, like other providers.
-    assert "sample_rate" not in kwargs
+    # Fish follows the negotiated transport rate rather than a hardcoded value,
+    # so the 8 kHz ARI telephony path and higher-rate WebRTC transports each
+    # get the rate they actually use.
+    assert kwargs["sample_rate"] == _audio_config().transport_out_sample_rate
     settings = kwargs["settings"]
     assert settings.model == "s2.1-pro-free"
     assert settings.voice == "voice-ref-1"

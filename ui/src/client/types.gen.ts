@@ -570,7 +570,9 @@ export type ByokPipelineAiModelConfiguration = {
         provider: 'xai';
     } & XaittsConfiguration) | ({
         provider: 'fish';
-    } & FishTtsConfiguration);
+    } & FishTtsConfiguration) | ({
+        provider: 'lmnt';
+    } & LmntTtsConfiguration);
     /**
      * Stt
      */
@@ -3479,6 +3481,38 @@ export type LastCampaignSettingsResponse = {
     max_concurrency?: number | null;
     schedule_config?: ScheduleConfigResponse | null;
     circuit_breaker?: CircuitBreakerConfigResponse | null;
+};
+
+/**
+ * LMNT
+ */
+export type LmntTtsConfiguration = {
+    /**
+     * Provider
+     */
+    provider?: 'lmnt';
+    /**
+     * Api Key
+     */
+    api_key: string | Array<string>;
+    /**
+     * Model
+     *
+     * LMNT TTS model. 'aurora' is the general-purpose model; 'blizzard' targets more expressive, conversational speech.
+     */
+    model?: string;
+    /**
+     * Voice
+     *
+     * LMNT voice ID. Use a stock voice name or a custom voice ID from your LMNT account.
+     */
+    voice?: string;
+    /**
+     * Language
+     *
+     * Language code for synthesis (e.g. 'en', 'es', 'fr', 'de', 'pt', 'zh', 'ko', 'hi').
+     */
+    language?: string;
 };
 
 /**

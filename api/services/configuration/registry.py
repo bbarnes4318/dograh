@@ -97,6 +97,7 @@ class ServiceProviders(str, Enum):
     SMALLEST = "smallest"
     XAI = "xai"
     FISH = "fish"
+    LMNT = "lmnt"
 
 
 class BaseServiceConfiguration(BaseModel):
@@ -129,6 +130,7 @@ class BaseServiceConfiguration(BaseModel):
         ServiceProviders.SMALLEST,
         ServiceProviders.XAI,
         ServiceProviders.FISH,
+        ServiceProviders.LMNT,
     ]
     api_key: str | list[str]
 
@@ -273,6 +275,7 @@ FISH_PROVIDER_MODEL_CONFIG = provider_model_config(
     ),
     provider_docs_url="https://docs.fish.audio/",
 )
+LMNT_PROVIDER_MODEL_CONFIG = provider_model_config("LMNT")
 INWORLD_PROVIDER_MODEL_CONFIG = provider_model_config(
     "Inworld",
     description=(
@@ -1451,6 +1454,40 @@ class FishTTSConfiguration(BaseTTSConfiguration):
         return ensure_fish_model_allowed(v)
 
 
+LMNT_TTS_MODELS = ["aurora", "blizzard"]
+LMNT_TTS_VOICES = ["lily", "daniel", "ava", "caleb", "leah", "zeke"]
+
+
+@register_tts
+class LmntTTSConfiguration(BaseTTSConfiguration):
+    model_config = LMNT_PROVIDER_MODEL_CONFIG
+    provider: Literal[ServiceProviders.LMNT] = ServiceProviders.LMNT
+    model: str = Field(
+        default="aurora",
+        description=(
+            "LMNT TTS model. 'aurora' is the general-purpose model; 'blizzard' "
+            "targets more expressive, conversational speech."
+        ),
+        json_schema_extra={"examples": LMNT_TTS_MODELS},
+    )
+    voice: str = Field(
+        default="lily",
+        description=(
+            "LMNT voice ID. Use a stock voice name or a custom voice ID from "
+            "your LMNT account."
+        ),
+        json_schema_extra={"examples": LMNT_TTS_VOICES, "allow_custom_input": True},
+    )
+    language: str = Field(
+        default="en",
+        description=(
+            "Language code for synthesis (e.g. 'en', 'es', 'fr', 'de', 'pt', "
+            "'zh', 'ko', 'hi')."
+        ),
+        json_schema_extra={"allow_custom_input": True},
+    )
+
+
 TTSConfig = Annotated[
     Union[
         DeepgramTTSConfiguration,
@@ -1469,6 +1506,7 @@ TTSConfig = Annotated[
         SmallestAITTSConfiguration,
         XAITTSConfiguration,
         FishTTSConfiguration,
+        LmntTTSConfiguration,
     ],
     Field(discriminator="provider"),
 ]
