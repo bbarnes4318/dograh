@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.44.0 (2026-07-27)
+
+<!-- Release notes generated using configuration in .github/release.yml at main -->
+
+## What's Changed
+### Features
+* feat(tts): add LMNT as a Voice (TTS) provider by @amaanJvd in https://github.com/dograh-hq/dograh/pull/569
+### Bug Fixes
+* fix(vobiz): synchronize application number bindings by @Piyush-sahoo in https://github.com/dograh-hq/dograh/pull/543
+
+
+**Full Changelog**: https://github.com/dograh-hq/dograh/compare/dograh-v1.43.0...dograh-v1.44.0
+
 ## 1.43.0 (2026-07-25)
 
 <!-- Release notes generated using configuration in .github/release.yml at main -->
