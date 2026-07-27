@@ -1,19 +1,32 @@
+import asyncio
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi import HTTPException
+from pipecat.frames.frames import InterruptionFrame
+from pipecat.processors.frame_processor import FrameDirection
 from pipecat.services.settings import NOT_GIVEN
+from pipecat.services.tts_service import InterruptibleTTSService, WebsocketTTSService
+from pydantic import TypeAdapter
+from pydantic import ValidationError as PydanticValidationError
 
+import api.services.configuration.registry as registry_module
+import api.services.pipecat.service_factory as service_factory_module
 from api.services.configuration.check_validity import UserConfigurationValidator
 from api.services.configuration.registry import (
     FISH_FREE_TTS_MODELS,
     FISH_TTS_MODELS,
     FishTTSConfiguration,
     ServiceProviders,
+    TTSConfig,
     paid_fish_models_allowed,
 )
 from api.services.pipecat.service_factory import create_tts_service
+
+# Every billable Fish model that must never be requested automatically.
+PAID_FISH_MODELS = frozenset({"s2.1-pro", "s2-pro", "s1", "s1-mini"})
 
 
 def _audio_config():
@@ -208,6 +221,107 @@ async def test_fish_rate_limit_reconnects_never_switch_to_paid_model(monkeypatch
     assert service._websocket is None
 
 
+@pytest.mark.parametrize(
+    "failure",
+    [
+        pytest.param(asyncio.TimeoutError(), id="timeout"),
+        pytest.param(
+            Exception("HTTP 401 Unauthorized: invalid api key"), id="auth-error"
+        ),
+        pytest.param(
+            Exception("HTTP 404: model not available"), id="model-unavailable"
+        ),
+        pytest.param(ConnectionResetError("connection reset"), id="transport-drop"),
+    ],
+)
+async def test_fish_connection_failures_never_switch_to_paid_model(
+    monkeypatch, failure
+):
+    # Requirements 6-9: no class of Fish failure — timeout, auth rejection,
+    # model-unavailable, or a dropped transport — may cause the next attempt to
+    # request a different (billable) model. The model must be identical on every
+    # reconnect, and no paid identifier may ever reach the wire.
+    monkeypatch.delenv("ALLOW_PAID_FISH_MODELS", raising=False)
+    service = create_tts_service(_user_config(model=None), _audio_config())
+
+    connect_mock = AsyncMock(side_effect=failure)
+    with patch("pipecat.services.fish.tts.websocket_connect", connect_mock):
+        with (
+            patch.object(service, "push_error", new=AsyncMock()),
+            patch.object(service, "_call_event_handler", new=AsyncMock()),
+        ):
+            await service._connect_websocket()
+            await service._connect_websocket()
+            await service._connect_websocket()
+
+    assert connect_mock.call_count == 3
+    requested = [
+        call.kwargs["additional_headers"]["model"]
+        for call in connect_mock.call_args_list
+    ]
+    assert requested == ["s2.1-pro-free"] * 3
+    for model in requested:
+        assert model not in PAID_FISH_MODELS
+    assert service._settings.model == "s2.1-pro-free"
+
+
+@pytest.mark.parametrize(
+    "raw_value",
+    ["", "   ", "0", "false", "False", "no", "off", "garbage", "maybe", "2", "null"],
+)
+def test_allow_paid_fish_models_defaults_false_for_absent_or_malformed(
+    monkeypatch, raw_value
+):
+    # Requirement 10: only an explicit, well-formed opt-in enables paid models.
+    # Empty, malformed, or negative values must all read as false — a typo in
+    # the deployment environment must never silently unlock billable models.
+    monkeypatch.setenv("ALLOW_PAID_FISH_MODELS", raw_value)
+    assert paid_fish_models_allowed() is False
+    with pytest.raises(ValueError, match="ALLOW_PAID_FISH_MODELS"):
+        FishTTSConfiguration(api_key="test-key", model="s2.1-pro")
+
+
+@pytest.mark.parametrize("paid_model", sorted(PAID_FISH_MODELS))
+def test_api_payload_with_paid_fish_model_is_rejected(monkeypatch, paid_model):
+    # Requirement 4: a handcrafted request body — bypassing the UI entirely —
+    # is rejected by the discriminated TTS union the API validates against.
+    monkeypatch.delenv("ALLOW_PAID_FISH_MODELS", raising=False)
+    adapter = TypeAdapter(TTSConfig)
+
+    with pytest.raises(PydanticValidationError, match="ALLOW_PAID_FISH_MODELS"):
+        adapter.validate_python(
+            {
+                "provider": "fish",
+                "api_key": "test-key",
+                "model": paid_model,
+                "voice": "voice-ref-1",
+            }
+        )
+
+    # The same payload on the free model validates and round-trips exactly.
+    ok = adapter.validate_python(
+        {
+            "provider": "fish",
+            "api_key": "test-key",
+            "model": "s2.1-pro-free",
+            "voice": "voice-ref-1",
+        }
+    )
+    assert ok.model == "s2.1-pro-free"
+
+
+def test_no_paid_fish_model_is_referenced_anywhere_in_config_or_factory():
+    # Requirement 9: guard against a future generic fallback/alias table that
+    # silently reintroduces a billable model name into either the configuration
+    # layer or the service factory.
+    for module in (registry_module, service_factory_module):
+        source = Path(module.__file__).read_text()
+        for paid_model in PAID_FISH_MODELS:
+            assert f'"{paid_model}"' not in source, (
+                f"{module.__name__} references paid Fish model {paid_model}"
+            )
+
+
 def test_fish_is_registered_for_key_validation():
     validator = UserConfigurationValidator()
     assert ServiceProviders.FISH.value in validator._validator_map
@@ -239,3 +353,58 @@ def test_fish_key_validation_tolerates_provider_errors():
     with patch("api.services.configuration.check_validity.httpx.get") as mock_get:
         mock_get.return_value.status_code = 503
         assert validator._check_fish_api_key("s2.1-pro-free", "fish-valid-key") is True
+
+
+async def test_fish_interruption_while_speaking_tears_down_stream(monkeypatch):
+    # Barge-in contract. Fish's wire protocol never echoes context_id back on
+    # incoming audio, so a chunk that arrives late is attributed to whatever
+    # context is active when it lands. That makes the teardown the thing that
+    # actually prevents previous-node speech from playing into the next node:
+    # on an interruption while the bot is speaking, the websocket and its
+    # receive task must both be torn down and rebuilt, so in-flight Fish audio
+    # has nowhere to arrive. Fish gets this by extending InterruptibleTTSService
+    # — this test pins that inheritance so a future refactor cannot silently
+    # drop it.
+    monkeypatch.delenv("ALLOW_PAID_FISH_MODELS", raising=False)
+    service = create_tts_service(_user_config(), _audio_config())
+
+    assert isinstance(service, InterruptibleTTSService)
+
+    service._bot_speaking = True
+    disconnect = AsyncMock()
+    connect = AsyncMock()
+    with (
+        patch.object(type(service), "_disconnect", disconnect),
+        patch.object(type(service), "_connect", connect),
+        patch.object(WebsocketTTSService, "_handle_interruption", new=AsyncMock()),
+    ):
+        await service._handle_interruption(
+            InterruptionFrame(), FrameDirection.DOWNSTREAM
+        )
+
+    # Stream torn down and rebuilt: stale chunks cannot reach the transport.
+    assert disconnect.await_count == 1
+    assert connect.await_count == 1
+
+    # And the model is unchanged by the interruption — a barge-in must never
+    # be a reason to re-open the stream on a billable model.
+    assert service._settings.model == "s2.1-pro-free"
+
+
+async def test_fish_disconnect_releases_websocket_and_receive_task(monkeypatch):
+    # No leaked websocket and no leaked receive task after teardown, so repeated
+    # barge-ins cannot accumulate sockets or tasks over a long call.
+    monkeypatch.delenv("ALLOW_PAID_FISH_MODELS", raising=False)
+    service = create_tts_service(_user_config(), _audio_config())
+
+    service._websocket = AsyncMock()
+    service._receive_task = object()
+    with (
+        patch.object(service, "cancel_task", new=AsyncMock()) as cancel_task,
+        patch.object(service, "_disconnect_websocket", new=AsyncMock()),
+        patch.object(WebsocketTTSService, "_disconnect", new=AsyncMock()),
+    ):
+        await service._disconnect()
+
+    assert cancel_task.await_count == 1
+    assert service._receive_task is None
