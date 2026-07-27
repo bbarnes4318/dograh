@@ -10,7 +10,10 @@ from api.services.configuration.options import (
     DEEPGRAM_FLUX_MODELS,
     DEEPGRAM_FLUX_MULTILINGUAL_LANGUAGE_OPTIONS,
 )
-from api.services.configuration.registry import ServiceProviders
+from api.services.configuration.registry import (
+    ServiceProviders,
+    ensure_fish_model_allowed,
+)
 from api.services.pipecat.gemini_json_schema_adapter import (
     DograhGeminiJSONSchemaAdapter,
 )
@@ -44,6 +47,7 @@ from pipecat.services.elevenlabs.stt import (
     ElevenLabsRealtimeSTTSettings,
 )
 from pipecat.services.elevenlabs.tts import ElevenLabsTTSService, ElevenLabsTTSSettings
+from pipecat.services.fish.tts import FishAudioTTSService, FishAudioTTSSettings
 from pipecat.services.gladia.stt import GladiaSTTService, GladiaSTTSettings
 from pipecat.services.google.llm import GoogleLLMService, GoogleLLMSettings
 from pipecat.services.google.stt import GoogleSTTService, GoogleSTTSettings
@@ -823,6 +827,40 @@ def create_tts_service(
                 voice=voice,
                 language=pipecat_language,
             ),
+            text_filters=[xml_function_tag_filter],
+            skip_aggregator_types=["recording_router", "recording"],
+            silence_time_s=1.0,
+        )
+    elif user_config.tts.provider == ServiceProviders.FISH.value:
+        # Blank resolves to the free default; a paid model raises unless the
+        # operator set ALLOW_PAID_FISH_MODELS=true. Enforced here as well as
+        # in the configuration schema so no call path — including configs
+        # stored before the gate existed — can start a paid Fish session, and
+        # a rejected paid selection never falls back to any other model.
+        try:
+            model = ensure_fish_model_allowed(getattr(user_config.tts, "model", None))
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        voice = getattr(user_config.tts, "voice", None)
+        latency = getattr(user_config.tts, "latency", None) or "balanced"
+        speed = getattr(user_config.tts, "speed", None)
+        volume = getattr(user_config.tts, "volume", None)
+        normalize = getattr(user_config.tts, "normalize", None)
+        settings_kwargs = {"model": model, "latency": latency}
+        # An empty voice means "use the model's default voice": leave the field
+        # unset so the service sends no reference_id rather than an empty one.
+        if voice:
+            settings_kwargs["voice"] = voice
+        if speed is not None:
+            settings_kwargs["prosody_speed"] = speed
+        if volume is not None:
+            settings_kwargs["prosody_volume"] = volume
+        if normalize is not None:
+            settings_kwargs["normalize"] = normalize
+        return FishAudioTTSService(
+            api_key=user_config.tts.api_key,
+            output_format="pcm",
+            settings=FishAudioTTSSettings(**settings_kwargs),
             text_filters=[xml_function_tag_filter],
             skip_aggregator_types=["recording_router", "recording"],
             silence_time_s=1.0,
