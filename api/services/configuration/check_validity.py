@@ -65,6 +65,7 @@ class UserConfigurationValidator:
             ServiceProviders.MINIMAX.value: self._check_minimax_api_key,
             ServiceProviders.SMALLEST.value: self._check_smallest_api_key,
             ServiceProviders.XAI.value: self._check_xai_api_key,
+            ServiceProviders.FISH.value: self._check_fish_api_key,
             ServiceProviders.LMNT.value: self._check_lmnt_api_key,
         }
 
@@ -401,6 +402,30 @@ class UserConfigurationValidator:
                 "Please check that your API key is correct and active. "
                 "You can verify your keys at "
                 "https://console.x.ai."
+            )
+        return True
+
+    def _check_fish_api_key(self, model: str, api_key: str) -> bool:
+        # Fish Audio has no key-introspection endpoint; the wallet credit
+        # endpoint needs nothing beyond a valid key, so it serves as the auth
+        # smoke test. Only a clear auth failure rejects save, so a transient
+        # provider issue never blocks configuration.
+        try:
+            response = httpx.get(
+                "https://api.fish.audio/wallet/self/api-credit",
+                headers={"Authorization": f"Bearer {api_key}"},
+                timeout=10.0,
+            )
+        except httpx.RequestError:
+            raise ValueError(
+                "Could not connect to the Fish Audio API. Please check your "
+                "network connection and try again."
+            )
+        if response.status_code in (401, 403):
+            raise ValueError(
+                "Invalid Fish Audio API key. The key was rejected by the Fish "
+                "Audio API. Please check that your API key is correct and "
+                "active. You can manage your keys at https://fish.audio/."
             )
         return True
 

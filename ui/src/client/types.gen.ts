@@ -569,6 +569,8 @@ export type ByokPipelineAiModelConfiguration = {
     } & SmallestAittsConfiguration) | ({
         provider: 'xai';
     } & XaittsConfiguration) | ({
+        provider: 'fish';
+    } & FishTtsConfiguration) | ({
         provider: 'lmnt';
     } & LmntTtsConfiguration);
     /**
@@ -2575,6 +2577,58 @@ export type FileMetadataResponse = {
     metadata: {
         [key: string]: unknown;
     } | null;
+};
+
+/**
+ * Fish Audio
+ *
+ * Fish Audio streaming TTS. Only the free s2.1-pro-free model is enabled; paid Fish models are rejected unless the API server sets ALLOW_PAID_FISH_MODELS=true.
+ */
+export type FishTtsConfiguration = {
+    /**
+     * Provider
+     */
+    provider?: 'fish';
+    /**
+     * Api Key
+     */
+    api_key: string | Array<string>;
+    /**
+     * Model
+     *
+     * Fish Audio TTS model. s2.1-pro-free (the free-of-charge tier of S2.1 Pro, Fair Use policy) is the only model enabled by default; paid Fish models require ALLOW_PAID_FISH_MODELS=true on the API server.
+     */
+    model?: string;
+    /**
+     * Voice
+     *
+     * Fish Audio voice reference ID (a voice-library or cloned voice). Leave empty to use the model's default voice.
+     */
+    voice?: string;
+    /**
+     * Latency
+     *
+     * Latency mode. 'balanced' trades a little stability for lower time-to-first-audio, which suits live calls.
+     */
+    latency?: 'balanced' | 'normal';
+    /**
+     * Speed
+     *
+     * Speech speed multiplier (0.5 to 2.0).
+     */
+    speed?: number;
+    /**
+     * Volume
+     *
+     * Volume adjustment in dB (-20 to 20).
+     */
+    volume?: number;
+    /**
+     * Normalize
+     *
+     * Normalize text before synthesis for more stable pronunciation of numbers, dates and URLs.
+     */
+    normalize?: boolean;
 };
 
 /**

@@ -1,3 +1,4 @@
+import os
 import random
 from enum import Enum, auto
 from typing import Annotated, Dict, Literal, Type, TypeVar, Union
@@ -95,6 +96,7 @@ class ServiceProviders(str, Enum):
     AZURE_REALTIME = "azure_realtime"
     SMALLEST = "smallest"
     XAI = "xai"
+    FISH = "fish"
     LMNT = "lmnt"
 
 
@@ -127,6 +129,7 @@ class BaseServiceConfiguration(BaseModel):
         ServiceProviders.SARVAM,
         ServiceProviders.SMALLEST,
         ServiceProviders.XAI,
+        ServiceProviders.FISH,
         ServiceProviders.LMNT,
     ]
     api_key: str | list[str]
@@ -263,6 +266,15 @@ DEEPGRAM_PROVIDER_MODEL_CONFIG = provider_model_config("Deepgram")
 ELEVENLABS_PROVIDER_MODEL_CONFIG = provider_model_config("ElevenLabs")
 CARTESIA_PROVIDER_MODEL_CONFIG = provider_model_config("Cartesia")
 XAI_PROVIDER_MODEL_CONFIG = provider_model_config("xAI")
+FISH_PROVIDER_MODEL_CONFIG = provider_model_config(
+    "Fish Audio",
+    description=(
+        "Fish Audio streaming TTS. Only the free s2.1-pro-free model is "
+        "enabled; paid Fish models are rejected unless the API server sets "
+        "ALLOW_PAID_FISH_MODELS=true."
+    ),
+    provider_docs_url="https://docs.fish.audio/",
+)
 LMNT_PROVIDER_MODEL_CONFIG = provider_model_config("LMNT")
 INWORLD_PROVIDER_MODEL_CONFIG = provider_model_config(
     "Inworld",
@@ -1344,6 +1356,104 @@ class XAITTSConfiguration(BaseServiceConfiguration):
         return "xai-tts"
 
 
+FISH_FREE_TTS_MODELS = ["s2.1-pro-free"]
+# Every Fish model that is not in the free list is billable and must never be
+# reachable unless the operator explicitly opts in via ALLOW_PAID_FISH_MODELS.
+FISH_TTS_MODELS = FISH_FREE_TTS_MODELS
+FISH_DEFAULT_TTS_MODEL = "s2.1-pro-free"
+
+
+def paid_fish_models_allowed() -> bool:
+    """Whether paid Fish Audio models are explicitly enabled by the operator.
+
+    Read at call time (not import time) so the ALLOW_PAID_FISH_MODELS
+    environment variable is honored without a process restart ordering hazard
+    and stays testable. Defaults to false: only free models are usable.
+    """
+    return os.environ.get("ALLOW_PAID_FISH_MODELS", "false").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    )
+
+
+def ensure_fish_model_allowed(model: str | None) -> str:
+    """Resolve a Fish model name, rejecting paid models unless opted in.
+
+    Blank/None resolves to the free default. Any model outside the free list
+    (all of which are billable) raises unless ALLOW_PAID_FISH_MODELS is true.
+    There is deliberately no fallback from a paid model to the free one: a
+    disallowed selection must fail loudly, never silently switch tiers — and
+    the free tier never silently escalates to a paid one.
+    """
+    resolved = (model or "").strip() or FISH_DEFAULT_TTS_MODEL
+    if resolved not in FISH_FREE_TTS_MODELS and not paid_fish_models_allowed():
+        raise ValueError(
+            f"Fish Audio model '{resolved}' is a paid model and paid Fish "
+            "models are disabled (ALLOW_PAID_FISH_MODELS=false). Use "
+            f"{FISH_DEFAULT_TTS_MODEL}, or set ALLOW_PAID_FISH_MODELS=true on "
+            "the API server to explicitly enable paid Fish models."
+        )
+    return resolved
+
+
+@register_tts
+class FishTTSConfiguration(BaseTTSConfiguration):
+    model_config = FISH_PROVIDER_MODEL_CONFIG
+    provider: Literal[ServiceProviders.FISH] = ServiceProviders.FISH
+    model: str = Field(
+        default=FISH_DEFAULT_TTS_MODEL,
+        description=(
+            "Fish Audio TTS model. s2.1-pro-free (the free-of-charge tier of "
+            "S2.1 Pro, Fair Use policy) is the only model enabled by default; "
+            "paid Fish models require ALLOW_PAID_FISH_MODELS=true on the API "
+            "server."
+        ),
+        json_schema_extra={"examples": FISH_TTS_MODELS, "allow_custom_input": True},
+    )
+
+    voice: str = Field(
+        default="",
+        description=(
+            "Fish Audio voice reference ID (a voice-library or cloned voice). "
+            "Leave empty to use the model's default voice."
+        ),
+        json_schema_extra={"allow_custom_input": True},
+    )
+    latency: Literal["balanced", "normal"] = Field(
+        default="balanced",
+        description=(
+            "Latency mode. 'balanced' trades a little stability for lower "
+            "time-to-first-audio, which suits live calls."
+        ),
+    )
+    speed: float = Field(
+        default=1.0,
+        ge=0.5,
+        le=2.0,
+        description="Speech speed multiplier (0.5 to 2.0).",
+    )
+    volume: int = Field(
+        default=0,
+        ge=-20,
+        le=20,
+        description="Volume adjustment in dB (-20 to 20).",
+    )
+    normalize: bool = Field(
+        default=True,
+        description=(
+            "Normalize text before synthesis for more stable pronunciation of "
+            "numbers, dates and URLs."
+        ),
+    )
+
+    @field_validator("model")
+    @classmethod
+    def validate_fish_model(cls, v):
+        return ensure_fish_model_allowed(v)
+
+
 LMNT_TTS_MODELS = ["aurora", "blizzard"]
 LMNT_TTS_VOICES = ["lily", "daniel", "ava", "caleb", "leah", "zeke"]
 
@@ -1395,6 +1505,7 @@ TTSConfig = Annotated[
         AzureSpeechTTSConfiguration,
         SmallestAITTSConfiguration,
         XAITTSConfiguration,
+        FishTTSConfiguration,
         LmntTTSConfiguration,
     ],
     Field(discriminator="provider"),
