@@ -95,9 +95,19 @@ const AppLayout: React.FC<AppLayoutProps> = ({
     <SidebarProvider defaultOpen>
       {shouldShowSidebar ? (
         <LeadFormsProvider>
-          <div className="flex min-h-screen w-full">
+          <div className="flex min-h-screen w-full overflow-x-hidden">
             <AppSidebar />
-            <SidebarInset className="flex-1">
+            {/* min-w-0: SidebarInset and its <main> carry flex-1 (flex-basis 0%)
+                but shadcn's stock component never sets min-width. A flex item's
+                automatic minimum size defaults to its content's min-content
+                width, and when that exceeds the space actually left after the
+                256px sidebar, the item is clamped to its own content width
+                instead of the remainder — pushing the whole row past the
+                viewport with nothing to clip it. Verified live: without this,
+                a wide-content page renders SidebarInset at the FULL viewport
+                width positioned after the sidebar, producing a page-level
+                horizontal scrollbar. min-w-0 lets it actually shrink to fit. */}
+            <SidebarInset className="min-w-0 flex-1">
               <BackendStatusBanner />
               {!isWorkflowEditor && <AppHeader />}
               {/* Optional header area for specific pages */}
@@ -122,8 +132,10 @@ const AppLayout: React.FC<AppLayoutProps> = ({
                 </div>
               )}
 
-              {/* Main content area */}
-              <main className="app-surface flex-1">
+              {/* Main content area. min-w-0 for the same reason as SidebarInset
+                  above — this is a nested flex-1 item of its own flex-col
+                  parent and needs the same override. */}
+              <main className="app-surface min-w-0 flex-1">
                 {children}
               </main>
             </SidebarInset>
