@@ -171,7 +171,9 @@ export default function VoiceStudioPage() {
   const [statusError, setStatusError] = useState<string | null>(null);
 
   // ------------------------------------------------------------ library
-  const [source, setSource] = useState<VoiceSource>("library");
+  // Defaults to "mine" — the whole point of the page is your own cloned
+  // voices; the public Fish library is the secondary mode, not the landing one.
+  const [source, setSource] = useState<VoiceSource>("mine");
   const [voices, setVoices] = useState<FishVoice[]>([]);
   const [loadingVoices, setLoadingVoices] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -528,8 +530,8 @@ export default function VoiceStudioPage() {
         {/* Header — title, description and status on one row */}
         <div className="flex shrink-0 items-baseline justify-between gap-3">
           <div className="flex min-w-0 items-baseline gap-2">
-            <h1 className="text-base font-semibold tracking-tight">Voice Studio</h1>
-            <p className="truncate text-xs text-muted-foreground">
+            <h1 className="shrink-0 text-base font-semibold tracking-tight">Voice Studio</h1>
+            <p className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
               Browse, clone and audition Fish voices
             </p>
           </div>
@@ -555,12 +557,17 @@ export default function VoiceStudioPage() {
           {selectedVoice ? (
             <>
               <UserRound className="h-3.5 w-3.5 shrink-0 text-primary" />
-              <span className="truncate text-xs font-semibold">
-                {selectedVoice.title || voiceId(selectedVoice)}
-              </span>
-              <code className="truncate font-mono text-[10px] text-muted-foreground">
-                {voiceId(selectedVoice)}
-              </code>
+              {/* Title takes remaining space and truncates; the id is sliced in
+                  JS to a fixed short length rather than relying on CSS truncate
+                  on a bare flex child, which does not reliably shrink. */}
+              <div className="flex min-w-0 flex-1 items-center gap-2">
+                <span className="min-w-0 flex-1 truncate text-xs font-semibold">
+                  {selectedVoice.title || voiceId(selectedVoice)}
+                </span>
+                <code className="shrink-0 font-mono text-[10px] text-muted-foreground">
+                  {voiceId(selectedVoice).slice(0, 8)}…
+                </code>
+              </div>
               <div className="ml-auto flex shrink-0 items-center gap-1">
                 <Button size="sm" variant="ghost" className="h-6 px-1.5" onClick={copyVoiceId}>
                   {copiedId ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
@@ -671,7 +678,7 @@ export default function VoiceStudioPage() {
 
             <TabsContent
               value="emotion"
-              className="mt-2 min-h-0 flex-1 space-y-1.5 overflow-y-auto pr-1"
+              className="mt-2 min-h-0 flex-1 space-y-1.5 overflow-x-hidden overflow-y-auto pr-1"
             >
               {EMOTION_GROUPS.map((group) => (
                 <div key={group.label} className="space-y-1">
@@ -719,7 +726,7 @@ export default function VoiceStudioPage() {
 
             <TabsContent
               value="fine"
-              className="mt-2 min-h-0 flex-1 space-y-2 overflow-y-auto pr-1"
+              className="mt-2 min-h-0 flex-1 space-y-2 overflow-x-hidden overflow-y-auto pr-1"
             >
               <PhonemeBuilder onInsert={insertAtCaret} />
               <p className="rounded-md border border-neutral-200 bg-muted/40 p-2 text-[10px] leading-snug text-muted-foreground dark:border-neutral-800">
@@ -731,7 +738,7 @@ export default function VoiceStudioPage() {
 
             <TabsContent
               value="prosody"
-              className="mt-2 min-h-0 flex-1 space-y-3 overflow-y-auto pr-1"
+              className="mt-2 min-h-0 flex-1 space-y-3 overflow-x-hidden overflow-y-auto pr-1"
             >
               <div className="grid grid-cols-2 gap-x-4 gap-y-2">
                 <SliderField
@@ -978,7 +985,7 @@ export default function VoiceStudioPage() {
             )}
 
             {loadingVoices ? (
-              <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto p-3">
+              <div className="min-h-0 flex-1 space-y-1.5 overflow-x-hidden overflow-y-auto p-3">
                 {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => (
                   <div key={i} className="h-[56px] animate-pulse rounded-md bg-muted/60" />
                 ))}
@@ -993,7 +1000,7 @@ export default function VoiceStudioPage() {
               </div>
             ) : (
               <>
-                <ul className="min-h-0 flex-1 space-y-1 overflow-y-auto p-2 pr-1">
+                <ul className="min-h-0 flex-1 space-y-1 overflow-x-hidden overflow-y-auto p-2 pr-1">
                   {voices.map((voice) => {
                     const id = voiceId(voice);
                     const active = selectedVoice ? voiceId(selectedVoice) === id : false;
@@ -1017,9 +1024,12 @@ export default function VoiceStudioPage() {
                             onClick={() => setSelectedVoice(voice)}
                             className="min-w-0 flex-1 text-left"
                           >
-                            {/* Row 1 — name, badges */}
-                            <div className="flex items-center gap-1.5">
-                              <span className="truncate text-xs font-semibold">
+                            {/* Row 1 — name, badges. min-w-0 on the name lets it
+                                actually shrink and ellipsize instead of pushing
+                                the badges out and getting silently clipped with
+                                no ellipsis at the list boundary. */}
+                            <div className="flex min-w-0 items-center gap-1.5">
+                              <span className="min-w-0 flex-1 truncate text-xs font-semibold">
                                 {voice.title || id}
                               </span>
                               {active && <Check className="h-3 w-3 shrink-0 text-primary" />}
@@ -1049,9 +1059,9 @@ export default function VoiceStudioPage() {
                             </div>
 
                             {/* Row 2 — metadata + id */}
-                            <div className="flex items-baseline gap-1.5">
+                            <div className="flex min-w-0 items-baseline gap-1.5">
                               {meta && (
-                                <span className="truncate text-[10px] text-muted-foreground">
+                                <span className="min-w-0 flex-1 truncate text-[10px] text-muted-foreground">
                                   {meta}
                                 </span>
                               )}
@@ -1123,7 +1133,7 @@ export default function VoiceStudioPage() {
             )}
           </TabsContent>
 
-          <TabsContent value="clone" className="mt-0 min-h-0 flex-1 overflow-y-auto p-3">
+          <TabsContent value="clone" className="mt-0 min-h-0 flex-1 overflow-x-hidden overflow-y-auto p-3">
             <CloneVoiceCard
               onCloned={() => {
                 setSource("mine");
