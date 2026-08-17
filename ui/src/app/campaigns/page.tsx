@@ -94,10 +94,10 @@ export default function CampaignsPage() {
     };
 
     return (
-        <div className="container mx-auto p-6 space-y-6">
+        <div className="container mx-auto p-4 space-y-4">
             <div className="flex justify-between items-center">
                 <div>
-                    <h1 className="text-3xl font-bold mb-2">Campaigns</h1>
+                    <h1 className="text-2xl font-bold mb-2">Campaigns</h1>
                     <p>Manage your bulk workflow execution campaigns</p>
                 </div>
                     <Button onClick={handleCreateCampaign}>
@@ -171,7 +171,7 @@ export default function CampaignsPage() {
                                 </Table>
                             </div>
                         ) : (
-                            <div className="text-center py-8">
+                            <div className="text-center py-5">
                                 <p className="mb-4">No campaigns found</p>
                                 <Button onClick={handleCreateCampaign} variant="outline">
                                     <Plus className="h-4 w-4 mr-2" />

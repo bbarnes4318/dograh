@@ -37,7 +37,7 @@ export default function FilesPage() {
 
     if (loading || !user) {
         return (
-            <div className="container mx-auto px-4 py-8">
+            <div className="container mx-auto px-4 py-5">
                 <div className="space-y-4">
                     <Skeleton className="h-12 w-64" />
                     <Skeleton className="h-64 w-full" />
@@ -47,12 +47,12 @@ export default function FilesPage() {
     }
 
     return (
-        <div className="container mx-auto px-4 py-8">
-            <div className="mb-8">
-                <h1 className="text-3xl font-bold mb-2">Knowledge Base Files</h1>
+        <div className="container mx-auto px-4 py-5">
+            <div className="mb-5">
+                <h1 className="text-2xl font-bold mb-2">Knowledge Base Files</h1>
                 <p className="text-muted-foreground">
                     Upload and manage documents for your voice agents to reference.{" "}
-                    <a href="https://docs.dograh.com/voice-agent/knowledge-base" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 underline">
+                    <a href="https://hopwhistle.com/voice-agent/knowledge-base" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 underline">
                         Learn more <ExternalLink className="h-3 w-3" />
                     </a>
                 </p>

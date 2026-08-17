@@ -81,9 +81,9 @@ export default function CreateWorkflowPage() {
 
     return (
         <div className="min-h-screen">
-            <div className="container mx-auto px-4 py-8 max-w-2xl">
-                <div className="mb-6">
-                    <h1 className="text-3xl font-bold mb-2">Create Voice Agent</h1>
+            <div className="container mx-auto px-4 py-5 max-w-2xl">
+                <div className="mb-4">
+                    <h1 className="text-2xl font-bold mb-2">Create Voice Agent</h1>
                     <p className="text-muted-foreground">
                         Tell us about your use case and we&apos;ll create a customized voice agent for you
                     </p>
@@ -96,7 +96,7 @@ export default function CreateWorkflowPage() {
                             Configure your voice agent settings
                         </CardDescription>
                     </CardHeader>
-                    <CardContent className="space-y-6">
+                    <CardContent className="space-y-4">
                         <div className="space-y-2">
                             <Label htmlFor="call-type">Call Type</Label>
                             <Select value={callType} onValueChange={(value) => setCallType(value as 'inbound' | 'outbound')}>
@@ -165,7 +165,7 @@ export default function CreateWorkflowPage() {
             {isLoading && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
                     <Card className="w-full max-w-md p-8">
-                        <div className="flex flex-col items-center space-y-6">
+                        <div className="flex flex-col items-center space-y-4">
                             {/* Animated spinner */}
                             <div className="relative">
                                 <div className="w-16 h-16 border-4 border-muted rounded-full"></div>

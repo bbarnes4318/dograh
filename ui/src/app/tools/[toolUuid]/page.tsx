@@ -651,8 +651,8 @@ const data = await response.json();`;
     if (isLoading) {
         return (
             <div className="min-h-screen">
-                <div className="container mx-auto px-4 py-8">
-                    <div className="max-w-4xl mx-auto space-y-6">
+                <div className="container mx-auto px-4 py-5">
+                    <div className="max-w-4xl mx-auto space-y-4">
                         <Skeleton className="h-8 w-48" />
                         <Skeleton className="h-64 w-full" />
                     </div>
@@ -664,7 +664,7 @@ const data = await response.json();`;
     if (!tool) {
         return (
             <div className="min-h-screen">
-                <div className="container mx-auto px-4 py-8">
+                <div className="container mx-auto px-4 py-5">
                     <div className="max-w-4xl mx-auto text-center">
                         <h1 className="text-2xl font-bold mb-4">Tool not found</h1>
                         <Button onClick={() => router.push("/tools")}>
@@ -685,10 +685,10 @@ const data = await response.json();`;
 
     return (
         <div className="min-h-screen">
-            <div className="container mx-auto px-4 py-8">
+            <div className="container mx-auto px-4 py-5">
                 <div className="max-w-4xl mx-auto">
                     {/* Header */}
-                    <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center justify-between mb-4">
                         <div className="flex items-center gap-4">
                             <Button
                                 variant="ghost"
@@ -808,7 +808,7 @@ const data = await response.json();`;
                                     Configure the MCP server endpoint. Its tools become available to the agent.
                                 </CardDescription>
                             </CardHeader>
-                            <CardContent className="space-y-6">
+                            <CardContent className="space-y-4">
                                 <div className="space-y-2">
                                     <Label htmlFor="mcp-name">Tool Name</Label>
                                     <Input

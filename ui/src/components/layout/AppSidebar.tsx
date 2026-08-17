@@ -21,6 +21,7 @@ import {
   UserRound,
   Workflow,
   Wrench,
+  Activity,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -77,15 +78,6 @@ const TELEPHONY_WARNING_COPY = "Action required";
 
 const NAV_SECTIONS: SidebarNavSection[] = [
   {
-    items: [
-      {
-        title: "Overview",
-        url: "/overview",
-        icon: Home,
-      },
-    ],
-  },
-  {
     label: "BUILD",
     items: [
       {
@@ -134,6 +126,11 @@ const NAV_SECTIONS: SidebarNavSection[] = [
   {
     label: "MANAGE",
     items: [
+      {
+        title: "Live Results",
+        url: "/live-results",
+        icon: Activity,
+      },
       {
         title: "Agent Runs",
         url: "/usage",
@@ -341,7 +338,7 @@ export function AppSidebar() {
               <Tooltip>
                 <TooltipTrigger asChild>
                   <a
-                    href="https://docs.dograh.com/deployment/update"
+                    href="https://hopwhistle.com/deployment/update"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-1 rounded-md border bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium leading-none text-amber-900 transition-opacity hover:opacity-80 dark:bg-amber-950 dark:text-amber-200"

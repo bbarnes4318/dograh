@@ -425,7 +425,7 @@ function GeneralSection({
                     <a href={SETTINGS_DOCUMENTATION_URLS.general} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 underline">Learn more <ExternalLink className="h-3 w-3" /></a>
                 </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
+            <CardContent className="space-y-4">
                 {/* Agent Name */}
                 <div className="space-y-2">
                     <Label htmlFor="workflow_name" className="text-sm font-medium">Agent Name</Label>
@@ -1555,9 +1555,9 @@ function WorkflowSettingsInner({
             </header>
 
             {/* Main + right nav */}
-            <div className="mx-auto flex max-w-5xl gap-8 px-6 py-8">
+            <div className="mx-auto flex max-w-5xl gap-5 px-6 py-5">
                 {/* Sections */}
-                <div className="min-w-0 flex-1 space-y-8">
+                <div className="min-w-0 flex-1 space-y-5">
                     {resolvedWorkflowConfigurationsForRender && (
                         <>
                             {/* General */}

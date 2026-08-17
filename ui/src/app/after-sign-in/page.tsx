@@ -48,10 +48,10 @@ export default async function AfterSignInPage() {
 
             if (countResponse.data && countResponse.data.active > 0) {
                 logger.debug('[AfterSignInPage] Redirecting to /workflow - user has workflows');
-                redirect('/workflow');
+                redirect('/live-results');
             } else {
                 logger.debug('[AfterSignInPage] Redirecting to /workflow/create - no workflows found');
-                redirect('/workflow/create');
+                redirect('/live-results');
             }
         }
     } catch (error) {
@@ -63,5 +63,5 @@ export default async function AfterSignInPage() {
 
     // Default fallback
     logger.debug('[AfterSignInPage] Final fallback redirect to /workflow/create');
-    redirect('/workflow/create');
+    redirect('/live-results');
 }

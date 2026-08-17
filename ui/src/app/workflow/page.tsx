@@ -74,7 +74,7 @@ async function WorkflowList() {
         return (
             <>
                 {/* Active Workflows Section */}
-                <div className="mb-8">
+                <div className="mb-5">
                     <h2 className="text-xl font-semibold mb-4">Active Agents</h2>
                     {activeWorkflows.length > 0 || folders.length > 0 ? (
                         <AgentFolderView workflows={activeWorkflows} folders={folders} />
@@ -89,7 +89,7 @@ async function WorkflowList() {
 
                 {/* Archived Section — collapsible, same design as the folder/Uncategorized sections */}
                 {archivedWorkflows.length > 0 && (
-                    <div className="mb-8">
+                    <div className="mb-5">
                         <FolderSection kind="archived" workflows={archivedWorkflows} />
                     </div>
                 )}
@@ -110,10 +110,10 @@ async function PageContent() {
     const workflowList = await WorkflowList();
 
     return (
-        <div className="container mx-auto px-4 py-8">
+        <div className="container mx-auto px-4 py-5">
             {/* Your Workflows Section */}
-            <div className="mb-6">
-                <div className="flex justify-between items-center mb-6">
+            <div className="mb-4">
+                <div className="flex justify-between items-center mb-4">
                     <h1 className="text-2xl font-bold">Your Agents</h1>
                     <div className="flex gap-2">
                         <UploadWorkflowButton />
@@ -129,11 +129,11 @@ async function PageContent() {
 
 function WorkflowsLoading() {
     return (
-        <div className="container mx-auto px-4 py-8">
+        <div className="container mx-auto px-4 py-5">
             {/* Get Started Section Loading */}
             <div className="mb-12">
-                <div className="h-8 w-48 bg-muted rounded mb-6"></div>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="h-8 w-48 bg-muted rounded mb-4"></div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {Array.from({ length: 3 }, (_, i) => (
                         <Card key={i}>
                             <CardContent className="p-0">
@@ -145,8 +145,8 @@ function WorkflowsLoading() {
             </div>
 
             {/* Your Workflows Section Loading */}
-            <div className="mb-6">
-                <div className="flex justify-between items-center mb-6">
+            <div className="mb-4">
+                <div className="flex justify-between items-center mb-4">
                     <div className="h-8 w-48 bg-muted rounded"></div>
                     <div className="h-10 w-32 bg-muted rounded"></div>
                 </div>

@@ -34,6 +34,7 @@ export default function EditCampaignPage() {
     // Form state
     const [campaignName, setCampaignName] = useState('');
     const [maxConcurrency, setMaxConcurrency] = useState<string>('');
+    const [transferDestination, setTransferDestination] = useState<string>('');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [submitError, setSubmitError] = useState<string | null>(null);
 
@@ -275,7 +276,7 @@ export default function EditCampaignPage() {
 
     if (isLoading) {
         return (
-            <div className="container mx-auto p-6 space-y-6 max-w-2xl">
+            <div className="container mx-auto p-4 space-y-4 max-w-2xl">
                 <div className="animate-pulse">
                     <div className="h-8 bg-muted rounded w-1/4 mb-4"></div>
                     <div className="h-64 bg-muted rounded"></div>
@@ -286,14 +287,14 @@ export default function EditCampaignPage() {
 
     if (!campaign) {
         return (
-            <div className="container mx-auto p-6 space-y-6 max-w-2xl">
+            <div className="container mx-auto p-4 space-y-4 max-w-2xl">
                 <p className="text-center text-muted-foreground">Campaign not found</p>
             </div>
         );
     }
 
     return (
-        <div className="container mx-auto p-6 pb-12 space-y-6 max-w-2xl">
+        <div className="container mx-auto p-4 pb-12 space-y-4 max-w-2xl">
             <div>
                 <Button
                     variant="ghost"
@@ -303,7 +304,7 @@ export default function EditCampaignPage() {
                     <ArrowLeft className="h-4 w-4 mr-2" />
                     Back to Campaign
                 </Button>
-                <h1 className="text-3xl font-bold mb-2">Edit Campaign</h1>
+                <h1 className="text-2xl font-bold mb-2">Edit Campaign</h1>
                 <p className="text-muted-foreground">Modify campaign settings</p>
             </div>
 
@@ -315,7 +316,7 @@ export default function EditCampaignPage() {
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <form onSubmit={handleSubmit} className="space-y-6">
+                    <form onSubmit={handleSubmit} className="space-y-4">
                         {/* Campaign Name */}
                         <div className="space-y-2">
                             <Label htmlFor="campaign-name">Campaign Name</Label>
@@ -332,6 +333,8 @@ export default function EditCampaignPage() {
                         <Separator />
 
                         <CampaignAdvancedSettings
+                        transferDestination={transferDestination}
+                        onTransferDestinationChange={setTransferDestination}
                             maxConcurrency={maxConcurrency}
                             onMaxConcurrencyChange={setMaxConcurrency}
                             effectiveLimit={effectiveLimit}

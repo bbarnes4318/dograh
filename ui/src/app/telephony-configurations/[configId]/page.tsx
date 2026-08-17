@@ -174,7 +174,7 @@ export default function TelephonyConfigurationDetailPage() {
 
   if (loading) {
     return (
-      <div className="container mx-auto px-4 py-8 space-y-3">
+      <div className="container mx-auto px-4 py-5 space-y-3">
         <Skeleton className="h-10 w-1/3" />
         <Skeleton className="h-32 w-full" />
         <Skeleton className="h-64 w-full" />
@@ -184,7 +184,7 @@ export default function TelephonyConfigurationDetailPage() {
 
   if (!config) {
     return (
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-4 py-5">
         <Button variant="ghost" onClick={() => router.push("/telephony-configurations")}>
           <ArrowLeft className="h-4 w-4 mr-2" /> Back
         </Button>
@@ -194,7 +194,7 @@ export default function TelephonyConfigurationDetailPage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8 space-y-6">
+    <div className="container mx-auto px-4 py-5 space-y-4">
       <div>
         <Link
           href="/telephony-configurations"
@@ -287,7 +287,7 @@ export default function TelephonyConfigurationDetailPage() {
               Numbers used as caller ID for outbound and accepted for inbound matching.
               SIP URIs and extensions are supported alongside PSTN numbers.{" "}
               <a
-                href="https://docs.dograh.com/integrations/telephony/inbound"
+                href="https://hopwhistle.com/integrations/telephony/inbound"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-0.5 underline"

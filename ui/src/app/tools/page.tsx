@@ -294,13 +294,13 @@ export default function ToolsPage() {
 
     return (
         <div className="min-h-screen">
-            <div className="container mx-auto px-4 py-8">
+            <div className="container mx-auto px-4 py-5">
                 <div className="max-w-6xl mx-auto">
-                    <div className="mb-8">
-                        <h1 className="text-3xl font-bold mb-2">Tools</h1>
+                    <div className="mb-5">
+                        <h1 className="text-2xl font-bold mb-2">Tools</h1>
                         <p className="text-muted-foreground">
                             Manage reusable tools that can be used across your workflows.{" "}
-                            <a href="https://docs.dograh.com/voice-agent/tools/introduction" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 underline">
+                            <a href="https://hopwhistle.com/voice-agent/tools/introduction" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 underline">
                                 Learn more <ExternalLink className="h-3 w-3" />
                             </a>
                         </p>
@@ -312,7 +312,7 @@ export default function ToolsPage() {
                         </div>
                     )}
 
-                    <Card className="mb-6">
+                    <Card className="mb-4">
                         <CardHeader>
                             <div className="flex justify-between items-center">
                                 <div>
@@ -419,7 +419,7 @@ export default function ToolsPage() {
                                             ))}
                                         </div>
                                     ) : !searchQuery ? (
-                                        <div className="text-center py-8">
+                                        <div className="text-center py-5">
                                             <p className="text-muted-foreground mb-4">
                                                 No active tools
                                             </p>
@@ -431,7 +431,7 @@ export default function ToolsPage() {
 
                                     {/* Archived Tools */}
                                     {archivedTools.length > 0 && (
-                                        <div className="mt-8">
+                                        <div className="mt-6">
                                             <h3 className="text-lg font-semibold text-muted-foreground mb-4">
                                                 Archived Tools
                                             </h3>

@@ -283,7 +283,7 @@ export default function RunsPage() {
 
     if (isLoading && runs.length === 0) {
         return (
-            <div className="container mx-auto p-6 flex items-center justify-center min-h-[400px]">
+            <div className="container mx-auto p-4 flex items-center justify-center min-h-[400px]">
                 <div className="flex items-center space-x-2">
                     <Loader2 className="h-6 w-6 animate-spin" />
                     <span>Loading workflow runs...</span>
@@ -293,14 +293,14 @@ export default function RunsPage() {
     }
 
     return (
-        <div className="container mx-auto p-6 space-y-6 max-w-full">
+        <div className="container mx-auto p-4 space-y-4 max-w-full">
             <div>
-                <h1 className="text-3xl font-bold mb-2">Workflow Runs</h1>
+                <h1 className="text-2xl font-bold mb-2">Workflow Runs</h1>
                 <p className="text-muted-foreground">View and manage all workflow runs across organizations</p>
             </div>
 
             {error && (
-                    <div className="mb-6 bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg">
+                    <div className="mb-4 bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg">
                         {error}
                     </div>
                 )}
@@ -336,7 +336,7 @@ export default function RunsPage() {
                     </CardHeader>
                     <CardContent>
                         {runs.length === 0 ? (
-                            <div className="text-center py-8 text-muted-foreground">
+                            <div className="text-center py-5 text-muted-foreground">
                                 No workflow runs found.
                             </div>
                         ) : (

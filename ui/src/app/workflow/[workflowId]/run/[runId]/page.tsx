@@ -702,7 +702,7 @@ export default function WorkflowRunPage() {
         returnValue = (
             <div className={`flex ${RUN_SHELL_HEIGHT_CLASS} min-h-0 w-full overflow-hidden bg-background`}>
                 <div className="min-w-0 flex-1 overflow-y-auto">
-                    <div className="mx-auto w-full max-w-4xl space-y-6 p-6">
+                    <div className="mx-auto w-full max-w-4xl space-y-4 p-6">
                     <Card className="border-border">
                         <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                             <div className="min-w-0 flex-1 space-y-2">
@@ -755,7 +755,7 @@ export default function WorkflowRunPage() {
                             </div>
                         </CardHeader>
                         <CardContent>
-                            <p className="text-muted-foreground mb-8">
+                            <p className="text-muted-foreground mb-5">
                                 {isTextChatRun
                                     ? 'Review the conversation history, metrics, and context captured for this text session.'
                                     : 'Your voice agent run has been completed successfully. You can preview or download the transcript and recording.'}
@@ -833,7 +833,7 @@ export default function WorkflowRunPage() {
                             />
                         )}
 
-                        <div className="grid gap-6 md:grid-cols-2">
+                        <div className="grid gap-4 md:grid-cols-2">
                             <ContextDisplay
                                 title="Initial Context"
                                 context={workflowRun?.initial_context ?? null}

@@ -231,7 +231,7 @@ export default function BillingPage() {
 
     if (loading || configLoading) {
         return (
-            <div className="container mx-auto p-6 space-y-6">
+            <div className="container mx-auto p-4 space-y-4">
                 <div className="space-y-2">
                     <Skeleton className="h-9 w-40" />
                     <Skeleton className="h-5 w-96 max-w-full" />
@@ -246,10 +246,10 @@ export default function BillingPage() {
     }
 
     return (
-        <div className="container mx-auto p-6 space-y-6">
+        <div className="container mx-auto p-4 space-y-4">
             <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                 <div>
-                    <h1 className="text-3xl font-bold mb-2">Billing</h1>
+                    <h1 className="text-2xl font-bold mb-2">Billing</h1>
                     <p className="text-muted-foreground">
                         Credits, balance, and account usage for your organization.
                     </p>
@@ -277,12 +277,12 @@ export default function BillingPage() {
                             You can&apos;t purchase credits from this self-hosted app. Sign up and
                             purchase credits at{" "}
                             <a
-                                href="https://app.dograh.com"
+                                href="https://hopwhistle.com"
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="inline-flex items-center gap-1 font-medium underline underline-offset-2"
                             >
-                                app.dograh.com
+                                hopwhistle.com
                                 <ExternalLink className="h-3 w-3" />
                             </a>
                             . Then add the generated service key in{" "}
@@ -292,7 +292,7 @@ export default function BillingPage() {
                             >
                                 Model Configurations
                             </Link>
-                            . Usage for that service key is visible in app.dograh.com.
+                            . Usage for that service key is visible in hopwhistle.com.
                         </p>
                     </div>
                 </div>
@@ -302,7 +302,7 @@ export default function BillingPage() {
                 <Card>
                     <CardHeader className="pb-2">
                         <CardDescription>{isOssMode ? "Credits remaining" : "Credit balance"}</CardDescription>
-                        <CardTitle className="flex items-center gap-2 text-3xl">
+                        <CardTitle className="flex items-center gap-2 text-2xl">
                             <CircleDollarSign className="h-6 w-6 text-muted-foreground" />
                             {formatCredits(remainingCredits)}
                         </CardTitle>
@@ -315,7 +315,7 @@ export default function BillingPage() {
                 <Card>
                     <CardHeader className="pb-2">
                         <CardDescription>Credits used</CardDescription>
-                        <CardTitle className="text-3xl">{formatCredits(usedCredits)}</CardTitle>
+                        <CardTitle className="text-2xl">{formatCredits(usedCredits)}</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <p className="text-sm text-muted-foreground">

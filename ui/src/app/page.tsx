@@ -33,10 +33,10 @@ export default async function Home() {
 
         if (countResponse.data && countResponse.data.active > 0) {
           logger.debug('[HomePage] Redirecting to /workflow - user has workflows');
-          redirect('/workflow');
+          redirect('/live-results');
         } else {
           logger.debug('[HomePage] Redirecting to /workflow/create - no workflows found');
-          redirect('/workflow/create');
+          redirect('/live-results');
         }
       } else {
         redirect('/auth/login');
@@ -50,7 +50,7 @@ export default async function Home() {
       logger.error('[HomePage] Error checking workflows for local provider:', error);
       // Default to /workflow/create on actual errors
       logger.debug('[HomePage] Defaulting to /workflow/create due to error');
-      redirect('/workflow/create');
+      redirect('/live-results');
     }
   }
 

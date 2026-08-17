@@ -1,4 +1,4 @@
-const DOCS_BASE = "https://docs.dograh.com";
+const DOCS_BASE = "https://hopwhistle.com";
 
 export const NODE_DOCUMENTATION_URLS: Record<string, string> = {
     startCall: `${DOCS_BASE}/voice-agent/start-call`,

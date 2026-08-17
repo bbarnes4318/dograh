@@ -472,7 +472,7 @@ export default function CampaignDetailPage() {
 
     if (isLoadingCampaign) {
         return (
-            <div className="container mx-auto p-6 space-y-6">
+            <div className="container mx-auto p-4 space-y-4">
                 <div className="animate-pulse">
                     <div className="h-8 bg-muted rounded w-1/4 mb-4"></div>
                     <div className="h-64 bg-muted rounded"></div>
@@ -483,14 +483,14 @@ export default function CampaignDetailPage() {
 
     if (!campaign) {
         return (
-            <div className="container mx-auto p-6 space-y-6">
+            <div className="container mx-auto p-4 space-y-4">
                 <p className="text-center text-muted-foreground">Campaign not found</p>
             </div>
         );
     }
 
     return (
-        <div className="container mx-auto p-6 space-y-6">
+        <div className="container mx-auto p-4 space-y-4">
             <div>
                 <Button
                     variant="ghost"
@@ -502,7 +502,7 @@ export default function CampaignDetailPage() {
                 </Button>
                 <div className="flex justify-between items-start">
                     <div>
-                        <h1 className="text-3xl font-bold mb-2">{campaign.name}</h1>
+                        <h1 className="text-2xl font-bold mb-2">{campaign.name}</h1>
                             <div className="flex items-center gap-4">
                                 <Badge variant={getStateBadgeVariant(campaign.state)}>
                                     {campaign.state}
@@ -598,7 +598,7 @@ export default function CampaignDetailPage() {
                 </div>
 
                 {/* Campaign Details */}
-                <Card className="mb-6">
+                <Card className="mb-4">
                     <CardHeader>
                         <CardTitle>Campaign Details</CardTitle>
                         <CardDescription>
@@ -714,14 +714,14 @@ export default function CampaignDetailPage() {
                 </Card>
 
                 {/* Campaign Settings */}
-                <Card className="mb-6">
+                <Card className="mb-4">
                     <CardHeader>
                         <CardTitle>Campaign Settings</CardTitle>
                         <CardDescription>
                             Concurrency and retry configuration
                         </CardDescription>
                     </CardHeader>
-                    <CardContent className="space-y-6">
+                    <CardContent className="space-y-4">
                         {/* Concurrency Setting */}
                         <div>
                             <dt className="text-sm font-medium">Max Concurrent Calls</dt>
@@ -829,7 +829,7 @@ export default function CampaignDetailPage() {
                 </Card>
 
                 {/* Activity Log */}
-                <Card className="mb-6">
+                <Card className="mb-4">
                     <CardHeader>
                         <CardTitle>Activity Log</CardTitle>
                         <CardDescription>

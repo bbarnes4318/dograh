@@ -58,6 +58,7 @@ export default function NewCampaignPage() {
     const [orgConcurrentLimit, setOrgConcurrentLimit] = useState<number>(2);
     const [fromNumbersCount, setFromNumbersCount] = useState<number>(0);
     const [maxConcurrency, setMaxConcurrency] = useState<string>('');
+    const [transferDestination, setTransferDestination] = useState<string>('1000');
     // Retry config state
     const [retryEnabled, setRetryEnabled] = useState(true);
     const [maxRetries, setMaxRetries] = useState<string>('2');
@@ -347,7 +348,7 @@ export default function NewCampaignPage() {
     };
 
     return (
-        <div className="container mx-auto p-6 pb-12 space-y-6 max-w-2xl">
+        <div className="container mx-auto p-4 pb-12 space-y-4 max-w-2xl">
             <div>
                 <Button
                     variant="ghost"
@@ -357,7 +358,7 @@ export default function NewCampaignPage() {
                     <ArrowLeft className="h-4 w-4 mr-2" />
                     Back to Campaigns
                 </Button>
-                <h1 className="text-3xl font-bold mb-2">Create New Campaign</h1>
+                <h1 className="text-2xl font-bold mb-2">Create New Campaign</h1>
                 <p className="text-muted-foreground">Set up a new campaign to execute workflows at scale</p>
             </div>
 
@@ -369,7 +370,7 @@ export default function NewCampaignPage() {
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
-                        <form onSubmit={handleSubmit} className="space-y-6">
+                        <form onSubmit={handleSubmit} className="space-y-4">
                             <div className="space-y-2">
                                 <Label htmlFor="campaign-name">Campaign Name</Label>
                                 <Input
@@ -511,6 +512,8 @@ export default function NewCampaignPage() {
                                 </CollapsibleTrigger>
                                 <CollapsibleContent className="px-4 pb-4">
                                     <CampaignAdvancedSettings
+                                 transferDestination={transferDestination}
+                                 onTransferDestinationChange={setTransferDestination}
                                         maxConcurrency={maxConcurrency}
                                         onMaxConcurrencyChange={setMaxConcurrency}
                                         effectiveLimit={effectiveLimit}

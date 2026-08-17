@@ -47,12 +47,12 @@
 }
 
 :root {
-  --radius: 0.625rem;
+  --radius: 0.375rem;
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
+  --primary: hsl(156 72% 40%);
   --primary-foreground: oklch(0.985 0 0);
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
@@ -96,7 +96,7 @@
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.205 0 0);
   --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
+  --primary: hsl(156 72% 40%);
   --primary-foreground: oklch(0.205 0 0);
   --secondary: oklch(0.269 0 0);
   --secondary-foreground: oklch(0.985 0 0);
@@ -278,7 +278,7 @@
 /* Floating-dock sidebar: detached rounded panel. Targets the shadcn sidebar's
    inner panel; applied via .app-sidebar-dock on <Sidebar variant="floating">. */
 .app-sidebar-dock [data-slot="sidebar-inner"] {
-  border-radius: 1.25rem;
+  border-radius: 0.5rem;
   overflow: hidden;
 }
 /* Flat carbon-charcoal panel with a soft light glow along the LEFT edge:

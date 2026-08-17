@@ -252,7 +252,7 @@ export function TransferCallToolConfig({
                             <div>
                                 <Label>Dynamic Transfer Resolver</Label>
                                 <p className="text-xs text-muted-foreground">
-                                    Dograh sends the resolved argument dictionary to this endpoint. The endpoint must return transfer_context.destination and may return transfer_context.custom_message.
+                                    AI Voice sends the resolved argument dictionary to this endpoint. The endpoint must return transfer_context.destination and may return transfer_context.custom_message.
                                 </p>
                             </div>
 
@@ -265,7 +265,7 @@ export function TransferCallToolConfig({
                                     showValidation
                                 />
                                 <Label className="text-xs text-muted-foreground">
-                                    Dograh sends a POST request with the resolved argument dictionary.
+                                    AI Voice sends a POST request with the resolved argument dictionary.
                                 </Label>
                             </div>
 
@@ -303,7 +303,7 @@ export function TransferCallToolConfig({
                                     rows={2}
                                 />
                                 <Label className="text-xs text-muted-foreground">
-                                    Spoken while Dograh waits for the resolver response.
+                                    Spoken while AI Voice waits for the resolver response.
                                 </Label>
                             </div>
 
@@ -321,7 +321,7 @@ export function TransferCallToolConfig({
                             <div className="grid gap-2 pt-4 border-t">
                                 <Label>Preset Parameters</Label>
                                 <Label className="text-xs text-muted-foreground">
-                                    Add values Dograh injects at runtime. These are not exposed to the LLM and can use templates like {`{{initial_context.state}}`} or {`{{gathered_context.state}}`}.
+                                    Add values AI Voice injects at runtime. These are not exposed to the LLM and can use templates like {`{{initial_context.state}}`} or {`{{gathered_context.state}}`}.
                                 </Label>
                                 <PresetParameterEditor
                                     parameters={presetParameters}

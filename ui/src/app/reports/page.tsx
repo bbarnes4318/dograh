@@ -198,11 +198,11 @@ export default function ReportsPage() {
   const isToday = format(selectedDate, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
+    <div className="container mx-auto p-4 space-y-4">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div className="space-y-2">
-          <h1 className="text-3xl font-bold">Daily Reports</h1>
+          <h1 className="text-2xl font-bold">Daily Reports</h1>
         </div>
 
         {/* Date Navigation & Workflow Selector */}
@@ -286,12 +286,12 @@ export default function ReportsPage() {
 
       {/* Loading State */}
       {loading && (
-        <div className="space-y-6">
+        <div className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Skeleton className="h-[120px]" />
             <Skeleton className="h-[120px]" />
           </div>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <Skeleton className="h-[300px]" />
             <Skeleton className="h-[300px]" />
           </div>
@@ -312,7 +312,7 @@ export default function ReportsPage() {
           <MetricsCards metrics={report.metrics} />
 
           {/* Charts */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <DispositionChart data={report.disposition_distribution} />
             <DurationChart data={report.call_duration_distribution} />
           </div>

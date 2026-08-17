@@ -21,6 +21,8 @@ import { Switch } from '@/components/ui/switch';
 export type TimeSlot = { day_of_week: number; start_time: string; end_time: string };
 
 export interface CampaignAdvancedSettingsProps {
+    transferDestination?: string;
+    onTransferDestinationChange?: (value: string) => void;
     // Concurrency
     maxConcurrency: string;
     onMaxConcurrencyChange: (value: string) => void;
@@ -104,6 +106,7 @@ const timezoneSelectStyles = {
 };
 
 export default function CampaignAdvancedSettings({
+    transferDestination = "", onTransferDestinationChange,
     maxConcurrency, onMaxConcurrencyChange, effectiveLimit, orgConcurrentLimit, fromNumbersCount,
     retryEnabled, onRetryEnabledChange, maxRetries, onMaxRetriesChange,
     retryDelaySeconds, onRetryDelaySecondsChange,
@@ -120,6 +123,19 @@ export default function CampaignAdvancedSettings({
 
     return (
         <div className="space-y-6">
+            <div className="space-y-2">
+                <Label htmlFor="transfer-destination">Live Transfer Destination</Label>
+                <Input
+                    id="transfer-destination"
+                    type="text"
+                    placeholder="e.g. 1000, 1010, 1011 or +18656000124"
+                    value={transferDestination}
+                    onChange={(e) => onTransferDestinationChange?.(e.target.value)}
+                />
+                <p className="text-sm text-muted-foreground">
+                    Extension (e.g. 1000, 1010) or phone number for live call transfers.
+                </p>
+            </div>
             {/* Max Concurrent Calls */}
             <div className="space-y-2">
                 <Label htmlFor="max-concurrency">Max Concurrent Calls</Label>

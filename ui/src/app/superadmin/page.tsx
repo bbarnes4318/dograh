@@ -79,13 +79,13 @@ export default function SuperadminPage() {
 
     return (
         <>
-            <main className="container mx-auto p-6 space-y-6 max-w-5xl">
+            <main className="container mx-auto p-4 space-y-4 max-w-5xl">
                 <div className="text-center">
-                    <h1 className="text-3xl font-bold mb-2">Superadmin Dashboard</h1>
+                    <h1 className="text-2xl font-bold mb-2">Superadmin Dashboard</h1>
                     <p className="text-sm text-muted-foreground">Manage users and view system-wide data</p>
                 </div>
 
-                <div className="grid gap-6 md:grid-cols-2">
+                <div className="grid gap-4 md:grid-cols-2">
                         <Card>
                             <CardHeader>
                                 <CardTitle>Provider User ID</CardTitle>

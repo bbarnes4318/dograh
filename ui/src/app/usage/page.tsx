@@ -417,11 +417,11 @@ export default function UsagePage() {
     };
 
     return (
-        <div className="container mx-auto p-6 space-y-6">
+        <div className="container mx-auto p-4 space-y-4">
             <div>
                 <div className="flex justify-between items-start">
                     <div>
-                        <h1 className="text-3xl font-bold mb-2">Agent Runs</h1>
+                        <h1 className="text-2xl font-bold mb-2">Agent Runs</h1>
                         <p className="text-muted-foreground">See all your Agent Runs across all Voice Agents. You can use filters to filter out required Agent Runs.</p>
                     </div>
                         <div className="flex items-center gap-2">
@@ -502,7 +502,7 @@ export default function UsagePage() {
 
                 {/* Daily Usage Table - Only for paid organizations */}
                 {organizationPricing?.price_per_second_usd && (
-                    <div className="mb-6">
+                    <div className="mb-4">
                         <DailyUsageTable
                             data={dailyUsage}
                             isLoading={isLoadingDaily}
@@ -511,7 +511,7 @@ export default function UsagePage() {
                 )}
 
                 {/* Filter Builder */}
-                <div className="mb-6 space-y-3">
+                <div className="mb-4 space-y-3">
                     <FilterBuilder
                         availableAttributes={availableUsageFilterAttributes}
                         activeFilters={activeFilters}
@@ -633,7 +633,7 @@ export default function UsagePage() {
                                     <div className="mt-4 p-3 bg-muted rounded-md">
                                         <p className="text-sm text-muted-foreground">
                                             Total for filtered period: <span className="font-semibold text-foreground">
-                                                {usageHistory.total_dograh_tokens.toLocaleString()} Dograh Tokens
+                                                {usageHistory.total_dograh_tokens.toLocaleString()} AI Voice Tokens
                                             </span>
                                             {' • '}
                                             <span className="font-semibold text-foreground">
@@ -673,7 +673,7 @@ export default function UsagePage() {
                                 )}
                             </>
                         ) : (
-                            <p className="text-center py-8 text-muted-foreground">No runs found</p>
+                            <p className="text-center py-5 text-muted-foreground">No runs found</p>
                         )}
                     </CardContent>
                 </Card>

@@ -16,7 +16,7 @@ import {
 export default function SettingsPage() {
   return (
     <div className="flex justify-center py-12 px-4">
-      <div className="w-full max-w-2xl space-y-6">
+      <div className="w-full max-w-2xl space-y-4">
         <div>
           <h1 className="text-2xl font-bold">Platform Settings</h1>
           <p className="text-muted-foreground">
@@ -41,10 +41,10 @@ export default function SettingsPage() {
           <CardHeader>
             <CardTitle>MCP Server</CardTitle>
             <CardDescription>
-              Let AI agents access your Dograh workspace and documentation via
+              Let AI agents access your AI Voice workspace and documentation via
               the Model Context Protocol.{" "}
               <a
-                href="https://docs.dograh.com/integrations/mcp"
+                href="https://hopwhistle.com/integrations/mcp"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-0.5 underline"
@@ -64,7 +64,7 @@ export default function SettingsPage() {
             <CardDescription>
               Configure Langfuse tracing for your voice agent calls.{" "}
               <a
-                href="https://docs.dograh.com/configurations/tracing"
+                href="https://hopwhistle.com/configurations/tracing"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-0.5 underline"
