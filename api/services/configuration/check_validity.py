@@ -66,6 +66,7 @@ class UserConfigurationValidator:
             ServiceProviders.SMALLEST.value: self._check_smallest_api_key,
             ServiceProviders.XAI.value: self._check_xai_api_key,
             ServiceProviders.LMNT.value: self._check_lmnt_api_key,
+            ServiceProviders.FISH.value: self._check_fish_api_key,
         }
 
     async def validate(
@@ -481,4 +482,25 @@ class UserConfigurationValidator:
         return True
 
     def _check_smallest_api_key(self, model: str, api_key: str) -> bool:
+        return True
+
+    def _check_fish_api_key(self, model: str, api_key: str) -> bool:
+        # /wallet/self/api-credit is account-scoped, so a bad key is rejected
+        # outright. Anything that is NOT an explicit auth failure counts as
+        # valid: a moved endpoint or a Fish outage must never stop someone
+        # from saving a working configuration.
+        try:
+            response = httpx.get(
+                "https://api.fish.audio/wallet/self/api-credit",
+                headers={"Authorization": f"Bearer {api_key}"},
+                timeout=10.0,
+            )
+        except httpx.HTTPError:
+            return True
+
+        if response.status_code in (401, 403):
+            raise ValueError(
+                "Invalid Fish Audio API key. The key was rejected by fish.audio. "
+                "Check it at https://fish.audio/app/api-keys."
+            )
         return True

@@ -44,6 +44,7 @@ from pipecat.services.elevenlabs.stt import (
     ElevenLabsRealtimeSTTSettings,
 )
 from pipecat.services.elevenlabs.tts import ElevenLabsTTSService, ElevenLabsTTSSettings
+from pipecat.services.fish.tts import FishAudioTTSService, FishAudioTTSSettings
 from pipecat.services.gladia.stt import GladiaSTTService, GladiaSTTSettings
 from pipecat.services.google.llm import GoogleLLMService, GoogleLLMSettings
 from pipecat.services.google.stt import GoogleSTTService, GoogleSTTSettings
@@ -848,6 +849,40 @@ def create_tts_service(
                 language=pipecat_language,
                 model=model,
             ),
+            text_filters=[xml_function_tag_filter],
+            skip_aggregator_types=["recording_router", "recording"],
+            silence_time_s=1.0,
+        )
+    elif user_config.tts.provider == ServiceProviders.FISH.value:
+        # Empty string -> None so Fish falls back to its default voice rather
+        # than rejecting a blank reference_id.
+        voice = getattr(user_config.tts, "voice", None) or None
+        model = getattr(user_config.tts, "model", None) or "s2.1-pro"
+        latency = getattr(user_config.tts, "latency", None) or "balanced"
+        speed = getattr(user_config.tts, "speed", None)
+        volume = getattr(user_config.tts, "volume", None)
+        normalize = getattr(user_config.tts, "normalize", None)
+
+        fish_settings = FishAudioTTSSettings(
+            model=model,
+            voice=voice,
+            latency=latency,
+        )
+        if speed is not None:
+            fish_settings.prosody_speed = speed
+        if volume is not None:
+            fish_settings.prosody_volume = volume
+        if normalize is not None:
+            fish_settings.normalize = normalize
+
+        return FishAudioTTSService(
+            api_key=user_config.tts.api_key,
+            # Fish emits raw PCM at whatever rate we ask for. Matching the
+            # transport (8 kHz on ARI/FracTEL) skips a resample hop in
+            # BaseOutputTransport; a mismatch still works, just costs latency.
+            sample_rate=audio_config.transport_out_sample_rate,
+            output_format="pcm",
+            settings=fish_settings,
             text_filters=[xml_function_tag_filter],
             skip_aggregator_types=["recording_router", "recording"],
             silence_time_s=1.0,

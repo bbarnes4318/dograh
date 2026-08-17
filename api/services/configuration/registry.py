@@ -96,6 +96,7 @@ class ServiceProviders(str, Enum):
     SMALLEST = "smallest"
     XAI = "xai"
     LMNT = "lmnt"
+    FISH = "fish"
 
 
 class BaseServiceConfiguration(BaseModel):
@@ -128,6 +129,7 @@ class BaseServiceConfiguration(BaseModel):
         ServiceProviders.SMALLEST,
         ServiceProviders.XAI,
         ServiceProviders.LMNT,
+        ServiceProviders.FISH,
     ]
     api_key: str | list[str]
 
@@ -1378,6 +1380,89 @@ class LmntTTSConfiguration(BaseTTSConfiguration):
     )
 
 
+# fish.audio TTS
+# `voice` is Fish's reference_id: the 32-char hex id of a voice model, taken from
+# the model URL on fish.audio or returned by POST /model when cloning.
+#
+# Emotion cues ([happy], [whispering], [break]) and fine-grained control
+# (<|phoneme_start|>...<|phoneme_end|>) are INLINE TEXT, not parameters — they
+# travel in whatever the LLM emits. Verified that Dograh's XMLFunctionTagFilter
+# only strips `<function=...>` markup, so both marker syntaxes reach Fish
+# untouched. Teach the agent to emit them via its globalNode prompt.
+FISH_TTS_MODELS = ("s2.1-pro-free", "s2.1-pro", "s2-pro", "s1")
+FISH_TTS_LATENCY_MODES = ("balanced", "normal")
+
+FISH_PROVIDER_MODEL_CONFIG = provider_model_config(
+    "Fish Audio",
+    description="Fish Audio streaming TTS with instant and pro voice cloning.",
+    provider_docs_url="https://docs.fish.audio",
+)
+
+
+@register_tts
+class FishAudioTTSConfiguration(BaseTTSConfiguration):
+    model_config = FISH_PROVIDER_MODEL_CONFIG
+    provider: Literal[ServiceProviders.FISH] = ServiceProviders.FISH
+    model: str = Field(
+        default="s2.1-pro-free",
+        description=(
+            "Fish Audio TTS model. s2.1-pro-free is the same model as s2.1-pro at "
+            "$0, but WITHOUT a time-to-first-audio guarantee — fine for the Voice "
+            "Studio and pilot dialing, a real risk of dead air on production "
+            "outbound. Switch to s2.1-pro when you go to volume."
+        ),
+        json_schema_extra={
+            "examples": list(FISH_TTS_MODELS),
+            "allow_custom_input": True,
+        },
+    )
+    voice: str = Field(
+        default="",
+        description=(
+            "Fish Audio reference_id — the 32-char hex voice-model id from the Fish "
+            "voice library or one of your own cloned voices. Empty uses Fish's "
+            "default voice."
+        ),
+        json_schema_extra={"allow_custom_input": True},
+    )
+    latency: str = Field(
+        default="balanced",
+        description=(
+            "Fish streaming latency mode. 'balanced' (Fish's default) is the LOWER "
+            "latency option at ~300ms time-to-first-audio — keep it for dialing. "
+            "'normal' is more stable but slower, for narration. Note this reads "
+            "backwards from the names; it matches Fish's docs, not pipecat's "
+            "docstring, which has them inverted."
+        ),
+        json_schema_extra={
+            "examples": list(FISH_TTS_LATENCY_MODES),
+            "allow_custom_input": True,
+        },
+    )
+    speed: float = Field(
+        default=1.0,
+        ge=0.5,
+        le=2.0,
+        description="Speech speed multiplier (0.5 to 2.0).",
+    )
+    volume: int = Field(
+        default=0,
+        ge=-20,
+        le=20,
+        description="Volume adjustment in dB (-20 to 20).",
+    )
+    normalize: bool = Field(
+        default=True,
+        description=(
+            "Let Fish normalize numbers, dates and currency before synthesis. "
+            "Leave this ON: phoneme tags survive normalization, and turning it "
+            "off makes Fish read prices, dates and phone numbers unreliably — "
+            "which is most of what an insurance agent says."
+        ),
+    )
+
+
+
 TTSConfig = Annotated[
     Union[
         DeepgramTTSConfiguration,
@@ -1396,6 +1481,7 @@ TTSConfig = Annotated[
         SmallestAITTSConfiguration,
         XAITTSConfiguration,
         LmntTTSConfiguration,
+        FishAudioTTSConfiguration,
     ],
     Field(discriminator="provider"),
 ]
