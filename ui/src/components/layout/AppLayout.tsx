@@ -101,8 +101,14 @@ const AppLayout: React.FC<AppLayoutProps> = ({
   const pathname = usePathname();
 
   // Check if current route should have sidebar
-  // Hide sidebar for root (/), /handler routes (Stack Auth routes), and /auth routes
-  const shouldShowSidebar = pathname !== "/" && !pathname.startsWith("/handler") && !pathname.startsWith("/auth");
+  // Hide sidebar for root (/), /handler routes (Stack Auth routes), /auth routes,
+  // and /voice-studio — the studio is a full-bleed surface whose fixed ambient
+  // background would otherwise paint over the sidebar.
+  const shouldShowSidebar =
+    pathname !== "/" &&
+    !pathname.startsWith("/handler") &&
+    !pathname.startsWith("/auth") &&
+    !pathname.startsWith("/voice-studio");
 
   // Only match the exact editor page /workflow/<id>, not sub-routes like /workflow/<id>/runs
   const isWorkflowEditor = /^\/workflow\/\d+$/.test(pathname);
