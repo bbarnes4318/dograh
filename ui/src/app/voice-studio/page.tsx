@@ -20,7 +20,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -32,13 +32,17 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
@@ -57,12 +61,14 @@ import {
 /**
  * Fish Voice Studio.
  *
- * Clone voices, browse both your own library and Fish's public one, and hear a
- * voice perform a script before it ever dials. Everything talks to /api/fish/*,
- * which proxies fish.audio server-side — the Fish key is never in the browser.
+ * Single-viewport dashboard: the root is locked to the height left over below
+ * Dograh's app header and never scrolls the page. The left column holds the
+ * script tester and marker palette; the right column pins its own controls and
+ * scrolls only the voice list.
  *
- * The voice id you land on here is what goes into the TTS config as `voice`
- * (Fish calls it reference_id).
+ * Everything talks to /api/fish/*, which proxies fish.audio server-side — the
+ * Fish key is never in the browser. The voice id you land on here is what goes
+ * into the TTS config as `voice` (Fish calls it reference_id).
  */
 
 interface FishSample {
@@ -92,7 +98,6 @@ interface FishStatus {
   credit?: { credit?: string | number } | null;
 }
 
-/** Which library the browser is showing. `library` maps to Fish's `self=false`. */
 type VoiceSource = "mine" | "library";
 
 const MODELS: Record<string, { label: string; note: string }> = {
@@ -126,8 +131,6 @@ const SORTS: { value: string; label: string }[] = [
   { value: "created_at", label: "Newest" },
 ];
 
-/** Quick tag filters — Fish tags voices with these and they cover most of what
- *  an outbound agent needs. A tag can be cleared by clicking it again. */
 const TAG_PRESETS = [
   "male",
   "female",
@@ -140,6 +143,10 @@ const TAG_PRESETS = [
 ];
 
 const PAGE_SIZE = 24;
+
+/** Shared chip styling for every marker button in the palette. */
+const CHIP =
+  "rounded border border-neutral-200 bg-background px-2 py-0.5 font-mono text-xs leading-5 transition-colors hover:border-primary hover:bg-accent dark:border-neutral-800";
 
 function voiceId(voice: FishVoice): string {
   return voice._id || voice.id || "";
@@ -238,10 +245,6 @@ export default function VoiceStudioPage() {
 
   // ---------------------------------------------------------------- voices
 
-  /**
-   * Fetch one page. `append` keeps what's on screen and adds to it, which is
-   * what "Load more" wants; a fresh search replaces instead.
-   */
   const fetchVoices = useCallback(
     async (pageNumber: number, append: boolean) => {
       if (append) setLoadingMore(true);
@@ -475,7 +478,7 @@ export default function VoiceStudioPage() {
 
   if (statusError) {
     return (
-      <div className="container mx-auto flex min-h-[60vh] flex-col items-center justify-center gap-3 px-4 text-center">
+      <div className="flex h-[calc(100vh-3.25rem)] flex-col items-center justify-center gap-3 px-4 text-center">
         <AlertTriangle className="h-8 w-8 text-muted-foreground" />
         <p className="text-sm text-muted-foreground">{statusError}</p>
       </div>
@@ -484,7 +487,7 @@ export default function VoiceStudioPage() {
 
   if (!status) {
     return (
-      <div className="container mx-auto flex min-h-[60vh] items-center justify-center px-4">
+      <div className="flex h-[calc(100vh-3.25rem)] items-center justify-center">
         <Loader2 className="h-6 w-6 animate-spin text-primary" />
       </div>
     );
@@ -492,13 +495,13 @@ export default function VoiceStudioPage() {
 
   if (!status.configured) {
     return (
-      <div className="container mx-auto max-w-xl px-4 py-16">
+      <div className="mx-auto max-w-xl px-4 py-16">
         <Card>
           <CardHeader>
             <CardTitle>Fish Audio is not configured</CardTitle>
             <CardDescription>
-              Set <code className="rounded bg-muted px-1">FISH_API_KEY</code> on the ui service and
-              restart it. The key is read server-side only.
+              Set <code className="rounded bg-muted px-1 font-mono">FISH_API_KEY</code> on the ui
+              service and restart it. The key is read server-side only.
             </CardDescription>
           </CardHeader>
         </Card>
@@ -509,7 +512,9 @@ export default function VoiceStudioPage() {
   const credit = status.credit?.credit;
 
   return (
-    <div className="container mx-auto px-4 py-5">
+    // Root is locked to the height left below Dograh's app header and never
+    // scrolls: every scrollbar on this page belongs to a specific panel.
+    <div className="flex h-[calc(100vh-3.25rem)] gap-3 overflow-hidden p-3">
       <audio
         ref={audioRef}
         onPlay={() => setPlaying(true)}
@@ -518,444 +523,418 @@ export default function VoiceStudioPage() {
         className="hidden"
       />
 
-      {/* ------------------------------------------------------------ header */}
-      <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Voice Studio</h1>
-          <p className="text-sm text-muted-foreground">
-            Browse Fish&apos;s voice library, clone your own, and hear a voice perform a script
-            before it dials.
-          </p>
+      {/* ================================================== LEFT: script + markers */}
+      <div className="flex min-h-0 w-[46%] shrink-0 flex-col gap-2 overflow-hidden">
+        {/* Header — title, description and status on one row */}
+        <div className="flex shrink-0 items-baseline justify-between gap-3">
+          <div className="flex min-w-0 items-baseline gap-2">
+            <h1 className="text-base font-semibold tracking-tight">Voice Studio</h1>
+            <p className="truncate text-xs text-muted-foreground">
+              Browse, clone and audition Fish voices
+            </p>
+          </div>
+          <div className="flex shrink-0 items-center gap-1.5">
+            {credit !== undefined && credit !== null && (
+              <Badge variant="outline" className="h-5 px-1.5 font-mono text-[10px]">
+                ${typeof credit === "number" ? credit.toFixed(2) : credit}
+              </Badge>
+            )}
+            {model === "s2.1-pro-free" && (
+              <Badge
+                variant="outline"
+                className="h-5 border-amber-500/40 px-1.5 text-[10px] text-amber-600"
+              >
+                Free tier
+              </Badge>
+            )}
+          </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {credit !== undefined && credit !== null && (
-            <Badge variant="outline" className="font-mono text-xs">
-              Fish credit {typeof credit === "number" ? `$${credit.toFixed(2)}` : credit}
-            </Badge>
-          )}
-          {model === "s2.1-pro-free" && (
-            <Badge variant="outline" className="border-amber-500/40 text-amber-600">
-              Free tier — no latency guarantee
-            </Badge>
-          )}
-        </div>
-      </div>
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_440px]">
-        {/* ---------------------------------------------- stage: script + preview */}
-        <div className="min-w-0 space-y-5">
-          <Card>
-            {/* Selected voice — the single most important piece of state on the
-                page, so it gets its own bar rather than a line of prose. */}
-            <div className="flex flex-wrap items-center gap-3 border-b px-5 py-3">
-              {selectedVoice ? (
-                <>
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-primary/25 bg-primary/10">
-                    <UserRound className="h-4 w-4 text-primary" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold">
-                      {selectedVoice.title || voiceId(selectedVoice)}
-                    </p>
-                    <code className="block truncate font-mono text-[11px] text-muted-foreground">
-                      {voiceId(selectedVoice)}
-                    </code>
-                  </div>
-                  {(selectedVoice.languages || []).slice(0, 3).map((code) => (
-                    <Badge key={code} variant="secondary" className="text-[10px] uppercase">
-                      {code}
-                    </Badge>
-                  ))}
-                  <Button size="sm" variant="outline" className="h-8" onClick={copyVoiceId}>
-                    {copiedId ? (
-                      <Check className="mr-1.5 h-3.5 w-3.5" />
-                    ) : (
-                      <Copy className="mr-1.5 h-3.5 w-3.5" />
-                    )}
-                    {copiedId ? "Copied" : "Copy id"}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-8"
-                    onClick={() => setSelectedVoice(null)}
-                  >
-                    Clear
-                  </Button>
-                </>
+        {/* Selected voice — compact single row */}
+        <div className="flex shrink-0 items-center gap-2 rounded-md border border-neutral-200 px-2.5 py-1.5 dark:border-neutral-800">
+          {selectedVoice ? (
+            <>
+              <UserRound className="h-3.5 w-3.5 shrink-0 text-primary" />
+              <span className="truncate text-xs font-semibold">
+                {selectedVoice.title || voiceId(selectedVoice)}
+              </span>
+              <code className="truncate font-mono text-[10px] text-muted-foreground">
+                {voiceId(selectedVoice)}
+              </code>
+              <div className="ml-auto flex shrink-0 items-center gap-1">
+                <Button size="sm" variant="ghost" className="h-6 px-1.5" onClick={copyVoiceId}>
+                  {copiedId ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-6 px-1.5 text-[11px]"
+                  onClick={() => setSelectedVoice(null)}
+                >
+                  Clear
+                </Button>
+              </div>
+            </>
+          ) : (
+            <span className="text-xs text-muted-foreground">
+              No voice selected — previews use Fish&apos;s default.
+            </span>
+          )}
+        </div>
+
+        {/* Script tester */}
+        <div className="shrink-0 space-y-2 rounded-md border border-neutral-200 p-3 dark:border-neutral-800">
+          <Textarea
+            ref={scriptRef}
+            value={script}
+            onChange={(event) => setScript(event.target.value)}
+            rows={3}
+            className="resize-none font-mono text-xs leading-relaxed"
+            placeholder="Type what the agent should say. Click markers below to shape delivery."
+          />
+
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Button size="sm" className="h-7" onClick={runPreview} disabled={previewing || !script.trim()}>
+              {previewing ? (
+                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
               ) : (
-                <p className="text-sm text-muted-foreground">
-                  <span className="font-medium text-foreground">No voice selected.</span> Previews
-                  will use Fish&apos;s default voice — pick one from the library to audition it.
-                </p>
+                <Play className="mr-1.5 h-3.5 w-3.5" />
               )}
-            </div>
+              {previewing ? "Generating…" : "Hear it"}
+            </Button>
 
-            <CardContent className="space-y-4 pt-5">
-              <Textarea
-                ref={scriptRef}
-                value={script}
-                onChange={(event) => setScript(event.target.value)}
-                rows={7}
-                className="resize-y font-mono text-sm leading-relaxed"
-                placeholder="Type what the agent should say. Click markers below to shape delivery."
-              />
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7"
+              disabled={!audioUrlRef.current}
+              onClick={() => {
+                const audio = audioRef.current;
+                if (!audio) return;
+                if (playing) {
+                  audio.pause();
+                } else {
+                  audio.currentTime = 0;
+                  void audio.play();
+                }
+              }}
+            >
+              {playing ? <Pause className="mr-1.5 h-3.5 w-3.5" /> : <Play className="mr-1.5 h-3.5 w-3.5" />}
+              {playing ? "Pause" : "Replay"}
+            </Button>
 
-              <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground">
-                <span>
-                  {spokenText.length} spoken characters
-                  {script.length !== spokenText.length && (
-                    <> · {script.length - spokenText.length} of markup</>
-                  )}
-                </span>
-                {previewMs !== null && (
-                  <span className="font-mono">
-                    Round trip {previewMs} ms
-                    {model === "s2.1-pro-free" && " — free tier, expect this to vary"}
-                  </span>
-                )}
+            <Select value={model} onValueChange={setModel}>
+              <SelectTrigger className="h-7 w-[150px] text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {(status.models || []).map((value) => (
+                  <SelectItem key={value} value={value} className="text-xs">
+                    {MODELS[value]?.label || value}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <span className="ml-auto font-mono text-[10px] text-muted-foreground">
+              {spokenText.length}c
+              {script.length !== spokenText.length && ` +${script.length - spokenText.length}`}
+              {previewMs !== null && ` · ${previewMs}ms`}
+            </span>
+          </div>
+
+          {previewError && (
+            <p className="flex items-start gap-1.5 text-xs text-destructive">
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              {previewError}
+            </p>
+          )}
+        </div>
+
+        {/* Marker palette — the only flexible block, so it absorbs leftover height */}
+        <div className="flex min-h-0 flex-1 flex-col rounded-md border border-neutral-200 p-3 dark:border-neutral-800">
+          <Tabs defaultValue="emotion" className="flex min-h-0 flex-1 flex-col">
+            <TabsList className="grid h-7 w-full shrink-0 grid-cols-4 p-1">
+              <TabsTrigger value="emotion" className="px-2 py-0.5 text-xs">
+                Emotion &amp; tone
+              </TabsTrigger>
+              <TabsTrigger value="fine" className="px-2 py-0.5 text-xs">
+                Pronunciation
+              </TabsTrigger>
+              <TabsTrigger value="prosody" className="px-2 py-0.5 text-xs">
+                Prosody
+              </TabsTrigger>
+              <TabsTrigger value="agent" className="px-2 py-0.5 text-xs">
+                Agent
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent
+              value="emotion"
+              className="mt-2 min-h-0 flex-1 space-y-1.5 overflow-y-auto pr-1"
+            >
+              {EMOTION_GROUPS.map((group) => (
+                <div key={group.label} className="space-y-1">
+                  <p className="text-[11px] font-semibold text-muted-foreground">{group.label}</p>
+                  <div className="flex flex-wrap gap-1">
+                    {group.tags.map(({ tag: markerTag, note }) => (
+                      <button
+                        key={markerTag}
+                        type="button"
+                        title={note}
+                        onClick={() => insertAtCaret(`${renderMarker(markerTag, markerFamily)} `)}
+                        className={CHIP}
+                      >
+                        {renderMarker(markerTag, markerFamily)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+
+              <div className="space-y-1">
+                <p className="text-[11px] font-semibold text-muted-foreground">Sounds &amp; pauses</p>
+                <div className="flex flex-wrap gap-1">
+                  {PARALANGUAGE_TAGS.map(({ tag: paraTag, note }) => (
+                    <button
+                      key={paraTag}
+                      type="button"
+                      title={note}
+                      onClick={() => insertAtCaret(`(${paraTag}) `)}
+                      className={CHIP}
+                    >
+                      ({paraTag})
+                    </button>
+                  ))}
+                </div>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2">
-                <Button onClick={runPreview} disabled={previewing || !script.trim()}>
-                  {previewing ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <Play className="mr-2 h-4 w-4" />
-                  )}
-                  {previewing ? "Generating…" : "Hear it"}
-                </Button>
+              <p className="pt-0.5 text-[10px] leading-snug text-muted-foreground">
+                Markers are inline text, not settings — the identical string works in a live call.
+                {markerFamily === "s1"
+                  ? " S1 uses (parentheses) and only the fixed tags above."
+                  : " S2 uses [brackets] and accepts free-form cues like [slightly sad]."}
+              </p>
+            </TabsContent>
 
-                <Button
-                  variant="outline"
-                  disabled={!audioUrlRef.current}
-                  onClick={() => {
-                    const audio = audioRef.current;
-                    if (!audio) return;
-                    if (playing) {
-                      audio.pause();
-                    } else {
-                      audio.currentTime = 0;
-                      void audio.play();
-                    }
-                  }}
-                >
-                  {playing ? <Pause className="mr-2 h-4 w-4" /> : <Play className="mr-2 h-4 w-4" />}
-                  {playing ? "Pause" : "Replay"}
-                </Button>
+            <TabsContent
+              value="fine"
+              className="mt-2 min-h-0 flex-1 space-y-2 overflow-y-auto pr-1"
+            >
+              <PhonemeBuilder onInsert={insertAtCaret} />
+              <p className="rounded-md border border-neutral-200 bg-muted/40 p-2 text-[10px] leading-snug text-muted-foreground dark:border-neutral-800">
+                Keep <span className="font-medium">Normalize</span> on. Phoneme tags survive
+                normalization; switching it off makes Fish read prices, dates and phone numbers
+                unreliably — which is most of what the agent says.
+              </p>
+            </TabsContent>
 
-                <div className="ml-auto flex items-center gap-2">
-                  <Label className="text-xs text-muted-foreground">Model</Label>
-                  <Select value={model} onValueChange={setModel}>
-                    <SelectTrigger className="w-[220px]">
+            <TabsContent
+              value="prosody"
+              className="mt-2 min-h-0 flex-1 space-y-3 overflow-y-auto pr-1"
+            >
+              <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+                <SliderField
+                  label="Speed"
+                  value={speed}
+                  min={0.5}
+                  max={2}
+                  step={0.05}
+                  format={(v) => `${v.toFixed(2)}×`}
+                  onChange={setSpeed}
+                />
+                <SliderField
+                  label="Volume"
+                  value={volume}
+                  min={-20}
+                  max={20}
+                  step={1}
+                  format={(v) => `${v > 0 ? "+" : ""}${v} dB`}
+                  onChange={setVolume}
+                />
+                <SliderField
+                  label="Chunk length"
+                  value={chunkLength}
+                  min={100}
+                  max={300}
+                  step={10}
+                  format={(v) => `${v}t`}
+                  onChange={setChunkLength}
+                />
+                <div className="space-y-1">
+                  <Label className="text-[11px]">Latency</Label>
+                  <Select value={latency} onValueChange={setLatency}>
+                    <SelectTrigger className="h-7 text-xs">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {(status.models || []).map((value) => (
-                        <SelectItem key={value} value={value}>
-                          {MODELS[value]?.label || value}
-                        </SelectItem>
-                      ))}
+                      <SelectItem value="balanced" className="text-xs">
+                        balanced — ~300ms, for calls
+                      </SelectItem>
+                      <SelectItem value="normal" className="text-xs">
+                        normal — slower, most stable
+                      </SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
               </div>
 
-              {MODELS[model] && <p className="text-xs text-muted-foreground">{MODELS[model].note}</p>}
-
-              {previewError && (
-                <p className="flex items-start gap-2 text-sm text-destructive">
-                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                  {previewError}
-                </p>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* ------------------------------------------- delivery controls */}
-          <Card>
-            <CardContent className="pt-5">
-              <Tabs defaultValue="emotion">
-                <TabsList className="grid w-full grid-cols-4">
-                  <TabsTrigger value="emotion">Emotion &amp; tone</TabsTrigger>
-                  <TabsTrigger value="fine">Pronunciation</TabsTrigger>
-                  <TabsTrigger value="prosody">Prosody</TabsTrigger>
-                  <TabsTrigger value="agent">Use in agent</TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="emotion" className="space-y-4 pt-5">
-                  <p className="rounded-md border bg-muted/40 p-3 text-xs text-muted-foreground">
-                    Markers are inline text, not settings — the identical string works in a live
-                    call.
-                    {markerFamily === "s1"
-                      ? " S1 uses (parentheses) and only the fixed tags below."
-                      : " S2 uses [brackets] and accepts free-form descriptions like [slightly sad]."}
+              <div className="flex items-center justify-between rounded-md border border-neutral-200 p-2 dark:border-neutral-800">
+                <div>
+                  <Label className="text-[11px]">Normalize text</Label>
+                  <p className="text-[10px] text-muted-foreground">
+                    Expands numbers, dates and currency.
                   </p>
+                </div>
+                <Switch checked={normalize} onCheckedChange={setNormalize} />
+              </div>
+              <p className="text-[10px] text-muted-foreground">
+                &quot;balanced&quot; is the faster mode, despite the name.
+              </p>
+            </TabsContent>
 
-                  {EMOTION_GROUPS.map((group) => (
-                    <div key={group.label} className="space-y-2">
-                      <div>
-                        <p className="text-sm font-medium">{group.label}</p>
-                        <p className="text-xs text-muted-foreground">{group.hint}</p>
-                      </div>
-                      <div className="flex flex-wrap gap-1.5">
-                        {group.tags.map(({ tag: markerTag, note }) => (
-                          <button
-                            key={markerTag}
-                            type="button"
-                            title={note}
-                            onClick={() => insertAtCaret(`${renderMarker(markerTag, markerFamily)} `)}
-                            className="rounded-md border bg-background px-2 py-1 font-mono text-xs transition-colors hover:border-primary hover:bg-accent"
-                          >
-                            {renderMarker(markerTag, markerFamily)}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </TabsContent>
-
-                <TabsContent value="fine" className="space-y-5 pt-5">
-                  <PhonemeBuilder onInsert={insertAtCaret} />
-
-                  <Separator />
-
-                  <div className="space-y-2">
-                    <div>
-                      <p className="text-sm font-medium">Paralanguage</p>
-                      <p className="text-xs text-muted-foreground">
-                        These always use (parentheses), in both model families — unlike the emotion
-                        cues. Fish marks the laugh/cough/sigh family experimental.
-                      </p>
-                    </div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {PARALANGUAGE_TAGS.map(({ tag: paraTag, note }) => (
-                        <button
-                          key={paraTag}
-                          type="button"
-                          title={note}
-                          onClick={() => insertAtCaret(`(${paraTag}) `)}
-                          className="rounded-md border bg-background px-2 py-1 font-mono text-xs transition-colors hover:border-primary hover:bg-accent"
-                        >
-                          ({paraTag})
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="rounded-md border bg-muted/40 p-3">
-                    <p className="text-xs text-muted-foreground">
-                      Keep <span className="font-medium">Normalize</span> on. Phoneme tags survive
-                      normalization, and switching it off makes Fish read prices, dates and phone
-                      numbers unreliably — which is most of what the agent says.
-                    </p>
-                  </div>
-                </TabsContent>
-
-                <TabsContent value="prosody" className="space-y-5 pt-5">
-                  <div className="grid gap-5 sm:grid-cols-2">
-                    <SliderField
-                      label="Speed"
-                      value={speed}
-                      min={0.5}
-                      max={2}
-                      step={0.05}
-                      format={(v) => `${v.toFixed(2)}×`}
-                      onChange={setSpeed}
-                    />
-                    <SliderField
-                      label="Volume"
-                      value={volume}
-                      min={-20}
-                      max={20}
-                      step={1}
-                      format={(v) => `${v > 0 ? "+" : ""}${v} dB`}
-                      onChange={setVolume}
-                    />
-                    <SliderField
-                      label="Chunk length"
-                      value={chunkLength}
-                      min={100}
-                      max={300}
-                      step={10}
-                      format={(v) => `${v} tokens`}
-                      hint="Smaller starts audio sooner; larger gives smoother prosody."
-                      onChange={setChunkLength}
-                    />
-                    <div className="space-y-2">
-                      <Label className="text-sm">Latency mode</Label>
-                      <Select value={latency} onValueChange={setLatency}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="balanced">balanced — ~300ms, use for calls</SelectItem>
-                          <SelectItem value="normal">normal — slower, most stable</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <p className="text-xs text-muted-foreground">
-                        Reads backwards from the names: &quot;balanced&quot; is the faster one.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between rounded-md border p-3">
-                    <div>
-                      <Label className="text-sm">Normalize text</Label>
-                      <p className="text-xs text-muted-foreground">
-                        Expands numbers, dates and currency for natural reading.
-                      </p>
-                    </div>
-                    <Switch checked={normalize} onCheckedChange={setNormalize} />
-                  </div>
-                </TabsContent>
-
-                <TabsContent value="agent" className="space-y-3 pt-5">
-                  <p className="text-sm text-muted-foreground">
-                    Markers only reach Fish if the LLM writes them. Paste this into the agent&apos;s
-                    globalNode prompt, and set the TTS provider to Fish Audio with the voice id
-                    above.
-                  </p>
-                  <Textarea
-                    readOnly
-                    rows={12}
-                    value={AGENT_PROMPT_BLOCK}
-                    className="font-mono text-xs"
-                  />
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => void navigator.clipboard.writeText(AGENT_PROMPT_BLOCK)}
-                  >
-                    <Copy className="mr-2 h-4 w-4" />
-                    Copy prompt block
-                  </Button>
-                </TabsContent>
-              </Tabs>
-            </CardContent>
-          </Card>
+            <TabsContent
+              value="agent"
+              className="mt-2 flex min-h-0 flex-1 flex-col gap-2 overflow-hidden"
+            >
+              <p className="shrink-0 text-[10px] leading-snug text-muted-foreground">
+                Markers only reach Fish if the LLM writes them. Paste this into the agent&apos;s
+                globalNode prompt and set TTS to Fish Audio with the voice id above.
+              </p>
+              <Textarea
+                readOnly
+                value={AGENT_PROMPT_BLOCK}
+                className="min-h-0 flex-1 resize-none font-mono text-[10px] leading-snug"
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 shrink-0"
+                onClick={() => void navigator.clipboard.writeText(AGENT_PROMPT_BLOCK)}
+              >
+                <Copy className="mr-1.5 h-3.5 w-3.5" />
+                Copy prompt block
+              </Button>
+            </TabsContent>
+          </Tabs>
         </div>
+      </div>
 
-        {/* ------------------------------------------------ library + clone */}
-        <div className="min-w-0">
-          <Tabs defaultValue="voices">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="voices">Voices</TabsTrigger>
-              <TabsTrigger value="clone">
-                <Wand2 className="mr-2 h-3.5 w-3.5" />
-                Clone
-              </TabsTrigger>
-            </TabsList>
+      {/* ================================================= RIGHT: voice browser */}
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-md border border-neutral-200 dark:border-neutral-800">
+        <Tabs defaultValue="voices" className="flex min-h-0 flex-1 flex-col">
+          {/* Consolidated sticky control header */}
+          <div className="shrink-0 space-y-2 border-b border-neutral-200 p-3 dark:border-neutral-800">
+            <div className="flex items-center gap-2">
+              <TabsList className="h-7 p-1">
+                <TabsTrigger value="voices" className="px-2.5 py-0.5 text-xs">
+                  Voices
+                </TabsTrigger>
+                <TabsTrigger value="clone" className="px-2.5 py-0.5 text-xs">
+                  <Wand2 className="mr-1 h-3 w-3" />
+                  Clone
+                </TabsTrigger>
+              </TabsList>
 
-            <TabsContent value="voices" className="pt-4">
-              <Card>
-                <CardHeader className="space-y-3 pb-3">
-                  <div className="grid grid-cols-2 gap-1 rounded-lg border bg-muted/40 p-1">
-                    <button
-                      type="button"
-                      onClick={() => setSource("library")}
-                      className={`inline-flex items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
-                        source === "library"
-                          ? "bg-background text-foreground shadow-sm"
-                          : "text-muted-foreground hover:text-foreground"
-                      }`}
-                    >
-                      <Globe2 className="h-3.5 w-3.5" />
-                      Fish library
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setSource("mine")}
-                      className={`inline-flex items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
-                        source === "mine"
-                          ? "bg-background text-foreground shadow-sm"
-                          : "text-muted-foreground hover:text-foreground"
-                      }`}
-                    >
-                      <UserRound className="h-3.5 w-3.5" />
-                      My voices
-                    </button>
+              <div className="ml-auto flex items-center gap-1 rounded-md border border-neutral-200 bg-muted/40 p-0.5 dark:border-neutral-800">
+                <button
+                  type="button"
+                  onClick={() => setSource("library")}
+                  className={`inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] font-semibold transition-colors ${
+                    source === "library"
+                      ? "bg-background text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <Globe2 className="h-3 w-3" />
+                  Fish library
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSource("mine")}
+                  className={`inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] font-semibold transition-colors ${
+                    source === "mine"
+                      ? "bg-background text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <UserRound className="h-3 w-3" />
+                  My voices
+                </button>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <div className="relative min-w-0 flex-1">
+                <Search className="absolute left-2 top-2 h-3.5 w-3.5 text-muted-foreground" />
+                <Input
+                  value={searchTitle}
+                  onChange={(event) => setSearchTitle(event.target.value)}
+                  onKeyDown={(event) => event.key === "Enter" && reloadVoices()}
+                  placeholder={source === "mine" ? "Search your voices" : "Search Fish library"}
+                  className="h-7 pl-7 text-xs"
+                />
+              </div>
+
+              <Select value={sortBy} onValueChange={setSortBy}>
+                <SelectTrigger className="h-7 w-[120px] shrink-0 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {SORTS.map((option) => (
+                    <SelectItem key={option.value} value={option.value} className="text-xs">
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {/* Language + tags collapse into a popover so the header stays two rows */}
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button size="sm" variant="outline" className="h-7 shrink-0 px-2 text-xs">
+                    <SlidersHorizontal className="mr-1 h-3.5 w-3.5" />
+                    Filters
+                    {activeFilters > 0 && (
+                      <Badge variant="secondary" className="ml-1 h-4 px-1 text-[10px]">
+                        {activeFilters}
+                      </Badge>
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align="end" className="w-72 space-y-2 p-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold">Filters</span>
+                    {(activeFilters > 0 || searchTitle) && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-6 px-2 text-[11px]"
+                        onClick={clearFilters}
+                      >
+                        Clear all
+                      </Button>
+                    )}
                   </div>
 
-                  <div className="flex gap-2">
-                    <div className="relative flex-1">
-                      <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        value={searchTitle}
-                        onChange={(event) => setSearchTitle(event.target.value)}
-                        onKeyDown={(event) => event.key === "Enter" && reloadVoices()}
-                        placeholder={
-                          source === "mine" ? "Search your voices" : "Search the Fish library"
-                        }
-                        className="pl-8"
-                      />
-                    </div>
-                    <Button size="sm" variant="secondary" onClick={reloadVoices}>
-                      Search
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={reloadVoices}
-                      disabled={loadingVoices}
-                      title="Refresh"
-                    >
-                      <RefreshCw className={`h-4 w-4 ${loadingVoices ? "animate-spin" : ""}`} />
-                    </Button>
+                  <div className="space-y-1">
+                    <Label className="text-[11px]">Language</Label>
+                    <Select value={language} onValueChange={setLanguage}>
+                      <SelectTrigger className="h-7 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {LANGUAGES.map((option) => (
+                          <SelectItem key={option.value} value={option.value} className="text-xs">
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
 
-                  {/* ----------------------------------------------- filters */}
-                  <div className="space-y-2 rounded-lg border bg-muted/30 p-2.5">
-                    <div className="flex items-center justify-between">
-                      <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
-                        <SlidersHorizontal className="h-3.5 w-3.5" />
-                        Filters
-                        {activeFilters > 0 && (
-                          <Badge variant="secondary" className="ml-1 text-[10px]">
-                            {activeFilters}
-                          </Badge>
-                        )}
-                      </span>
-                      {(activeFilters > 0 || searchTitle) && (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-6 px-2 text-[11px]"
-                          onClick={clearFilters}
-                        >
-                          Clear all
-                        </Button>
-                      )}
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2">
-                      <Select value={language} onValueChange={setLanguage}>
-                        <SelectTrigger className="h-8 text-xs">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {LANGUAGES.map((option) => (
-                            <SelectItem key={option.value} value={option.value}>
-                              {option.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-
-                      <Select value={sortBy} onValueChange={setSortBy}>
-                        <SelectTrigger className="h-8 text-xs">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {SORTS.map((option) => (
-                            <SelectItem key={option.value} value={option.value}>
-                              {option.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
+                  <div className="space-y-1">
+                    <Label className="text-[11px]">Tag</Label>
                     <div className="flex flex-wrap gap-1">
                       {TAG_PRESETS.map((preset) => (
                         <button
@@ -965,7 +944,7 @@ export default function VoiceStudioPage() {
                           className={`rounded-full border px-2 py-0.5 text-[11px] capitalize transition-colors ${
                             tag === preset
                               ? "border-primary bg-primary/10 text-primary"
-                              : "bg-background text-muted-foreground hover:border-primary/40 hover:text-foreground"
+                              : "border-neutral-200 bg-background text-muted-foreground hover:border-primary/40 hover:text-foreground dark:border-neutral-800"
                           }`}
                         >
                           {preset}
@@ -973,187 +952,186 @@ export default function VoiceStudioPage() {
                       ))}
                     </div>
                   </div>
-                </CardHeader>
+                </PopoverContent>
+              </Popover>
 
-                <CardContent className="space-y-3">
-                  {voicesError && (
-                    <p className="flex items-start gap-2 text-xs text-destructive">
-                      <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                      {voicesError}
-                    </p>
-                  )}
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 shrink-0 px-2"
+                onClick={reloadVoices}
+                disabled={loadingVoices}
+                title="Refresh"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${loadingVoices ? "animate-spin" : ""}`} />
+              </Button>
+            </div>
+          </div>
 
-                  {loadingVoices ? (
-                    <div className="space-y-2 py-2">
-                      {[0, 1, 2, 3].map((i) => (
-                        <div key={i} className="h-[74px] animate-pulse rounded-md bg-muted/60" />
-                      ))}
-                    </div>
-                  ) : voices.length === 0 ? (
-                    <div className="py-10 text-center">
-                      <p className="text-sm text-muted-foreground">
-                        {source === "mine"
-                          ? "No voices cloned yet."
-                          : "No matches. Try clearing a filter."}
-                      </p>
-                    </div>
-                  ) : (
-                    <>
-                      <ul className="max-h-[520px] space-y-2 overflow-y-auto pr-1">
-                        {voices.map((voice) => {
-                          const id = voiceId(voice);
-                          const active = selectedVoice ? voiceId(selectedVoice) === id : false;
-                          const preview = sampleUrl(voice);
-                          const isSamplePlaying = samplePlayingId === id;
+          {/* --------------------------------------------------- voice list */}
+          <TabsContent value="voices" className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden">
+            {voicesError && (
+              <p className="flex shrink-0 items-start gap-1.5 px-3 pt-2 text-xs text-destructive">
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                {voicesError}
+              </p>
+            )}
 
-                          return (
-                            <li key={id}>
-                              <div
-                                className={`rounded-lg border p-3 transition-colors ${
-                                  active
-                                    ? "border-primary bg-accent"
-                                    : "hover:border-primary/40 hover:bg-accent/40"
-                                }`}
-                              >
-                                <div className="flex items-start gap-2">
-                                  <button
-                                    type="button"
-                                    onClick={() => setSelectedVoice(voice)}
-                                    className="min-w-0 flex-1 text-left"
-                                  >
-                                    <div className="flex items-center gap-2">
-                                      <span className="truncate text-sm font-semibold">
-                                        {voice.title || id}
-                                      </span>
-                                      {active && (
-                                        <Check className="h-3.5 w-3.5 shrink-0 text-primary" />
-                                      )}
-                                      {voice.state && voice.state !== "trained" && (
-                                        <Badge variant="outline" className="text-[10px]">
-                                          {voice.state}
-                                        </Badge>
-                                      )}
-                                    </div>
+            {loadingVoices ? (
+              <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto p-3">
+                {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => (
+                  <div key={i} className="h-[56px] animate-pulse rounded-md bg-muted/60" />
+                ))}
+              </div>
+            ) : voices.length === 0 ? (
+              <div className="flex min-h-0 flex-1 items-center justify-center p-6 text-center">
+                <p className="text-xs text-muted-foreground">
+                  {source === "mine"
+                    ? "No voices cloned yet."
+                    : "No matches. Try clearing a filter."}
+                </p>
+              </div>
+            ) : (
+              <>
+                <ul className="min-h-0 flex-1 space-y-1 overflow-y-auto p-2 pr-1">
+                  {voices.map((voice) => {
+                    const id = voiceId(voice);
+                    const active = selectedVoice ? voiceId(selectedVoice) === id : false;
+                    const preview = sampleUrl(voice);
+                    const isSamplePlaying = samplePlayingId === id;
+                    const meta = [voice.description, voice.author?.nickname && `by ${voice.author.nickname}`]
+                      .filter(Boolean)
+                      .join(" · ");
 
-                                    {voice.description && (
-                                      <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
-                                        {voice.description}
-                                      </p>
-                                    )}
-
-                                    <code className="mt-1 block truncate font-mono text-[10px] text-muted-foreground">
-                                      {id}
-                                    </code>
-                                  </button>
-
-                                  {preview && (
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      className="h-8 w-8 shrink-0 p-0"
-                                      title={isSamplePlaying ? "Stop sample" : "Play sample"}
-                                      onClick={() => toggleSample(voice)}
-                                    >
-                                      {isSamplePlaying ? (
-                                        <Pause className="h-3.5 w-3.5" />
-                                      ) : (
-                                        <Play className="h-3.5 w-3.5" />
-                                      )}
-                                    </Button>
-                                  )}
-                                </div>
-
-                                <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                                  {(voice.languages || []).slice(0, 4).map((code) => (
-                                    <Badge
-                                      key={code}
-                                      variant="secondary"
-                                      className="text-[10px] uppercase"
-                                    >
-                                      {code}
-                                    </Badge>
-                                  ))}
-                                  {(voice.tags || []).slice(0, 3).map((voiceTag) => (
-                                    <span
-                                      key={voiceTag}
-                                      className="rounded-full border px-1.5 py-0.5 text-[10px] text-muted-foreground"
-                                    >
-                                      {voiceTag}
-                                    </span>
-                                  ))}
-                                  {source === "library" && voice.author?.nickname && (
-                                    <span className="truncate text-[10px] text-muted-foreground">
-                                      by {voice.author.nickname}
-                                    </span>
-                                  )}
-                                  {source === "mine" && voice.visibility && (
-                                    <Badge variant="outline" className="text-[10px]">
-                                      {voice.visibility}
-                                    </Badge>
-                                  )}
-                                </div>
-
-                                {source === "mine" && (
-                                  <div className="mt-2 flex gap-1">
-                                    <Button
-                                      size="sm"
-                                      variant="ghost"
-                                      className="h-7 px-2 text-xs"
-                                      onClick={() => setRenaming(voice)}
-                                    >
-                                      Rename
-                                    </Button>
-                                    <Button
-                                      size="sm"
-                                      variant="ghost"
-                                      className="h-7 px-2 text-xs text-destructive"
-                                      onClick={() => setDeleting(voice)}
-                                    >
-                                      <Trash2 className="mr-1 h-3 w-3" />
-                                      Delete
-                                    </Button>
-                                  </div>
-                                )}
-                              </div>
-                            </li>
-                          );
-                        })}
-                      </ul>
-
-                      {hasMore && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="w-full"
-                          disabled={loadingMore}
-                          onClick={() => void fetchVoices(page + 1, true)}
+                    return (
+                      <li key={id}>
+                        <div
+                          className={`group flex items-center gap-2 rounded-md border px-2.5 py-1.5 transition-colors ${
+                            active
+                              ? "border-primary bg-accent"
+                              : "border-neutral-200 hover:border-primary/40 hover:bg-accent/40 dark:border-neutral-800"
+                          }`}
                         >
-                          {loadingMore ? (
-                            <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
-                          ) : null}
-                          {loadingMore ? "Loading…" : "Load more"}
-                        </Button>
-                      )}
+                          <button
+                            type="button"
+                            onClick={() => setSelectedVoice(voice)}
+                            className="min-w-0 flex-1 text-left"
+                          >
+                            {/* Row 1 — name, badges */}
+                            <div className="flex items-center gap-1.5">
+                              <span className="truncate text-xs font-semibold">
+                                {voice.title || id}
+                              </span>
+                              {active && <Check className="h-3 w-3 shrink-0 text-primary" />}
+                              {(voice.languages || []).slice(0, 2).map((code) => (
+                                <Badge
+                                  key={code}
+                                  variant="secondary"
+                                  className="h-4 shrink-0 px-1 text-[9px] uppercase"
+                                >
+                                  {code}
+                                </Badge>
+                              ))}
+                              {(voice.tags || []).slice(0, 1).map((voiceTag) => (
+                                <Badge
+                                  key={voiceTag}
+                                  variant="outline"
+                                  className="h-4 shrink-0 px-1 text-[9px]"
+                                >
+                                  {voiceTag}
+                                </Badge>
+                              ))}
+                              {voice.state && voice.state !== "trained" && (
+                                <Badge variant="outline" className="h-4 shrink-0 px-1 text-[9px]">
+                                  {voice.state}
+                                </Badge>
+                              )}
+                            </div>
 
-                      <p className="text-center text-[11px] text-muted-foreground">
-                        Showing {voices.length} voice{voices.length === 1 ? "" : "s"}
-                      </p>
-                    </>
+                            {/* Row 2 — metadata + id */}
+                            <div className="flex items-baseline gap-1.5">
+                              {meta && (
+                                <span className="truncate text-[10px] text-muted-foreground">
+                                  {meta}
+                                </span>
+                              )}
+                              <code className="ml-auto shrink-0 font-mono text-[9px] text-muted-foreground/70">
+                                {id.slice(0, 8)}…
+                              </code>
+                            </div>
+                          </button>
+
+                          {preview && (
+                            <button
+                              type="button"
+                              title={isSamplePlaying ? "Stop sample" : "Play sample"}
+                              onClick={() => toggleSample(voice)}
+                              className="flex h-6 w-6 shrink-0 items-center justify-center rounded border border-neutral-200 transition-colors hover:border-primary hover:text-primary dark:border-neutral-800"
+                            >
+                              {isSamplePlaying ? (
+                                <Pause className="h-3 w-3" />
+                              ) : (
+                                <Play className="ml-px h-3 w-3" />
+                              )}
+                            </button>
+                          )}
+
+                          {source === "mine" && (
+                            <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+                              <button
+                                type="button"
+                                onClick={() => setRenaming(voice)}
+                                className="rounded px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-accent hover:text-foreground"
+                              >
+                                Rename
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setDeleting(voice)}
+                                className="rounded p-1 text-destructive hover:bg-destructive/10"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </li>
+                    );
+                  })}
+
+                  {hasMore && (
+                    <li className="pt-1">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 w-full text-xs"
+                        disabled={loadingMore}
+                        onClick={() => void fetchVoices(page + 1, true)}
+                      >
+                        {loadingMore ? <Loader2 className="mr-1.5 h-3 w-3 animate-spin" /> : null}
+                        {loadingMore ? "Loading…" : "Load more"}
+                      </Button>
+                    </li>
                   )}
-                </CardContent>
-              </Card>
-            </TabsContent>
+                </ul>
 
-            <TabsContent value="clone" className="pt-4">
-              <CloneVoiceCard
-                onCloned={() => {
-                  setSource("mine");
-                  reloadVoices();
-                }}
-              />
-            </TabsContent>
-          </Tabs>
-        </div>
+                <div className="shrink-0 border-t border-neutral-200 px-3 py-1 text-center text-[10px] text-muted-foreground dark:border-neutral-800">
+                  {voices.length} voice{voices.length === 1 ? "" : "s"}
+                  {hasMore ? " · more available" : ""}
+                </div>
+              </>
+            )}
+          </TabsContent>
+
+          <TabsContent value="clone" className="mt-0 min-h-0 flex-1 overflow-y-auto p-3">
+            <CloneVoiceCard
+              onCloned={() => {
+                setSource("mine");
+                reloadVoices();
+              }}
+            />
+          </TabsContent>
+        </Tabs>
       </div>
 
       <RenameDialog
@@ -1271,7 +1249,6 @@ function SliderField({
   max,
   step,
   format,
-  hint,
   onChange,
 }: {
   label: string;
@@ -1280,14 +1257,13 @@ function SliderField({
   max: number;
   step: number;
   format: (value: number) => string;
-  hint?: string;
   onChange: (value: number) => void;
 }) {
   return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between">
-        <Label className="text-sm">{label}</Label>
-        <span className="font-mono text-xs text-muted-foreground">{format(value)}</span>
+    <div className="space-y-1">
+      <div className="flex items-baseline justify-between">
+        <Label className="text-[11px]">{label}</Label>
+        <span className="font-mono text-[10px] text-muted-foreground">{format(value)}</span>
       </div>
       <input
         type="range"
@@ -1296,9 +1272,8 @@ function SliderField({
         step={step}
         value={value}
         onChange={(event) => onChange(Number(event.target.value))}
-        className="w-full accent-primary"
+        className="h-1 w-full accent-primary"
       />
-      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
     </div>
   );
 }
@@ -1311,32 +1286,29 @@ function PhonemeBuilder({ onInsert }: { onInsert: (snippet: string) => void }) {
   const [arpabet, setArpabet] = useState("");
 
   return (
-    <div className="space-y-2">
-      <div>
-        <p className="text-sm font-medium">Pronunciation (phoneme control)</p>
-        <p className="text-xs text-muted-foreground">
-          Replaces one English word with CMU Arpabet. Stress digits: 1 primary, 2 secondary, 0 none.{" "}
-          <a
-            href={ARPABET_REFERENCE_URL}
-            target="_blank"
-            rel="noreferrer"
-            className="underline underline-offset-2"
-          >
-            Arpabet reference
-          </a>
-        </p>
-      </div>
-
-      <div className="flex gap-2">
+    <div className="space-y-1.5">
+      <p className="text-[11px] font-semibold text-muted-foreground">
+        Pronunciation ·{" "}
+        <a
+          href={ARPABET_REFERENCE_URL}
+          target="_blank"
+          rel="noreferrer"
+          className="font-normal underline underline-offset-2"
+        >
+          Arpabet reference
+        </a>
+      </p>
+      <div className="flex gap-1.5">
         <Input
           value={arpabet}
           onChange={(event) => setArpabet(event.target.value)}
           placeholder="EH1 N JH AH0 N IH1 R"
-          className="font-mono text-xs"
+          className="h-7 font-mono text-xs"
         />
         <Button
           variant="outline"
           size="sm"
+          className="h-7 shrink-0 text-xs"
           disabled={!arpabet.trim()}
           onClick={() => {
             onInsert(`${renderPhoneme(arpabet)} `);
@@ -1346,20 +1318,22 @@ function PhonemeBuilder({ onInsert }: { onInsert: (snippet: string) => void }) {
           Insert
         </Button>
       </div>
-
-      <div className="flex flex-wrap gap-1.5">
+      <div className="flex flex-wrap gap-1">
         {ARPABET_PRESETS.map((preset) => (
           <button
             key={preset.word}
             type="button"
             title={`${preset.arpabet}${preset.note ? ` — ${preset.note}` : ""}`}
             onClick={() => onInsert(`${renderPhoneme(preset.arpabet)} `)}
-            className="rounded-md border bg-background px-2 py-1 text-xs transition-colors hover:border-primary hover:bg-accent"
+            className="rounded border border-neutral-200 bg-background px-2 py-0.5 text-xs leading-5 transition-colors hover:border-primary hover:bg-accent dark:border-neutral-800"
           >
             {preset.word}
           </button>
         ))}
       </div>
+      <p className="text-[10px] leading-snug text-muted-foreground">
+        Replaces one English word with CMU Arpabet. Stress digits: 1 primary, 2 secondary, 0 none.
+      </p>
     </div>
   );
 }
@@ -1411,98 +1385,96 @@ function CloneVoiceCard({ onCloned }: { onCloned: () => void }) {
   }, [title, description, transcript, enhance, files, onCloned]);
 
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="text-base">Clone a voice</CardTitle>
-        <CardDescription className="text-xs">
-          Clean, mono, single-speaker audio. 10s works; a minute or two is better. No music, no
-          reverb, no overlapping voices. Everything clones private.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <div className="space-y-1.5">
-          <Label className="text-sm">Name</Label>
-          <Input
-            value={title}
-            onChange={(event) => setTitle(event.target.value)}
-            placeholder="Alex — outbound"
+    <div className="space-y-2.5">
+      <p className="text-[11px] leading-snug text-muted-foreground">
+        Clean, mono, single-speaker audio. 10s works; a minute or two is better. No music, no
+        reverb, no overlapping voices. Everything clones private.
+      </p>
+
+      <div className="space-y-1">
+        <Label className="text-[11px]">Name</Label>
+        <Input
+          value={title}
+          onChange={(event) => setTitle(event.target.value)}
+          placeholder="Alex — outbound"
+          className="h-7 text-xs"
+        />
+      </div>
+
+      <div className="space-y-1">
+        <Label className="text-[11px]">Description</Label>
+        <Input
+          value={description}
+          onChange={(event) => setDescription(event.target.value)}
+          placeholder="Optional"
+          className="h-7 text-xs"
+        />
+      </div>
+
+      <div className="space-y-1">
+        <Label className="text-[11px]">Samples</Label>
+        <label className="flex cursor-pointer flex-col items-center justify-center gap-1 rounded-md border border-dashed border-neutral-200 py-4 text-xs text-muted-foreground transition-colors hover:border-primary hover:text-foreground dark:border-neutral-800">
+          <Upload className="h-3.5 w-3.5" />
+          <span>
+            {files.length > 0
+              ? `${files.length} file${files.length === 1 ? "" : "s"} selected`
+              : "Choose .wav .mp3 .m4a .opus"}
+          </span>
+          <input
+            type="file"
+            multiple
+            accept=".wav,.mp3,.m4a,.opus,audio/*"
+            className="hidden"
+            onChange={(event) => setFiles(Array.from(event.target.files || []))}
           />
-        </div>
-
-        <div className="space-y-1.5">
-          <Label className="text-sm">Description</Label>
-          <Input
-            value={description}
-            onChange={(event) => setDescription(event.target.value)}
-            placeholder="Optional"
-          />
-        </div>
-
-        <div className="space-y-1.5">
-          <Label className="text-sm">Samples</Label>
-          <label className="flex cursor-pointer flex-col items-center justify-center gap-1 rounded-md border border-dashed py-6 text-sm text-muted-foreground transition-colors hover:border-primary hover:text-foreground">
-            <Upload className="h-4 w-4" />
-            <span>
-              {files.length > 0
-                ? `${files.length} file${files.length === 1 ? "" : "s"} selected`
-                : "Choose .wav .mp3 .m4a .opus"}
-            </span>
-            <input
-              type="file"
-              multiple
-              accept=".wav,.mp3,.m4a,.opus,audio/*"
-              className="hidden"
-              onChange={(event) => setFiles(Array.from(event.target.files || []))}
-            />
-          </label>
-          {files.length > 0 && (
-            <ul className="space-y-0.5">
-              {files.map((file) => (
-                <li key={file.name} className="truncate text-[11px] text-muted-foreground">
-                  {file.name}
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-
-        <div className="space-y-1.5">
-          <Label className="text-sm">Transcript (optional)</Label>
-          <Textarea
-            value={transcript}
-            onChange={(event) => setTranscript(event.target.value)}
-            rows={2}
-            placeholder="The exact words spoken in the sample — sharpens pronunciation."
-            className="text-xs"
-          />
-        </div>
-
-        <div className="flex items-center justify-between rounded-md border p-2.5">
-          <div>
-            <Label className="text-sm">Enhance audio</Label>
-            <p className="text-xs text-muted-foreground">
-              Denoise and level. Turn off only for studio-grade audio.
-            </p>
-          </div>
-          <Switch checked={enhance} onCheckedChange={setEnhance} />
-        </div>
-
-        {error && <p className="text-xs text-destructive">{error}</p>}
-        {created && (
-          <p className="text-xs text-emerald-600">
-            Cloned. New voice id: <code className="font-mono">{created}</code>
-          </p>
+        </label>
+        {files.length > 0 && (
+          <ul className="space-y-0.5">
+            {files.map((file) => (
+              <li key={file.name} className="truncate font-mono text-[10px] text-muted-foreground">
+                {file.name}
+              </li>
+            ))}
+          </ul>
         )}
+      </div>
 
-        <Button
-          className="w-full"
-          onClick={submit}
-          disabled={submitting || !title.trim() || files.length === 0}
-        >
-          {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-          {submitting ? "Cloning…" : "Clone voice"}
-        </Button>
-      </CardContent>
-    </Card>
+      <div className="space-y-1">
+        <Label className="text-[11px]">Transcript (optional)</Label>
+        <Textarea
+          value={transcript}
+          onChange={(event) => setTranscript(event.target.value)}
+          rows={2}
+          placeholder="The exact words spoken in the sample — sharpens pronunciation."
+          className="resize-none text-xs"
+        />
+      </div>
+
+      <div className="flex items-center justify-between rounded-md border border-neutral-200 p-2 dark:border-neutral-800">
+        <div>
+          <Label className="text-[11px]">Enhance audio</Label>
+          <p className="text-[10px] text-muted-foreground">
+            Denoise and level. Off only for studio-grade audio.
+          </p>
+        </div>
+        <Switch checked={enhance} onCheckedChange={setEnhance} />
+      </div>
+
+      {error && <p className="text-[11px] text-destructive">{error}</p>}
+      {created && (
+        <p className="text-[11px] text-emerald-600">
+          Cloned. New voice id: <code className="font-mono">{created}</code>
+        </p>
+      )}
+
+      <Button
+        className="h-8 w-full text-xs"
+        onClick={submit}
+        disabled={submitting || !title.trim() || files.length === 0}
+      >
+        {submitting ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
+        {submitting ? "Cloning…" : "Clone voice"}
+      </Button>
+    </div>
   );
 }
