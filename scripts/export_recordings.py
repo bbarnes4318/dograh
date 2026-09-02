@@ -33,6 +33,10 @@ per-run endpoint, which mints the token on demand.
 Alongside the audio files, a `manifest.csv` records every run in the range --
 including runs with no recording -- so the export can be reconciled against the
 usage history in the UI.
+
+Exporting a busy range means thousands of files over hours, so a re-run into the
+same `--out` resumes: files already written are skipped rather than re-fetched.
+Pass `--overwrite` to force a full re-download.
 """
 
 import argparse
@@ -358,9 +362,23 @@ def export(args: argparse.Namespace) -> int:
         f"= {start_date} to {end_date} UTC on {base_url}"
     )
 
+    # An export of a busy range is thousands of files over hours, so a re-run
+    # after an interruption resumes rather than starting over: anything already
+    # written is skipped. Partial `.part` files are ignored and re-fetched.
+    existing_stems = set()
+    if not args.dry_run and not args.overwrite:
+        existing_stems = {
+            path.stem
+            for path in out_dir.iterdir()
+            if path.is_file() and path.suffix != ".part"
+        }
+        if existing_stems:
+            print(f"Resuming: {len(existing_stems)} file(s) already in {out_dir}")
+
     rows: List[Dict[str, Any]] = []
     run_count = 0
     downloaded = 0
+    skipped = 0
     failed = 0
 
     for run in iter_runs(
@@ -393,6 +411,11 @@ def export(args: argparse.Namespace) -> int:
                 downloaded += 1
                 continue
 
+            if stem in existing_stems:
+                rows.append(manifest_row(run, track, stem, "skipped_existing", tz))
+                skipped += 1
+                continue
+
             try:
                 path = download(url, out_dir, stem)
             except ExportError as exc:
@@ -402,7 +425,8 @@ def export(args: argparse.Namespace) -> int:
                 continue
 
             downloaded += 1
-            print(f"  run {run.get('id')} [{track}] -> {path.name}")
+            existing_stems.add(path.stem)
+            print(f"  [{downloaded}] run {run.get('id')} [{track}] -> {path.name}")
             rows.append(manifest_row(run, track, path.name, "downloaded", tz))
 
         if not found_any:
@@ -417,7 +441,10 @@ def export(args: argparse.Namespace) -> int:
         print(f"\nWrote manifest: {manifest}")
 
     verb = "would download" if args.dry_run else "downloaded"
-    print(f"{run_count} run(s) in range, {verb} {downloaded} recording(s)")
+    summary = f"{run_count} run(s) in range, {verb} {downloaded} recording(s)"
+    if skipped:
+        summary += f", skipped {skipped} already present"
+    print(summary)
     if failed:
         print(f"{failed} recording(s) failed -- see 'error' rows", file=sys.stderr)
         return 1
@@ -466,6 +493,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--tracks",
         default="mixed",
         help=f"Comma-separated tracks to export from {TRACKS} (default: mixed)",
+    )
+    parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Re-download recordings already present in --out (default: skip them)",
     )
     parser.add_argument(
         "--dry-run",
