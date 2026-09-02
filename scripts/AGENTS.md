@@ -21,6 +21,7 @@ Bash-only (deployment / CI / OSS-user setup — not intended for Windows contrib
 - `setup_remote.sh` — OSS remote Docker-compose setup
 - `format.sh` / `lint.sh` / `pre_commit.sh`
 - `generate_sdk.sh` / `release_sdks.sh` / `dump_docs_openapi.py`
+- `export_recordings.py` — operator tool that bulk-downloads workflow run recordings for a date range over the public HTTP API. Stdlib-only on purpose (no venv needed) and it talks to a deployment rather than importing `api`, so keep it dependency-free. If the usage-history response fields or the public download artifact types change, update `TRACK_FIELDS` to match.
 
 ## Deployment Memory — current OSS Docker state
 
