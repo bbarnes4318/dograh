@@ -9,9 +9,10 @@ Python standard library is used, so no virtualenv is required:
         --api-key "$DOGRAH_API_KEY" \
         --out ./recordings
 
-The API key comes from Settings -> API Keys in the Dograh UI and is sent as the
-`X-API-Key` header. `DOGRAH_API_URL` and `DOGRAH_API_KEY` are read as fallbacks
-for `--base-url` and `--api-key`.
+The API key comes from the Developers page (`/api-keys`) in the Dograh UI and is
+sent as the `X-API-Key` header, which scopes the export to that key's
+organization. `DOGRAH_API_URL` and `DOGRAH_API_KEY` are read as fallbacks for
+`--base-url` and `--api-key`.
 
 Runs are listed via `GET /api/v1/organizations/usage/runs`, which is scoped to
 the API key's organization and bounds `created_at` inclusively on both ends.
