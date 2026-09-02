@@ -4,7 +4,8 @@ Run from the repo root against any Dograh instance (OSS or hosted). Only the
 Python standard library is used, so no virtualenv is required:
 
     python scripts/export_recordings.py \
-        --start 2026-08-25 --end 2026-09-01 \
+        --start 2026-08-25 --end 2026-09-02 \
+        --timezone America/New_York \
         --base-url https://your-dograh-host \
         --api-key "$DOGRAH_API_KEY" \
         --out ./recordings
@@ -13,6 +14,13 @@ The API key comes from the Developers page (`/api-keys`) in the Dograh UI and is
 sent as the `X-API-Key` header, which scopes the export to that key's
 organization. `DOGRAH_API_URL` and `DOGRAH_API_KEY` are read as fallbacks for
 `--base-url` and `--api-key`.
+
+Dates are interpreted in `--timezone` (UTC by default), so an operator asking
+for a range in their own working hours gets the days they mean. The API stores
+and filters `created_at` in UTC, so bounds are converted before the request and
+run timestamps are converted back for the manifest and file names. Naming a
+zone rather than a fixed offset keeps daylight-saving transitions correct: a
+range over a US "spring forward" is still whole local days on both sides.
 
 Runs are listed via `GET /api/v1/organizations/usage/runs`, which is scoped to
 the API key's organization and bounds `created_at` inclusively on both ends.
@@ -36,13 +44,32 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional, Tuple
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 PAGE_SIZE = 100
 MAX_ATTEMPTS = 4
 TRACKS: Tuple[str, ...] = ("mixed", "user", "bot")
+
+# Convenience aliases for zones operators name by abbreviation. Each maps to an
+# IANA zone rather than a fixed offset, so "EST" in August correctly resolves to
+# EDT instead of silently shifting the range by an hour.
+TIMEZONE_ALIASES = {
+    "ET": "America/New_York",
+    "EST": "America/New_York",
+    "EDT": "America/New_York",
+    "CT": "America/Chicago",
+    "CST": "America/Chicago",
+    "CDT": "America/Chicago",
+    "MT": "America/Denver",
+    "MST": "America/Denver",
+    "MDT": "America/Denver",
+    "PT": "America/Los_Angeles",
+    "PST": "America/Los_Angeles",
+    "PDT": "America/Los_Angeles",
+}
 
 # Track -> (public URL field, storage key field, artifact type on the public
 # download endpoint). The storage key tells us a recording exists even when the
@@ -71,6 +98,7 @@ MANIFEST_COLUMNS = [
     "workflow_name",
     "run_name",
     "created_at",
+    "created_at_local",
     "call_type",
     "mode",
     "caller_number",
@@ -87,12 +115,27 @@ class ExportError(Exception):
     """A failure that should stop the export with a readable message."""
 
 
-def parse_date_bound(value: str, *, end_of_day: bool) -> str:
+def resolve_timezone(name: str) -> ZoneInfo:
+    """Look up an IANA zone, accepting the common US abbreviations as aliases."""
+    candidate = TIMEZONE_ALIASES.get(name.strip().upper(), name.strip())
+    try:
+        return ZoneInfo(candidate)
+    except (ZoneInfoNotFoundError, ValueError) as exc:
+        raise ExportError(
+            f"Unknown timezone {name!r}. Use an IANA name such as "
+            "America/New_York, or one of: "
+            f"{', '.join(sorted(TIMEZONE_ALIASES))}."
+        ) from exc
+
+
+def parse_date_bound(value: str, *, end_of_day: bool, tz: ZoneInfo) -> str:
     """Turn a user-supplied date into the ISO 8601 UTC string the API expects.
 
     Accepts `YYYY-MM-DD`, the US `M/D/YYYY` shorthand, and full ISO date-times.
-    A bare date is widened to cover the whole day so that `--end 2026-09-01`
-    includes calls made late on September 1st rather than only midnight.
+    A bare date is read as a whole day in `tz` -- so `--end 2026-09-02` includes
+    calls made late on September 2nd local time rather than only midnight -- and
+    then converted to UTC, which is what the API filters on. An ISO date-time
+    carrying its own offset is respected as given.
     """
     raw = value.strip()
 
@@ -103,7 +146,7 @@ def parse_date_bound(value: str, *, end_of_day: bool) -> str:
             continue
         if end_of_day:
             day = day + timedelta(days=1) - timedelta(microseconds=1)
-        return day.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+        return to_api_timestamp(day.replace(tzinfo=tz))
 
     try:
         moment = datetime.fromisoformat(raw.replace("Z", "+00:00"))
@@ -112,7 +155,33 @@ def parse_date_bound(value: str, *, end_of_day: bool) -> str:
             f"Could not parse date {value!r}. Use YYYY-MM-DD, M/D/YYYY, "
             "or a full ISO 8601 date-time."
         ) from exc
-    return moment.isoformat()
+
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=tz)
+    return to_api_timestamp(moment)
+
+
+def to_api_timestamp(moment: datetime) -> str:
+    """Render an aware datetime as the UTC ISO 8601 string the API parses."""
+    utc = moment.astimezone(timezone.utc)
+    return utc.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+
+
+def to_local(created_at: Optional[str], tz: ZoneInfo) -> str:
+    """Convert a run's UTC `created_at` into `tz` for display and file naming.
+
+    Returns an empty string when the timestamp is missing or unparseable, so a
+    surprising value from the API degrades the label rather than the export.
+    """
+    if not created_at:
+        return ""
+    try:
+        moment = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+    except ValueError:
+        return ""
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=timezone.utc)
+    return moment.astimezone(tz).isoformat()
 
 
 def request_json(url: str, api_key: str) -> Any:
@@ -245,13 +314,16 @@ def download(url: str, out_dir: Path, stem: str) -> Path:
     raise ExportError(f"Download failed after {MAX_ATTEMPTS} attempts: {url}")
 
 
-def manifest_row(run: Dict[str, Any], track: str, file_name: str, status: str):
+def manifest_row(
+    run: Dict[str, Any], track: str, file_name: str, status: str, tz: ZoneInfo
+):
     return {
         "run_id": run.get("id"),
         "workflow_id": run.get("workflow_id"),
         "workflow_name": run.get("workflow_name"),
         "run_name": run.get("name"),
         "created_at": run.get("created_at"),
+        "created_at_local": to_local(run.get("created_at"), tz),
         "call_type": run.get("call_type"),
         "mode": run.get("mode"),
         "caller_number": run.get("caller_number"),
@@ -266,8 +338,9 @@ def manifest_row(run: Dict[str, Any], track: str, file_name: str, status: str):
 
 def export(args: argparse.Namespace) -> int:
     base_url = args.base_url.rstrip("/")
-    start_date = parse_date_bound(args.start, end_of_day=False)
-    end_date = parse_date_bound(args.end, end_of_day=True)
+    tz = resolve_timezone(args.timezone)
+    start_date = parse_date_bound(args.start, end_of_day=False, tz=tz)
+    end_date = parse_date_bound(args.end, end_of_day=True, tz=tz)
     tracks = [track.strip() for track in args.tracks.split(",") if track.strip()]
 
     unknown = [track for track in tracks if track not in TRACK_FIELDS]
@@ -280,7 +353,10 @@ def export(args: argparse.Namespace) -> int:
     if not args.dry_run:
         out_dir.mkdir(parents=True, exist_ok=True)
 
-    print(f"Listing runs from {start_date} to {end_date} on {base_url}")
+    print(
+        f"Listing runs from {args.start} to {args.end} ({tz}) "
+        f"= {start_date} to {end_date} UTC on {base_url}"
+    )
 
     rows: List[Dict[str, Any]] = []
     run_count = 0
@@ -292,13 +368,16 @@ def export(args: argparse.Namespace) -> int:
     ):
         run_count += 1
         found_any = False
+        # Name files by the local date so they group under the day the operator
+        # asked for, not the UTC day the call may have rolled over into.
+        local_day = to_local(run.get("created_at"), tz)[:10]
 
         for track in tracks:
             try:
                 url = resolve_public_url(run, track, base_url, args.api_key)
             except ExportError as exc:
                 print(f"  run {run.get('id')} [{track}]: {exc}", file=sys.stderr)
-                rows.append(manifest_row(run, track, "", "error"))
+                rows.append(manifest_row(run, track, "", "error", tz))
                 failed += 1
                 continue
 
@@ -306,11 +385,11 @@ def export(args: argparse.Namespace) -> int:
                 continue
 
             found_any = True
-            stem = f"{run.get('created_at', '')[:10]}_run{run.get('id')}_{track}"
+            stem = f"{local_day}_run{run.get('id')}_{track}"
 
             if args.dry_run:
                 print(f"  run {run.get('id')} [{track}]: {url}")
-                rows.append(manifest_row(run, track, "", "available"))
+                rows.append(manifest_row(run, track, "", "available", tz))
                 downloaded += 1
                 continue
 
@@ -318,16 +397,16 @@ def export(args: argparse.Namespace) -> int:
                 path = download(url, out_dir, stem)
             except ExportError as exc:
                 print(f"  run {run.get('id')} [{track}]: {exc}", file=sys.stderr)
-                rows.append(manifest_row(run, track, "", "error"))
+                rows.append(manifest_row(run, track, "", "error", tz))
                 failed += 1
                 continue
 
             downloaded += 1
             print(f"  run {run.get('id')} [{track}] -> {path.name}")
-            rows.append(manifest_row(run, track, path.name, "downloaded"))
+            rows.append(manifest_row(run, track, path.name, "downloaded", tz))
 
         if not found_any:
-            rows.append(manifest_row(run, "", "", "no_recording"))
+            rows.append(manifest_row(run, "", "", "no_recording", tz))
 
     if rows and not args.dry_run:
         manifest = out_dir / "manifest.csv"
@@ -352,7 +431,7 @@ def build_parser() -> argparse.ArgumentParser:
         epilog=(
             "Example:\n"
             "  python scripts/export_recordings.py --start 2026-08-25 "
-            "--end 2026-09-01 --out ./recordings\n"
+            "--end 2026-09-02 --timezone America/New_York --out ./recordings\n"
         ),
     )
     parser.add_argument(
@@ -360,6 +439,15 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--end", required=True, help="Inclusive end date (YYYY-MM-DD or M/D/YYYY)"
+    )
+    parser.add_argument(
+        "--timezone",
+        default=os.environ.get("DOGRAH_TIMEZONE", "UTC"),
+        help=(
+            "IANA timezone the dates are given in, e.g. America/New_York; "
+            "US abbreviations like ET/EST are accepted (env: DOGRAH_TIMEZONE, "
+            "default: UTC)"
+        ),
     )
     parser.add_argument(
         "--base-url",
