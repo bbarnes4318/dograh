@@ -30,9 +30,14 @@ Each run can carry up to three recording tracks -- `mixed` (the combined call),
 once it has a public access token; for runs missing one this script calls the
 per-run endpoint, which mints the token on demand.
 
-Alongside the audio files, a `manifest.csv` records every run in the range --
-including runs with no recording -- so the export can be reconciled against the
-usage history in the UI.
+Files are named so a call is identifiable without opening anything else --
+`2026-08-25_1003_+14155550100_run101_mixed.wav` is the local date and time, the
+other party's number, the run id, and the track. Alongside them, `manifest.csv`
+carries the full record for every run in the range -- numbers on both ends, UTC
+and local start, derived end time, duration, disposition, cost, and the initial
+and gathered context -- including runs with no recording, so the export can be
+reconciled against the usage history in the UI. Pass `--with-transcripts` to
+save each call's transcript next to its audio.
 
 Exporting a busy range means thousands of files over hours, so a re-run into the
 same `--out` resumes: files already written are skipped rather than re-fetched.
@@ -43,6 +48,7 @@ import argparse
 import csv
 import json
 import os
+import re
 import sys
 import time
 import urllib.error
@@ -75,13 +81,16 @@ TIMEZONE_ALIASES = {
     "PDT": "America/Los_Angeles",
 }
 
-# Track -> (public URL field, storage key field, artifact type on the public
-# download endpoint). The storage key tells us a recording exists even when the
-# public URL is absent because the run has no public access token yet.
+# Artifact -> (public URL field, storage key field, artifact type on the public
+# download endpoint). The storage key tells us an artifact exists even when the
+# public URL is absent because the run has no public access token yet. The three
+# audio tracks are selectable via --tracks; "transcript" is fetched separately
+# per run, since it is not a track of the call audio.
 TRACK_FIELDS: Dict[str, Tuple[str, str, str]] = {
     "mixed": ("recording_public_url", "recording_url", "recording"),
     "user": ("user_recording_public_url", "user_recording_url", "user_recording"),
     "bot": ("bot_recording_public_url", "bot_recording_url", "bot_recording"),
+    "transcript": ("transcript_public_url", "transcript_url", "transcript"),
 }
 
 CONTENT_TYPE_EXTENSIONS = {
@@ -94,6 +103,8 @@ CONTENT_TYPE_EXTENSIONS = {
     "audio/webm": ".webm",
     "audio/mp4": ".m4a",
     "audio/aac": ".aac",
+    "application/json": ".json",
+    "text/plain": ".txt",
 }
 
 MANIFEST_COLUMNS = [
@@ -103,14 +114,21 @@ MANIFEST_COLUMNS = [
     "run_name",
     "created_at",
     "created_at_local",
+    "ended_at_local",
     "call_type",
     "mode",
     "caller_number",
     "called_number",
+    "counterparty_number",
     "disposition",
     "call_duration_seconds",
+    "dograh_token_usage",
+    "charge_usd",
+    "initial_context",
+    "gathered_context",
     "track",
     "downloaded_file",
+    "transcript_file",
     "status",
 ]
 
@@ -169,6 +187,82 @@ def to_api_timestamp(moment: datetime) -> str:
     """Render an aware datetime as the UTC ISO 8601 string the API parses."""
     utc = moment.astimezone(timezone.utc)
     return utc.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+
+
+def counterparty_number(run: Dict[str, Any]) -> str:
+    """The number of the human on the call, whichever end they were on.
+
+    On an inbound call that is the caller; on an outbound one it is the number
+    dialled. Falls back through the remaining number fields (including the
+    deprecated `phone_number`) so a run with partial data still gets a label.
+    """
+    if (run.get("call_type") or "").strip().lower() == "inbound":
+        preferred = run.get("caller_number")
+    else:
+        preferred = run.get("called_number")
+
+    number = (
+        preferred
+        or run.get("called_number")
+        or run.get("caller_number")
+        or run.get("phone_number")
+    )
+    if not number:
+        return ""
+    return re.sub(r"[^0-9+]", "", str(number))
+
+
+def local_parts(created_at: Optional[str], tz: ZoneInfo) -> Tuple[str, str]:
+    """Return the local (date, HHMMSS) of a run for use in file names."""
+    local = to_local(created_at, tz)
+    if not local:
+        return "", ""
+    return local[:10], local[11:19].replace(":", "")
+
+
+def file_stem(run: Dict[str, Any], track: str, tz: ZoneInfo) -> str:
+    """Build a file name that identifies the call without opening the manifest.
+
+    `2026-08-25_1003_+14155550100_run101_mixed` -- local date and time, the
+    other party's number, the run id, and which track this is. The run id keeps
+    it unique when two calls to the same number start in the same minute.
+    """
+    day, clock = local_parts(run.get("created_at"), tz)
+    pieces = [day or "unknown-date", clock[:4] or "0000"]
+    number = counterparty_number(run)
+    if number:
+        pieces.append(number)
+    pieces.append(f"run{run.get('id')}")
+    pieces.append(track)
+    return "_".join(pieces)
+
+
+def ended_at_local(run: Dict[str, Any], tz: ZoneInfo) -> str:
+    """When the call ended, in `tz`, derived from its start plus duration."""
+    created_at = run.get("created_at")
+    duration = run.get("call_duration_seconds")
+    if not created_at or duration in (None, ""):
+        return ""
+    try:
+        moment = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+        seconds = float(duration)
+    except (ValueError, TypeError):
+        return ""
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=timezone.utc)
+    return (moment + timedelta(seconds=seconds)).astimezone(tz).isoformat()
+
+
+def as_json_cell(value: Any) -> str:
+    """Flatten a nested context object into one CSV cell, or leave it blank."""
+    if value in (None, "", {}, []):
+        return ""
+    if isinstance(value, str):
+        return value
+    try:
+        return json.dumps(value, separators=(",", ":"), sort_keys=True)
+    except (TypeError, ValueError):
+        return str(value)
 
 
 def to_local(created_at: Optional[str], tz: ZoneInfo) -> str:
@@ -319,7 +413,12 @@ def download(url: str, out_dir: Path, stem: str) -> Path:
 
 
 def manifest_row(
-    run: Dict[str, Any], track: str, file_name: str, status: str, tz: ZoneInfo
+    run: Dict[str, Any],
+    track: str,
+    file_name: str,
+    status: str,
+    tz: ZoneInfo,
+    transcript_file: str = "",
 ):
     return {
         "run_id": run.get("id"),
@@ -328,16 +427,63 @@ def manifest_row(
         "run_name": run.get("name"),
         "created_at": run.get("created_at"),
         "created_at_local": to_local(run.get("created_at"), tz),
+        "ended_at_local": ended_at_local(run, tz),
         "call_type": run.get("call_type"),
         "mode": run.get("mode"),
         "caller_number": run.get("caller_number"),
         "called_number": run.get("called_number"),
+        "counterparty_number": counterparty_number(run),
         "disposition": run.get("disposition"),
         "call_duration_seconds": run.get("call_duration_seconds"),
+        "dograh_token_usage": run.get("dograh_token_usage"),
+        "charge_usd": run.get("charge_usd"),
+        "initial_context": as_json_cell(run.get("initial_context")),
+        "gathered_context": as_json_cell(run.get("gathered_context")),
         "track": track,
         "downloaded_file": file_name,
+        "transcript_file": transcript_file,
         "status": status,
     }
+
+
+def fetch_artifact(
+    run: Dict[str, Any],
+    track: str,
+    base_url: str,
+    args: argparse.Namespace,
+    out_dir: Path,
+    existing_stems: set,
+    tz: ZoneInfo,
+) -> Tuple[str, int]:
+    """Download one non-audio artifact for a run, honouring resume and dry-run.
+
+    Returns the file name written (or already present) and how many failures to
+    add to the tally. A missing artifact is not a failure -- plenty of runs have
+    no transcript -- so it comes back as an empty name.
+    """
+    try:
+        url = resolve_public_url(run, track, base_url, args.api_key)
+    except ExportError as exc:
+        print(f"  run {run.get('id')} [{track}]: {exc}", file=sys.stderr)
+        return "", 1
+
+    if not url:
+        return "", 0
+
+    stem = file_stem(run, track, tz)
+    if args.dry_run:
+        return "", 0
+    if stem in existing_stems:
+        return stem, 0
+
+    try:
+        path = download(url, out_dir, stem)
+    except ExportError as exc:
+        print(f"  run {run.get('id')} [{track}]: {exc}", file=sys.stderr)
+        return "", 1
+
+    existing_stems.add(path.stem)
+    return path.name, 0
 
 
 def export(args: argparse.Namespace) -> int:
@@ -347,7 +493,7 @@ def export(args: argparse.Namespace) -> int:
     end_date = parse_date_bound(args.end, end_of_day=True, tz=tz)
     tracks = [track.strip() for track in args.tracks.split(",") if track.strip()]
 
-    unknown = [track for track in tracks if track not in TRACK_FIELDS]
+    unknown = [track for track in tracks if track not in TRACKS]
     if unknown:
         raise ExportError(
             f"Unknown track(s): {', '.join(unknown)}. Choose from {', '.join(TRACKS)}."
@@ -386,16 +532,21 @@ def export(args: argparse.Namespace) -> int:
     ):
         run_count += 1
         found_any = False
-        # Name files by the local date so they group under the day the operator
-        # asked for, not the UTC day the call may have rolled over into.
-        local_day = to_local(run.get("created_at"), tz)[:10]
+
+        transcript_name = ""
+        if args.with_transcripts:
+            transcript_name, transcript_failed = fetch_artifact(
+                run, "transcript", base_url, args, out_dir, existing_stems, tz
+            )
+            failed += transcript_failed
 
         for track in tracks:
+            stem = file_stem(run, track, tz)
             try:
                 url = resolve_public_url(run, track, base_url, args.api_key)
             except ExportError as exc:
                 print(f"  run {run.get('id')} [{track}]: {exc}", file=sys.stderr)
-                rows.append(manifest_row(run, track, "", "error", tz))
+                rows.append(manifest_row(run, track, "", "error", tz, transcript_name))
                 failed += 1
                 continue
 
@@ -403,16 +554,21 @@ def export(args: argparse.Namespace) -> int:
                 continue
 
             found_any = True
-            stem = f"{local_day}_run{run.get('id')}_{track}"
 
             if args.dry_run:
                 print(f"  run {run.get('id')} [{track}]: {url}")
-                rows.append(manifest_row(run, track, "", "available", tz))
+                rows.append(
+                    manifest_row(run, track, "", "available", tz, transcript_name)
+                )
                 downloaded += 1
                 continue
 
             if stem in existing_stems:
-                rows.append(manifest_row(run, track, stem, "skipped_existing", tz))
+                rows.append(
+                    manifest_row(
+                        run, track, stem, "skipped_existing", tz, transcript_name
+                    )
+                )
                 skipped += 1
                 continue
 
@@ -420,17 +576,19 @@ def export(args: argparse.Namespace) -> int:
                 path = download(url, out_dir, stem)
             except ExportError as exc:
                 print(f"  run {run.get('id')} [{track}]: {exc}", file=sys.stderr)
-                rows.append(manifest_row(run, track, "", "error", tz))
+                rows.append(manifest_row(run, track, "", "error", tz, transcript_name))
                 failed += 1
                 continue
 
             downloaded += 1
             existing_stems.add(path.stem)
             print(f"  [{downloaded}] run {run.get('id')} [{track}] -> {path.name}")
-            rows.append(manifest_row(run, track, path.name, "downloaded", tz))
+            rows.append(
+                manifest_row(run, track, path.name, "downloaded", tz, transcript_name)
+            )
 
         if not found_any:
-            rows.append(manifest_row(run, "", "", "no_recording", tz))
+            rows.append(manifest_row(run, "", "", "no_recording", tz, transcript_name))
 
     if rows and not args.dry_run:
         manifest = out_dir / "manifest.csv"
@@ -493,6 +651,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--tracks",
         default="mixed",
         help=f"Comma-separated tracks to export from {TRACKS} (default: mixed)",
+    )
+    parser.add_argument(
+        "--with-transcripts",
+        action="store_true",
+        help="Also download each run's transcript alongside its audio",
     )
     parser.add_argument(
         "--overwrite",
