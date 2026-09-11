@@ -33,6 +33,7 @@ class WorkflowRunDetail(BaseModel):
     run_id: int
     workflow_name: str
     created_at: str
+    call_type: str
 
 
 @router.get("/daily", response_model=DailyReportResponse)

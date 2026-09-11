@@ -40,6 +40,7 @@ def build_run_report_csv(runs: List[Any]) -> io.StringIO:
         "Agent Definition ID",
         "Created At",
         "Phone Number",
+        "Direction",
         "Call Disposition",
         "Call Duration (s)",
     ]
@@ -66,6 +67,7 @@ def build_run_report_csv(runs: List[Any]) -> io.StringIO:
             run.definition_id if run.definition_id is not None else "",
             run.created_at.isoformat() if run.created_at else "",
             initial.get("phone_number", ""),
+            (run.call_type or "").capitalize(),
             gathered.get("mapped_call_disposition", ""),
             usage.get("call_duration_seconds", ""),
         ]

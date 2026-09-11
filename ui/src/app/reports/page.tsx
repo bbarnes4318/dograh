@@ -154,11 +154,12 @@ export default function ReportsPage() {
 
       if (response.data && response.data.length > 0) {
         // Prepare CSV content
-        const headers = ['Phone Number', 'Disposition', 'Duration (seconds)', 'Workflow Run URL'];
+        const headers = ['Phone Number', 'Direction', 'Disposition', 'Duration (seconds)', 'Workflow Run URL'];
         const rows = response.data.map((run: WorkflowRunDetail) => {
           const url = `${window.location.origin}/workflow/${run.workflow_id}/run/${run.run_id}`;
           return [
             run.phone_number || '',
+            run.call_type ? run.call_type.charAt(0).toUpperCase() + run.call_type.slice(1) : '',
             run.disposition || '',
             run.duration_seconds.toString(),
             url

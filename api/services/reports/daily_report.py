@@ -231,6 +231,7 @@ class DailyReportService:
                     "run_id": run["id"],
                     "workflow_name": run["workflow_name"],
                     "created_at": run["created_at"].isoformat(),
+                    "call_type": run["call_type"],
                 }
             )
 

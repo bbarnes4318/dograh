@@ -36,6 +36,7 @@ class ReportsClient(BaseDBClient):
                     WorkflowRunModel.id,
                     WorkflowRunModel.workflow_id,
                     WorkflowRunModel.created_at,
+                    WorkflowRunModel.call_type,
                     # Extract only specific fields from JSON columns
                     # Use TRIM and REPLACE to remove any quotes from JSON values
                     func.coalesce(
@@ -126,6 +127,7 @@ class ReportsClient(BaseDBClient):
                     "workflow_id": row.workflow_id,
                     "workflow_name": row.workflow_name,
                     "created_at": row.created_at,
+                    "call_type": row.call_type,
                     "gathered_context": {
                         "mapped_call_disposition": row.disposition,
                         "customer_phone_number": row.phone_number,  # Also provide it here for compatibility
