@@ -47,69 +47,55 @@ issuance fails while it points at `.66`. Repoint it, let TTL expire, and confirm
 dig +short aivoice.netenroll.com    # must print 178.156.223.97
 ```
 
-## Which architecture is this box?
+## How this box actually serves Dograh (confirmed on the box)
 
-Dograh can be served two ways, and the right change differs. Check first:
+Settled by `docker compose ps` + `ss -lntp` on hopwhistle-prod-ash:
 
-```bash
-cd /opt/dograh
-docker compose ps            # is there an nginx_https container?
-ss -lntp | grep -E ':(80|443|8000|3010|9000)\b'
-```
+- **Host nginx owns :80 and :443** (real `nginx` workers, not `docker-proxy`) and
+  reverse-proxies the published container ports. Dograh's own `remote` compose
+  profile is NOT in use — there is no `nginx_https` or `coturn` container.
+- The live vhost is **`/etc/nginx/sites-available/aivoice`** (not a filename
+  matching the hostname, which is why a `sites-available/aivoice.hopwhistle.com`
+  search came up empty).
+- **Ports are remapped from the upstream compose defaults.** MinIO is on
+  **19000**, Postgres 15432, Redis 16379. Only api (8000) and ui (3010) match
+  the stock file. `/opt/dograh/docker-compose.override.yaml` plus a customized
+  `docker-compose.yaml` drive this.
+- The API image is upstream `dograhai/dograh-api:latest` with **13 bind-mounted
+  patch files** from `/opt/dograh-patches/` layered over it. The UI is a
+  locally built `dograh-ui:voicestudio`, from the `hopwhistle/customizations`
+  branch — not from `main`.
 
-- **(A) Host nginx in front of published container ports.** Nothing named
-  `nginx_https` is running; the host's own nginx owns :80/:443 and proxies to the
-  published `8000` (api), `3010` (ui), `9000` (minio). This is almost certainly the
-  case here, because the host nginx already serves `agents.netenroll.com` and the two
-  cannot both bind :443. Use `aivoice.netenroll.com.conf` from this directory.
-  The existing `aivoice.hopwhistle.com` vhost is *somewhere* in the host nginx config —
-  not in `sites-available/`. Find it before editing anything:
+The vhost in this directory is derived from that live `aivoice` vhost: only the
+hostname, certificate, framing policy and ACME location differ. Every proxy rule
+is copied verbatim from the config already serving this app.
 
-  ```bash
-  nginx -T 2>/dev/null | grep -n 'server_name\|include'
-  grep -rn 'aivoice.hopwhistle' /etc/nginx/
-  ```
+## What the earlier draft got wrong
 
-- **(B) Dograh's own nginx container owns :80/:443.** An `nginx_https` container is
-  running. Then the config is **generated**, not hand-written: `dograh-init` renders
-  `deploy/templates/nginx.remote.conf.template` from `.env` into the `nginx-generated`
-  volume mounted at `/etc/nginx/conf.d`. Editing files under `/etc/nginx` on the host
-  does nothing. In that case do **not** install the vhost from this directory — change
-  `PUBLIC_HOST` in `/opt/dograh/.env` and re-run `./remote_up.sh`.
+The draft at `/etc/nginx/sites-available/aivoice.netenroll.com` on the box was
+written from container ports rather than from the working vhost. Do not enable
+it as-is:
 
-  Note that layout serves exactly **one** hostname: `dograh_preflight_remote_init_render`
-  in `scripts/lib/setup_common.sh` hard-fails unless the rendered `server_name` equals
-  `PUBLIC_HOST` exactly, and it compares only the first token — so
-  `PUBLIC_HOST="a.com b.com"` fails the preflight. Serving both hostnames during the
-  cutover requires either a second vhost outside the generated config or accepting a
-  single-hostname switch.
+1. **`location /api` must be `location /api/v1/`.** This breaks the exact thing
+   the vhost exists to fix. Next.js serves `/api/auth/oss`, `/api/auth/session`,
+   `/api/auth/logout` and `/api/config/*` itself on :3010 — the routes that read
+   `dograh_auth_token` and hand the session to the browser. Sending all of
+   `/api` to FastAPI 404s them and the iframe falls back to Dograh's login
+   screen. The live `aivoice` vhost gets this right.
+2. **No `/voice-audio/` location** — recording playback 404s.
+3. **MinIO is on 19000 on this box, not 9000.** An earlier version of this file
+   had 9000 copied from the stock compose; that would have broken recordings.
+4. **No `sub_filter`** for stray `localhost:9000` MinIO URLs.
 
-## What the draft vhost got wrong
+## Verified
 
-The draft at `/opt/hopwhistle/infra/nginx/aivoice.netenroll.com` was written from the
-container ports rather than from how Dograh is actually served. Corrections, in order of
-severity:
-
-1. **`/api` must be `/api/v1/`.** This one breaks the exact thing we are fixing. The
-   Next.js UI serves its *own* routes under `/api/` on :3010 — `/api/auth/oss`,
-   `/api/auth/session`, `/api/auth/logout`, `/api/config/*`. Those read the
-   `dograh_auth_token` cookie and hand the session to the browser. Sending all of
-   `/api` to FastAPI 404s them, and the iframe falls back to Dograh's login screen —
-   the original symptom. Only `/api/v1/` is the backend (`api/app.py`: `API_PREFIX`).
-2. **No `/voice-audio/` location.** Recording playback 404s. Most visible failure
-   inside the portal, since the page exists to show calls.
-3. **No port-80 server with an ACME webroot.** Certbot cannot issue, and — more
-   quietly — cannot *renew* in 90 days.
-4. **No WebSocket timeouts.** Live call audio dies at nginx's 60s default; needs
-   `proxy_read_timeout`/`proxy_send_timeout` of 3600s and `proxy_buffering off`.
-5. **`Connection "upgrade"` hardcoded.** Sent on every request, not just upgrades.
-   Replaced with a `map`.
-6. **Missing `sub_filter`** for stray `localhost:9000` MinIO URLs, and
-   `client_max_body_size 100M`.
-
-`X-Forwarded-Proto https` is load-bearing beyond cosmetics: uvicorn runs with
-`FORWARDED_ALLOW_IPS=*`, and inbound telephony webhook signatures are computed over the
-public `https` URL. Without the header every provider's signature check fails at once.
+This vhost was run against nginx with stub upstreams on this box's real port
+layout (8000 / 3010 / 19000) and a self-signed certificate. Confirmed:
+`nginx -t` clean; `/`, `/voice-agents`, `/api/auth/oss`, `/api/auth/session`,
+`/api/config/version` route to the **UI**, `/api/v1/health` to the **API**,
+`/voice-audio/...` to **MinIO**; the `frame-ancestors` header present on 200 and
+on 502; and on :80 the ACME challenge served from the webroot while every other
+path 301s to HTTPS.
 
 ## Step 1 — DNS
 
@@ -122,8 +108,11 @@ install -m 0644 /opt/dograh/deploy/netenroll/aivoice.netenroll.com.conf \
   /etc/nginx/sites-available/aivoice.netenroll.com
 ln -sf /etc/nginx/sites-available/aivoice.netenroll.com \
   /etc/nginx/sites-enabled/aivoice.netenroll.com
-mkdir -p /var/www/certbot
+mkdir -p /var/www/hopwhistle
 ```
+
+The ACME webroot is `/var/www/hopwhistle` — the same one the portal's vhosts
+already use on this box.
 
 The vhost references a certificate that does not exist yet, so `nginx -t` fails until
 Step 3. Issue the certificate first with `--nginx`, or temporarily comment out the
@@ -132,7 +121,7 @@ Step 3. Issue the certificate first with `--nginx`, or temporarily comment out t
 ## Step 3 — certificate
 
 ```bash
-certbot certonly --webroot -w /var/www/certbot -d aivoice.netenroll.com
+certbot certonly --webroot -w /var/www/hopwhistle -d aivoice.netenroll.com
 nginx -t && systemctl reload nginx
 ```
 
@@ -163,8 +152,14 @@ BACKEND_URL=
 Restart the stack so the API picks up the new environment:
 
 ```bash
-cd /opt/dograh && ./remote_up.sh          # or: docker compose up -d --force-recreate api ui
+cd /opt/dograh && docker compose up -d --force-recreate api ui
 ```
+
+**Do not use `./remote_up.sh` on this box.** It runs `up -d --pull always`,
+which would replace the locally built `dograh-ui:voicestudio` image with
+upstream's `dograhai/dograh-ui:latest` and take the Fish Voice Studio UI with
+it. It also starts the `remote` profile (nginx + coturn containers), and that
+nginx would fight host nginx for :80/:443.
 
 ### CORS
 
