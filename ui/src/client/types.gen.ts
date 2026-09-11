@@ -7217,6 +7217,10 @@ export type WorkflowRunDetail = {
      * Created At
      */
     created_at: string;
+    /**
+     * Call Type
+     */
+    call_type: string;
 };
 
 /**
