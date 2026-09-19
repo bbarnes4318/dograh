@@ -62,6 +62,7 @@ interface CallRow {
   run_id: number;
   time: string;
   phone: string | null;
+  direction: string | null;
   duration: number;
   category: string;
   result: string;
@@ -325,13 +326,13 @@ export default function LiveResultsPage() {
 
   const exportCsv = () => {
     const rows = filteredCalls;
-    const header = ['time', 'phone', 'duration_sec', 'who_answered', 'result', 'reason', 'transcript'];
+    const header = ['time', 'phone', 'direction', 'duration_sec', 'who_answered', 'result', 'reason', 'transcript'];
     const esc = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`;
     const lines = [header.join(',')];
     for (const c of rows) {
       const t = format(new Date(c.time), 'yyyy-MM-dd HH:mm:ss');
       const cleanTranscript = (c.transcript || '').replace(/[\r\n]+/g, ' | ');
-      lines.push([t, c.phone || '', c.duration, c.category, c.result, c.reason || '', cleanTranscript].map(esc).join(','));
+      lines.push([t, c.phone || '', c.direction || '', c.duration, c.category, c.result, c.reason || '', cleanTranscript].map(esc).join(','));
     }
     const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -677,6 +678,7 @@ export default function LiveResultsPage() {
                   <TableRow className="hover:bg-transparent">
                     <TableHead className="h-8 px-3 text-[11px] uppercase tracking-wide">Time</TableHead>
                     <TableHead className="h-8 px-3 text-[11px] uppercase tracking-wide">Phone</TableHead>
+                    <TableHead className="h-8 px-3 text-[11px] uppercase tracking-wide">Dir</TableHead>
                     <TableHead className="h-8 px-3 text-[11px] uppercase tracking-wide">Dur</TableHead>
                     <TableHead className="h-8 px-3 text-[11px] uppercase tracking-wide">Answered</TableHead>
                     <TableHead className="h-8 px-3 text-[11px] uppercase tracking-wide">Result</TableHead>
@@ -693,6 +695,9 @@ export default function LiveResultsPage() {
                         {format(new Date(c.time), 'h:mm:ss a')}
                       </TableCell>
                       <TableCell className="px-3 py-1.5 font-mono text-xs">{c.phone || '—'}</TableCell>
+                      <TableCell className="whitespace-nowrap px-3 py-1.5 text-xs text-muted-foreground">
+                        {c.direction || '—'}
+                      </TableCell>
                       <TableCell className="px-3 py-1.5 text-xs tabular-nums text-muted-foreground">
                         {fmtDuration(c.duration)}
                       </TableCell>
