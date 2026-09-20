@@ -199,7 +199,13 @@ class CustomToolManager:
                         if mcp_tool_filters is None
                         else set(mcp_tool_filters.get(tool.tool_uuid, []))
                     )
-                    schemas.extend(session.function_schemas(allowed))
+                    # Sorted by name: an MCP server is free to list its tools
+                    # in any order, and a tool list that reshuffles between
+                    # calls changes the serialized request prefix and misses
+                    # the provider's prompt cache every time.
+                    schemas.extend(
+                        sorted(session.function_schemas(allowed), key=lambda s: s.name)
+                    )
                     continue
 
                 raw_schema = tool_to_function_schema(tool)

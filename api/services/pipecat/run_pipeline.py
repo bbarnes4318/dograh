@@ -13,6 +13,7 @@ from api.schemas.workflow_configurations import (
     DEFAULT_MAX_USER_IDLE_TIMEOUT_SECONDS,
     DEFAULT_PROVISIONAL_VAD_PAUSE_SECS,
     DEFAULT_SMART_TURN_STOP_SECS,
+    DEFAULT_SPEAK_DURING_TRANSITION,
     DEFAULT_TURN_START_MIN_WORDS,
     DEFAULT_TURN_START_STRATEGY,
     IdleBehaviorConfiguration,
@@ -843,6 +844,19 @@ async def _run_pipeline_impl(
         has_recordings=has_recordings,
         context_compaction_enabled=context_compaction_enabled,
         tool_filler=tool_filler,
+        speak_during_transition=bool(
+            run_configs.get(
+                "speak_during_transition", DEFAULT_SPEAK_DURING_TRANSITION
+            )
+        ),
+        llm_provider=user_config.llm.provider if user_config.llm else None,
+        # Every call on this workflow version shares a system prompt and tool
+        # set per node, so they can share a prompt cache.
+        prompt_cache_namespace=(
+            f"dograh:{workflow.organization_id}:{workflow_run.definition_id}"
+            if getattr(workflow_run, "definition_id", None) is not None
+            else None
+        ),
     )
 
     # Create pipeline components

@@ -36,10 +36,36 @@ import asyncio
 
 from loguru import logger
 
+# Providers documented to accept OpenAI's `prompt_cache_key`. An
+# OpenAI-compatible endpoint that doesn't know the parameter rejects the whole
+# request, so this stays an allowlist rather than "anything OpenAI-shaped".
+PROMPT_CACHE_KEY_PROVIDERS = frozenset({"openai", "azure"})
+
+# A transition line is meant to be a handful of words. Models sometimes ignore
+# that and write a paragraph, which would delay the very generation the line
+# exists to cover.
+MAX_TRANSITION_MESSAGE_CHARS = 120
+
+
+def _clean_transition_message(value: object) -> Optional[str]:
+    """Normalize a model-supplied transition line, or None if unusable."""
+    if not isinstance(value, str):
+        return None
+    text = value.strip()
+    if not text:
+        return None
+    if len(text) > MAX_TRANSITION_MESSAGE_CHARS:
+        logger.debug(
+            f"Transition line over {MAX_TRANSITION_MESSAGE_CHARS} chars, dropping it"
+        )
+        return None
+    return text
+
 from api.services.managed_model_services import MPS_CORRELATION_ID_CONTEXT_KEY
 from api.services.workflow import pipecat_engine_callbacks as engine_callbacks
 from api.services.workflow.mcp_tool_session import McpToolSession
 from api.services.workflow.pipecat_engine_context_composer import (
+    TRANSITION_MESSAGE_ARG,
     compose_functions_for_node,
     compose_system_prompt_for_node,
 )
@@ -81,6 +107,9 @@ class PipecatEngine:
         has_recordings: bool = False,
         context_compaction_enabled: bool = False,
         tool_filler: Optional["ToolFillerConfiguration"] = None,
+        speak_during_transition: bool = True,
+        llm_provider: Optional[str] = None,
+        prompt_cache_namespace: Optional[str] = None,
     ):
         self.task = task
         self.llm = llm
@@ -165,6 +194,14 @@ class PipecatEngine:
         self._tool_filler = tool_filler or ToolFillerConfiguration()
         self._last_filler_phrase: Optional[str] = None
 
+        # Let the model supply a line to say while a node transition runs, so
+        # the second generation isn't dead air.
+        self._speak_during_transition: bool = speak_during_transition
+
+        # Prompt-cache routing (see _apply_prompt_cache_key).
+        self._llm_provider: Optional[str] = llm_provider
+        self._prompt_cache_namespace: Optional[str] = prompt_cache_namespace
+
         # Background context summarization on node transitions
         self._context_compaction_enabled: bool = context_compaction_enabled
         self._context_summarization_manager: Optional[ContextSummarizationManager] = (
@@ -234,6 +271,28 @@ class PipecatEngine:
 
         await self.llm._update_settings(LLMSettings(system_instruction=system_prompt))
 
+    def _apply_prompt_cache_key(self, node_id: str) -> None:
+        """Point the provider at a per-node prompt cache.
+
+        Every turn inside a node resends the same system prompt and tool
+        schemas, and so does every *other call* running the same workflow
+        version — a campaign dialling thousands of leads reuses one prefix.
+        Providers cache on that prefix automatically, but a cache key makes
+        requests that share it land on the same cache instead of scattering.
+
+        Only set for providers documented to accept it; an OpenAI-compatible
+        endpoint that doesn't know the parameter would reject the request.
+        """
+        if self._prompt_cache_namespace is None:
+            return
+        if self._llm_provider not in PROMPT_CACHE_KEY_PROVIDERS:
+            return
+        settings = getattr(self.llm, "_settings", None)
+        extra = getattr(settings, "extra", None)
+        if not isinstance(extra, dict):
+            return
+        extra["prompt_cache_key"] = f"{self._prompt_cache_namespace}:{node_id}"
+
     def _format_prompt(self, prompt: str) -> str:
         """Delegate prompt formatting to the shared workflow.utils implementation."""
 
@@ -302,6 +361,25 @@ class PipecatEngine:
                             persist_to_logs=True,
                         )
                     )
+                else:
+                    # No configured line for this edge — use the one the model
+                    # supplied in this very tool call, so the second generation
+                    # (the one that speaks in the new node) isn't dead air.
+                    model_message = _clean_transition_message(
+                        (function_call_params.arguments or {}).get(
+                            TRANSITION_MESSAGE_ARG
+                        )
+                    )
+                    if model_message:
+                        logger.info(f"Playing model transition line: {model_message}")
+                        self._queued_speech_mute_state = "waiting"
+                        await self.task.queue_frame(
+                            TTSSpeakFrame(
+                                model_message,
+                                append_to_context=True,
+                                persist_to_logs=True,
+                            )
+                        )
 
                 # Set context for the new node, so that when the function call result
                 # frame is received by LLMContextAggregator and an LLM generation
@@ -594,7 +672,9 @@ class PipecatEngine:
         functions = await compose_functions_for_node(
             node=node,
             custom_tool_manager=self._custom_tool_manager,
+            include_transition_message=self._speak_during_transition,
         )
+        self._apply_prompt_cache_key(node.id)
         await self._update_llm_context(system_prompt, functions)
 
     async def set_node(self, node_id: str, emit_transition_event: bool = True):

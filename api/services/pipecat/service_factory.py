@@ -960,7 +960,13 @@ def create_llm_service_from_provider(
             aws_access_key=aws_access_key,
             aws_secret_key=aws_secret_key,
             aws_region=aws_region,
-            settings=AWSBedrockLLMSettings(model=model),
+            settings=AWSBedrockLLMSettings(
+                model=model,
+                # Bedrock does no prompt caching unless asked. Every turn of a
+                # voice call resends the same system prompt and tool schemas,
+                # so cache points on both cut time-to-first-token sharply.
+                enable_prompt_caching=True,
+            ),
         )
     elif provider == ServiceProviders.SPEACHES.value:
         base_url = base_url or "http://localhost:11434/v1"

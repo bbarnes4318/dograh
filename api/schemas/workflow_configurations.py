@@ -15,6 +15,7 @@ DEFAULT_PROVISIONAL_VAD_PAUSE_SECS = 1.5
 DEFAULT_TURN_STOP_STRATEGY = "transcription"
 DEFAULT_CONTEXT_COMPACTION_ENABLED = False
 DEFAULT_BUFFER_MUTED_SPEECH = True
+DEFAULT_SPEAK_DURING_TRANSITION = True
 
 
 class ExternalPBXFieldMapping(BaseModel):
@@ -167,6 +168,11 @@ class WorkflowConfigurationDefaults(BaseModel):
     # call), hold what they said and replay it into the context once they're
     # unmuted instead of dropping it.
     buffer_muted_speech: bool = DEFAULT_BUFFER_MUTED_SPEECH
+    # Let the model hand back a short line to speak while a node transition
+    # runs, covering the gap between the transition call and the generation
+    # that speaks in the new node. Edges with their own configured transition
+    # speech are unaffected.
+    speak_during_transition: bool = DEFAULT_SPEAK_DURING_TRANSITION
     external_pbx_field_mappings: list[ExternalPBXFieldMapping] = Field(
         default_factory=list,
         max_length=100,
