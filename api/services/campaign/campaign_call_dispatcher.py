@@ -1,6 +1,6 @@
 import asyncio
 import time
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Optional
 
 from loguru import logger
@@ -14,6 +14,13 @@ from api.services.call_concurrency import (
     call_concurrency,
 )
 from api.services.campaign.circuit_breaker import circuit_breaker
+from api.services.campaign.dialing_windows import (
+    DialingPolicy,
+    dialing_config,
+    rank_from_numbers_by_locality,
+    resolve_lead_timezone,
+    seconds_until_local_window,
+)
 from api.services.campaign.errors import (
     ConcurrentSlotAcquisitionError,
     PhoneNumberPoolExhaustedError,
@@ -101,8 +108,16 @@ class CampaignCallDispatcher:
 
         processed_count = 0
         processed_run_ids: set[int] = set()
+        policy = dialing_config(campaign)
         for i, queued_run in enumerate(queued_runs):
             try:
+                # Calling windows are defined in the *called party's* local
+                # time. A lead outside their own window is put back on the
+                # queue for when it opens, rather than dialled now.
+                if await self._defer_outside_local_window(queued_run, policy):
+                    processed_run_ids.add(queued_run.id)
+                    continue
+
                 # Apply rate limiting, i.e lets not initiate more than rate_limit_per_second
                 # calls per second. It is different than concurrency limit.
                 await self.apply_rate_limit(
@@ -193,6 +208,49 @@ class CampaignCallDispatcher:
 
         return processed_count
 
+    async def _defer_outside_local_window(
+        self,
+        queued_run: QueuedRunModel,
+        policy: "DialingPolicy",
+    ) -> bool:
+        """Put a lead back on the queue when it's outside their local window.
+
+        Returns True when the run was deferred and must not be dialled.
+        Failing to reschedule is not a reason to dial outside the window:
+        the run goes back to ``queued`` either way and the next batch retries.
+        """
+        if not policy.schedule_enabled or not policy.per_lead_timezone:
+            return False
+
+        phone_number = (queued_run.context_variables or {}).get("phone_number")
+        timezone = resolve_lead_timezone(
+            queued_run.context_variables, phone_number, policy.timezone
+        )
+        wait_seconds = seconds_until_local_window(policy.slots, timezone)
+        if wait_seconds is None:
+            return False
+
+        scheduled_for = datetime.now(UTC) + timedelta(seconds=wait_seconds)
+        logger.info(
+            f"Queued run {queued_run.id} is outside its local window "
+            f"({timezone}); rescheduling for {scheduled_for.isoformat()}"
+        )
+        try:
+            await db_client.update_queued_run(
+                queued_run_id=queued_run.id,
+                state="queued",
+                scheduled_for=scheduled_for,
+            )
+        except Exception as e:
+            logger.error(
+                f"Could not reschedule queued run {queued_run.id} outside its "
+                f"local window: {e}"
+            )
+            await self._return_unprocessed_claims(
+                [queued_run], set(), reason="local_window_reschedule_failed"
+            )
+        return True
+
     async def _return_unprocessed_claims(
         self,
         queued_runs: list[QueuedRunModel],
@@ -256,10 +314,20 @@ class CampaignCallDispatcher:
 
             # Acquire a unique from_number from the pool scoped to this campaign's
             # telephony configuration so orgs with multiple configs don't leak
-            # caller IDs across configs.
+            # caller IDs across configs. Prefer a caller ID that looks local to
+            # the lead — people answer a local number far more often — and honour
+            # any per-number daily cap so one ID doesn't get spam-labelled.
+            dialing = dialing_config(campaign)
+            preferred_numbers = (
+                rank_from_numbers_by_locality(provider.from_numbers or [], phone_number)
+                if dialing.local_presence
+                else None
+            )
             from_number = await self.acquire_from_number(
                 campaign.organization_id,
                 telephony_configuration_id=campaign.telephony_configuration_id,
+                preferred_numbers=preferred_numbers,
+                daily_cap=dialing.from_number_daily_cap,
             )
             if from_number is None:
                 raise PhoneNumberPoolExhaustedError(
@@ -511,10 +579,16 @@ class CampaignCallDispatcher:
         organization_id: int,
         telephony_configuration_id: int | None,
         timeout: float = 600,
+        preferred_numbers: Optional[list[str]] = None,
+        daily_cap: Optional[int] = None,
     ) -> Optional[str]:
         """
         Acquire a from_number from the (org, telephony config) pool with retry.
         Waits up to timeout seconds, polling every 1s.
+
+        Args:
+            preferred_numbers: Ranked caller IDs to try first (local presence).
+            daily_cap: Max dials per caller ID per day, or None for no cap.
 
         Returns:
             The acquired phone number as a string, or None if timeout is exceeded.
@@ -523,7 +597,10 @@ class CampaignCallDispatcher:
 
         while True:
             from_number = await rate_limiter.acquire_from_number(
-                organization_id, telephony_configuration_id
+                organization_id,
+                telephony_configuration_id,
+                preferred_numbers=preferred_numbers,
+                daily_cap=daily_cap,
             )
             if from_number:
                 return from_number

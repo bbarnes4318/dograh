@@ -18,6 +18,7 @@ from api.services.campaign.campaign_event_publisher import (
     get_campaign_event_publisher,
 )
 from api.services.campaign.circuit_breaker import circuit_breaker
+from api.services.campaign.rate_limiter import rate_limiter
 from api.tasks.arq import enqueue_job
 from api.tasks.function_names import FunctionNames
 
@@ -93,6 +94,29 @@ async def _enqueue_integrations_for_unconnected_run(
     )
 
 
+async def _record_caller_id_outcome(workflow_run_id: int, *, answered: bool) -> None:
+    """Count this call against the caller ID that placed it.
+
+    Best effort: the mapping is only stored for campaign dispatches, and
+    reputation bookkeeping must never break status processing.
+    """
+    try:
+        mapping = await rate_limiter.get_workflow_from_number_mapping(workflow_run_id)
+        if not mapping:
+            return
+        organization_id, from_number, telephony_configuration_id = mapping
+        await rate_limiter.record_from_number_outcome(
+            organization_id,
+            telephony_configuration_id,
+            from_number,
+            answered=answered,
+        )
+    except Exception as e:
+        logger.warning(
+            f"[run {workflow_run_id}] Could not record caller-ID outcome: {e}"
+        )
+
+
 class StatusCallbackRequest(BaseModel):
     """Normalized status callback shape used across all telephony providers.
 
@@ -144,6 +168,13 @@ async def _process_status_update(workflow_run_id: int, status: StatusCallbackReq
             f"[run {workflow_run_id}] Call completed with duration: {status.duration}s"
         )
 
+        # A completed call with any talk time was picked up. Answer rate per
+        # caller ID is the only signal that a number has been spam-labelled —
+        # it still dials fine, it just stops getting answered.
+        await _record_caller_id_outcome(
+            workflow_run_id, answered=_duration_seconds(status.duration) > 0
+        )
+
         await campaign_call_dispatcher.release_call_slot(workflow_run_id)
 
         if workflow_run.campaign_id:
@@ -162,6 +193,8 @@ async def _process_status_update(workflow_run_id: int, status: StatusCallbackReq
         logger.warning(
             f"[run {workflow_run_id}] Call failed with status: {normalized_status.value}"
         )
+
+        await _record_caller_id_outcome(workflow_run_id, answered=False)
 
         await campaign_call_dispatcher.release_call_slot(workflow_run_id)
 

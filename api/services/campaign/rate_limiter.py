@@ -1,6 +1,7 @@
 import time
 import uuid
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Optional
 
 import redis.asyncio as aioredis
@@ -399,25 +400,68 @@ class RateLimiter:
             logger.error(f"Error initializing from_number pool: {e}")
             return False
 
+    @staticmethod
+    def _from_number_daily_key(
+        organization_id: int, telephony_configuration_id: int | None, day: str
+    ) -> str:
+        """Hash of number -> dials placed today, for per-number caps."""
+        return (
+            f"from_number_daily:{organization_id}:{telephony_configuration_id}:{day}"
+        )
+
+    @staticmethod
+    def _from_number_stats_key(
+        organization_id: int, telephony_configuration_id: int | None
+    ) -> str:
+        """Hash of '<number>:dials' / '<number>:answers' counters."""
+        return f"from_number_stats:{organization_id}:{telephony_configuration_id}"
+
     async def acquire_from_number(
-        self, organization_id: int, telephony_configuration_id: int | None
+        self,
+        organization_id: int,
+        telephony_configuration_id: int | None,
+        preferred_numbers: Optional[list[str]] = None,
+        daily_cap: Optional[int] = None,
     ) -> Optional[str]:
         """
         Atomically acquire an available from_number from the pool for the given
         (organization_id, telephony_configuration_id).
         Cleans stale entries (score > 0 and older than 30 min) before acquiring.
 
-        Returns the phone number if available, None if all numbers are in use.
+        Args:
+            preferred_numbers: Numbers to try first, best first — used for local
+                presence, where a caller ID sharing the lead's area code gets
+                answered far more often. Falls back to a random available number
+                when none of the preferred ones are free.
+            daily_cap: Maximum dials to place from any one number today. Numbers
+                at the cap are skipped, which keeps a single caller ID from
+                burning its reputation and getting spam-labelled. None disables
+                the cap.
+
+        Returns the phone number if available, None if all numbers are in use
+        or capped.
+
+        Note: touches two keys (the pool and today's dial counts). Both are
+        derived from the same org + config, but they are not hash-tagged, so
+        this assumes a single-instance Redis — which is what the deployment
+        uses.
         """
         redis_client = await self._get_redis()
         key = self._from_number_pool_key(organization_id, telephony_configuration_id)
+        day = datetime.now(UTC).strftime("%Y%m%d")
+        daily_key = self._from_number_daily_key(
+            organization_id, telephony_configuration_id, day
+        )
         now = time.time()
         stale_cutoff = now - self.stale_call_timeout
 
         lua_script = """
         local key = KEYS[1]
+        local daily_key = KEYS[2]
         local now = tonumber(ARGV[1])
         local stale_cutoff = tonumber(ARGV[2])
+        local daily_cap = tonumber(ARGV[3])
+        local preferred_count = tonumber(ARGV[4])
 
         -- Clean stale entries: members with score > 0 and score < stale_cutoff
         local stale = redis.call('ZRANGEBYSCORE', key, 1, stale_cutoff)
@@ -431,23 +475,127 @@ class RateLimiter:
             return nil
         end
 
-        -- Pick a random number from the available pool for uniform distribution
-        local idx = math.random(#available)
-        local chosen = available[idx]
+        -- Drop numbers that have already hit today's cap
+        local eligible = {}
+        for i, member in ipairs(available) do
+            local keep = true
+            if daily_cap > 0 then
+                local used = tonumber(redis.call('HGET', daily_key, member) or '0')
+                if used >= daily_cap then
+                    keep = false
+                end
+            end
+            if keep then
+                eligible[#eligible + 1] = member
+            end
+        end
+        if #eligible == 0 then
+            return nil
+        end
 
-        -- Mark as in-use with current timestamp
+        local eligible_set = {}
+        for i, member in ipairs(eligible) do
+            eligible_set[member] = true
+        end
+
+        -- Prefer the caller's ranked list (local presence), best first
+        local chosen = nil
+        for i = 1, preferred_count do
+            local candidate = ARGV[4 + i]
+            if eligible_set[candidate] then
+                chosen = candidate
+                break
+            end
+        end
+
+        -- Otherwise pick at random for uniform distribution
+        if chosen == nil then
+            chosen = eligible[math.random(#eligible)]
+        end
+
+        -- Mark as in-use with current timestamp and count the dial
         redis.call('ZADD', key, now, chosen)
+        redis.call('HINCRBY', daily_key, chosen, 1)
+        -- Two days of slack so a cap can't be reset by a clock skew
+        redis.call('EXPIRE', daily_key, 172800)
         return chosen
         """
 
+        preferred = [n for n in (preferred_numbers or []) if n]
         try:
-            result = await redis_client.eval(lua_script, 1, key, now, stale_cutoff)
+            result = await redis_client.eval(
+                lua_script,
+                2,
+                key,
+                daily_key,
+                now,
+                stale_cutoff,
+                int(daily_cap or 0),
+                len(preferred),
+                *preferred,
+            )
             if result:
                 logger.debug(f"Acquired from_number {result} for org {organization_id}")
             return result
         except Exception as e:
             logger.error(f"Error acquiring from_number: {e}")
             return None
+
+    async def record_from_number_outcome(
+        self,
+        organization_id: int,
+        telephony_configuration_id: int | None,
+        from_number: str,
+        answered: bool,
+    ) -> None:
+        """Count a dial's outcome against its caller ID.
+
+        Answer rate per number is what tells you a caller ID has been
+        spam-labelled — it keeps dialling fine, it just stops being picked up.
+        Without this there is no signal at all to rotate on.
+        """
+        if not from_number:
+            return
+        try:
+            redis_client = await self._get_redis()
+            stats_key = self._from_number_stats_key(
+                organization_id, telephony_configuration_id
+            )
+            await redis_client.hincrby(stats_key, f"{from_number}:dials", 1)
+            if answered:
+                await redis_client.hincrby(stats_key, f"{from_number}:answers", 1)
+        except Exception as e:
+            logger.error(f"Error recording from_number outcome: {e}")
+
+    async def get_from_number_stats(
+        self, organization_id: int, telephony_configuration_id: int | None
+    ) -> dict[str, dict[str, float]]:
+        """Per-caller-ID dials, answers and answer rate."""
+        try:
+            redis_client = await self._get_redis()
+            stats_key = self._from_number_stats_key(
+                organization_id, telephony_configuration_id
+            )
+            raw = await redis_client.hgetall(stats_key)
+        except Exception as e:
+            logger.error(f"Error reading from_number stats: {e}")
+            return {}
+
+        stats: dict[str, dict[str, float]] = {}
+        for field, value in (raw or {}).items():
+            number, _, metric = str(field).rpartition(":")
+            if not number or metric not in ("dials", "answers"):
+                continue
+            entry = stats.setdefault(number, {"dials": 0, "answers": 0})
+            try:
+                entry[metric] = int(value)
+            except (TypeError, ValueError):
+                continue
+
+        for entry in stats.values():
+            dials = entry.get("dials", 0)
+            entry["answer_rate"] = round(entry.get("answers", 0) / dials, 4) if dials else 0.0
+        return stats
 
     async def release_from_number(
         self,
