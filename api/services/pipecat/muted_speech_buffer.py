@@ -182,7 +182,9 @@ class MutedSpeechBufferProcessor(FrameProcessor):
             try:
                 run_llm = not self._suppress_generation()
             except Exception as exc:
-                logger.warning(f"Muted-speech buffer could not read engine state: {exc}")
+                logger.warning(
+                    f"Muted-speech buffer could not read engine state: {exc}"
+                )
 
         logger.info(f"Replaying muted caller speech (run_llm={run_llm}): {text!r}")
         await self.push_frame(

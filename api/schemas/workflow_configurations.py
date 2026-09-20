@@ -68,6 +68,26 @@ class ToolFillerConfiguration(BaseModel):
     )
 
 
+class DTMFConfiguration(BaseModel):
+    """Keypad handling for telephony calls.
+
+    Capture is on by default and costs nothing: a caller who presses keys
+    instead of speaking is currently ignored entirely.
+
+    Sending is opt-in because it puts a tool on every node — worth it for
+    outbound calls into business phone menus, where an agent that can't press
+    "2 for sales" never reaches a human, and noise for consumer calls.
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    capture_enabled: bool = True
+    send_enabled: bool = False
+    # Quiet after a keypress before the entry is treated as finished.
+    interdigit_timeout_seconds: float = Field(default=2.5, gt=0, le=30)
+    max_digits: int = Field(default=32, gt=0, le=64)
+
+
 class IdleNudgeConfiguration(BaseModel):
     """One step in the escalating response to a caller going quiet."""
 
@@ -147,6 +167,7 @@ class WorkflowConfigurationDefaults(BaseModel):
     idle_behavior: IdleBehaviorConfiguration = Field(
         default_factory=IdleBehaviorConfiguration
     )
+    dtmf: DTMFConfiguration = Field(default_factory=DTMFConfiguration)
     max_call_duration: int = Field(
         default=DEFAULT_MAX_CALL_DURATION_SECONDS,
         gt=0,

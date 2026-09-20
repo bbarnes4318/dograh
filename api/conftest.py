@@ -34,6 +34,9 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 SDK_PY_SRC = REPO_ROOT / "sdk" / "python" / "src"
 if str(SDK_PY_SRC) not in sys.path:
     sys.path.insert(0, str(SDK_PY_SRC))
+# Repo root, so tests can import top-level packages outside `api` (e.g. evals).
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 from api.constants import APP_ROOT_DIR  # noqa: E402
 

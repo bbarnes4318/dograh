@@ -70,9 +70,7 @@ class ThinkingCue:
             # append_to_context=False: a filler is conversational padding, not
             # content the model should reason over on the next turn.
             await self._queue_frame(
-                TTSSpeakFrame(
-                    phrase, append_to_context=False, persist_to_logs=True
-                )
+                TTSSpeakFrame(phrase, append_to_context=False, persist_to_logs=True)
             )
         except asyncio.CancelledError:
             raise

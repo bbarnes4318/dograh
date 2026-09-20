@@ -1,0 +1,116 @@
+---
+title: "Conversation Tuning"
+description: "Workflow settings that shape how the agent handles silence, tool calls, node transitions and keypad input."
+---
+
+## Overview
+
+These settings live in a workflow's configuration alongside
+[interruption handling](/configurations/interruption). Each one targets a
+moment where a call goes quiet or loses the caller.
+
+## Tool-call filler
+
+A tool call — a CRM lookup, an availability check — takes a second or two, and
+for that whole time the line is silent. Callers read dead air as a dropped call.
+
+Tools can be configured with a message spoken *before* they run, but that fires
+even when the call returns in 50 milliseconds, so the agent sounds like it is
+stalling. The filler speaks only once a call has actually taken too long, and
+covers every tool including MCP ones.
+
+```json
+{
+  "tool_filler": {
+    "enabled": true,
+    "delay_seconds": 1.2,
+    "phrases": ["One moment.", "Let me check that.", "Just a second."]
+  }
+}
+```
+
+- `delay_seconds` — how long a call may run before the agent says something.
+  Below about a second, callers hear a pause as normal conversational rhythm.
+- The agent never repeats its previous phrase back to back.
+- A tool that already has its own pre-call message doesn't get a filler on top.
+
+## Idle handling
+
+When the caller goes quiet, the agent escalates through a ladder of nudges.
+Each step either speaks a canned line — instantly, with no model round trip —
+or asks the model to generate one.
+
+```json
+{
+  "idle_behavior": {
+    "enabled": true,
+    "nudges": [
+      { "message": "Sorry, are you still there?" },
+      { "after_seconds": 8, "llm_instruction": "The user has gone quiet again. Briefly re-ask your last question in a different way, in the language the user has been speaking." },
+      { "after_seconds": 8, "llm_instruction": "Wish them a good day and end the call.", "end_call": true }
+    ]
+  }
+}
+```
+
+- `message` — a canned line, spoken straight to TTS. Fast, which is what you
+  want at the moment attention is slipping.
+- `llm_instruction` — used when `message` is `null`. The model writes the nudge.
+- `after_seconds` — how long to wait before *this* step. Omit to keep the
+  previous step's timeout. The first step uses `max_user_idle_timeout`.
+- `end_call` — hang up after speaking this step.
+
+<Note>
+The default first nudge is English. For a non-English workflow, set
+`nudges[0].message` to `null` so the model generates it in the caller's
+language instead.
+</Note>
+
+## Speaking during node transitions
+
+Moving between nodes costs two model round trips: one that picks the
+transition, one that speaks in the new node. The gap between them is silence,
+and it falls at every stage boundary.
+
+With `speak_during_transition` on (the default), the transition tool takes an
+optional short line for the agent to say while the move happens. It comes back
+in the *first* call's arguments, so it costs no extra round trip.
+
+```json
+{ "speak_during_transition": true }
+```
+
+Edges with their own configured transition speech are unaffected — the
+configured line wins.
+
+## Captured speech while muted
+
+See [interruption handling](/configurations/interruption#speech-captured-while-muted).
+
+```json
+{ "buffer_muted_speech": true }
+```
+
+## Keypad input (DTMF)
+
+```json
+{
+  "dtmf": {
+    "capture_enabled": true,
+    "send_enabled": false,
+    "interdigit_timeout_seconds": 2.5,
+    "max_digits": 32
+  }
+}
+```
+
+**Capture** (on by default) collects keys the caller presses and hands them to
+the agent as a turn. An entry ends on `#` or after `interdigit_timeout_seconds`
+of quiet. Use it for anything the caller shouldn't say out loud — a card
+number, a date of birth — and for callers who would rather press a key than
+talk. Entries are also recorded on the call's `dtmf_entries` context.
+
+**Send** (off by default) gives the agent a `send_dtmf` tool so it can press
+keys on an automated phone menu. Turn it on for outbound calls into business
+phone systems, where an agent that can't press "2 for sales" never reaches a
+human. It is off by default because it adds a tool to every node.

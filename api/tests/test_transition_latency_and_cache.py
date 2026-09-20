@@ -95,7 +95,9 @@ class TestCleanTransitionMessage:
 
     def test_drops_an_overlong_line(self):
         # A paragraph would delay the very generation the line exists to cover.
-        assert _clean_transition_message("x" * (MAX_TRANSITION_MESSAGE_CHARS + 1)) is None
+        assert (
+            _clean_transition_message("x" * (MAX_TRANSITION_MESSAGE_CHARS + 1)) is None
+        )
 
     def test_keeps_a_line_at_the_limit(self):
         text = "x" * MAX_TRANSITION_MESSAGE_CHARS
@@ -173,9 +175,7 @@ class TestTransitionSpeaksTheModelsLine:
             engine, "to_qualify", "node-2", transition_speech, None, None
         )
 
-        params = SimpleNamespace(
-            arguments=arguments, result_callback=AsyncMock()
-        )
+        params = SimpleNamespace(arguments=arguments, result_callback=AsyncMock())
         await func(params)
         return engine
 

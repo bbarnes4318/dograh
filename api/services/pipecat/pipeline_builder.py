@@ -38,6 +38,7 @@ def build_pipeline(
     voicemail_detector=None,
     recording_router=None,
     muted_speech_buffer=None,
+    dtmf_capture=None,
 ):
     """Build the main pipeline with all components.
 
@@ -53,12 +54,19 @@ def build_pipeline(
             above the user aggregator — after the voicemail detector, so
             classification still sees every transcription — and holds caller
             speech that the aggregator would otherwise drop while muted.
+        dtmf_capture: Optional DTMFCaptureProcessor. Collects caller keypresses
+            into whole entries and hands them to the model as a turn.
     """
-    # Build processors list with optional voicemail detection
+    # Build processors list with optional voicemail detection. DTMF capture
+    # sits directly under the transport so keypresses are collected into whole
+    # entries before anything downstream sees them.
     processors = [
         transport.input(),  # Transport user input
-        stt,
     ]
+    if dtmf_capture:
+        logger.info("Adding DTMF capture to pipeline")
+        processors.append(dtmf_capture)
+    processors.append(stt)
 
     # Insert voicemail detector after STT if enabled
     # Note: We intentionally do NOT use voicemail_detector.gate() to allow TTS

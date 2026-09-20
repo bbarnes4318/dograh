@@ -79,11 +79,7 @@ def count_turns(events: Iterable[dict[str, Any]]) -> int:
         RealtimeFeedbackType.BOT_TEXT.value,
     }
     return len(
-        {
-            event.get("turn", 0)
-            for event in events
-            if event.get("type") in speech_types
-        }
+        {event.get("turn", 0) for event in events if event.get("type") in speech_types}
     )
 
 

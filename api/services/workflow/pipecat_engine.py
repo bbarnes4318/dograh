@@ -20,6 +20,7 @@ from api.db import db_client
 from api.enums import MuteReason, ToolCategory
 from api.schemas.workflow_configurations import ToolFillerConfiguration
 from api.services.pipecat.audio_playback import play_audio
+from api.services.pipecat.dtmf import send_dtmf_digits
 from api.services.pipecat.thinking_cue import ThinkingCue
 from api.services.workflow.workflow_graph import Node, WorkflowGraph
 
@@ -60,6 +61,7 @@ def _clean_transition_message(value: object) -> Optional[str]:
         )
         return None
     return text
+
 
 from api.services.managed_model_services import MPS_CORRELATION_ID_CONTEXT_KEY
 from api.services.workflow import pipecat_engine_callbacks as engine_callbacks
@@ -108,6 +110,7 @@ class PipecatEngine:
         context_compaction_enabled: bool = False,
         tool_filler: Optional["ToolFillerConfiguration"] = None,
         speak_during_transition: bool = True,
+        send_dtmf_enabled: bool = False,
         llm_provider: Optional[str] = None,
         prompt_cache_namespace: Optional[str] = None,
     ):
@@ -197,6 +200,9 @@ class PipecatEngine:
         # Let the model supply a line to say while a node transition runs, so
         # the second generation isn't dead air.
         self._speak_during_transition: bool = speak_during_transition
+
+        # Whether the agent can press keys on a phone menu.
+        self._send_dtmf_enabled: bool = send_dtmf_enabled
 
         # Prompt-cache routing (see _apply_prompt_cache_key).
         self._llm_provider: Optional[str] = llm_provider
@@ -452,6 +458,25 @@ class PipecatEngine:
             is_node_transition=True,
         )
 
+    async def _register_send_dtmf_function(self) -> None:
+        """Let the agent press keys on a phone menu.
+
+        Queued on the transport output so the tones go out on the media stream
+        the provider's serializer is already encoding.
+        """
+
+        async def send_dtmf_func(function_call_params: FunctionCallParams) -> None:
+            digits = (function_call_params.arguments or {}).get("digits", "")
+            queue_frame = (
+                self._transport_output.queue_frame
+                if self._transport_output is not None
+                else None
+            )
+            result = await send_dtmf_digits(queue_frame, digits)
+            await function_call_params.result_callback(result)
+
+        self.llm.register_function("send_dtmf", send_dtmf_func)
+
     async def _register_knowledge_base_function(
         self, document_uuids: list[str]
     ) -> None:
@@ -669,10 +694,14 @@ class PipecatEngine:
             format_prompt=self._format_prompt,
             has_recordings=self._has_recordings,
         )
+        if self._send_dtmf_enabled:
+            await self._register_send_dtmf_function()
+
         functions = await compose_functions_for_node(
             node=node,
             custom_tool_manager=self._custom_tool_manager,
             include_transition_message=self._speak_during_transition,
+            include_send_dtmf=self._send_dtmf_enabled,
         )
         self._apply_prompt_cache_key(node.id)
         await self._update_llm_context(system_prompt, functions)

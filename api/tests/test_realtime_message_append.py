@@ -5,10 +5,10 @@ import pytest
 from pipecat.frames.frames import LLMMessagesAppendFrame
 from pipecat.services.openai.realtime import events
 
+from api.schemas.workflow_configurations import IdleNudgeConfiguration
 from api.services.pipecat.realtime.openai_realtime import (
     DograhOpenAIRealtimeLLMService,
 )
-from api.schemas.workflow_configurations import IdleNudgeConfiguration
 from api.services.workflow.pipecat_engine_callbacks import UserIdleHandler
 
 

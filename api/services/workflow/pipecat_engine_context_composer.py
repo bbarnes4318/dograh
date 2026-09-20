@@ -103,6 +103,7 @@ async def compose_functions_for_node(
     node: "Node",
     custom_tool_manager: Optional["CustomToolManager"],
     include_transition_message: bool = False,
+    include_send_dtmf: bool = False,
 ) -> list[dict]:
     """Compose the function/tool schemas for a workflow node.
 
@@ -124,6 +125,12 @@ async def compose_functions_for_node(
         A list of function schemas to register with the LLM.
     """
     functions: list[dict] = []
+
+    # Keypad sender, when the workflow dials into phone menus
+    if include_send_dtmf:
+        from api.services.pipecat.dtmf import get_send_dtmf_tool_schema
+
+        functions.append(get_send_dtmf_tool_schema())
 
     # Knowledge base retrieval tool
     if node.document_uuids:
@@ -148,7 +155,9 @@ async def compose_functions_for_node(
     for outgoing_edge in node.out_edges:
         # An edge with its own configured transition speech already covers the
         # gap, so asking the model for a line too would stack two.
-        wants_message = include_transition_message and not outgoing_edge.transition_speech
+        wants_message = (
+            include_transition_message and not outgoing_edge.transition_speech
+        )
         function_schema = get_function_schema(
             outgoing_edge.get_function_name(),
             outgoing_edge.condition,

@@ -27,3 +27,7 @@ node_modules/
 .superpowers/
 docs/superpowers/
 .gstack/
+
+# Local Redis snapshots from a dev/test server
+dump.rdb
+*.rdb

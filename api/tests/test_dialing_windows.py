@@ -24,8 +24,7 @@ from api.services.campaign.nanp_timezones import (
 
 # Weekday business hours, Monday (0) through Friday (4).
 BUSINESS_HOURS = [
-    {"day_of_week": day, "start_time": "09:00", "end_time": "17:00"}
-    for day in range(5)
+    {"day_of_week": day, "start_time": "09:00", "end_time": "17:00"} for day in range(5)
 ]
 
 
@@ -84,9 +83,7 @@ class TestExtractAreaCode:
 class TestResolveLeadTimezone:
     def test_explicit_lead_timezone_wins(self):
         assert (
-            resolve_lead_timezone(
-                {"timezone": "America/Denver"}, "+12125550100", "UTC"
-            )
+            resolve_lead_timezone({"timezone": "America/Denver"}, "+12125550100", "UTC")
             == "America/Denver"
         )
 

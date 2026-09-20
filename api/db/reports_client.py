@@ -8,6 +8,121 @@ from api.db.models import WorkflowModel, WorkflowRunModel
 
 
 class ReportsClient(BaseDBClient):
+    async def search_run_transcripts(
+        self,
+        organization_id: int,
+        query_text: str,
+        workflow_id: Optional[int] = None,
+        start_utc: Optional[datetime] = None,
+        end_utc: Optional[datetime] = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> tuple[List[Dict[str, Any]], int]:
+        """Full-text search over persisted call transcripts.
+
+        Uses ``websearch_to_tsquery`` so callers can type what they'd type into
+        a search box — quoted phrases, ``or``, leading ``-`` to exclude — rather
+        than tsquery syntax. Matches are ranked, and a headline gives the
+        surrounding words so a result is readable without opening the call.
+        """
+        tsvector = func.to_tsvector(
+            "english", func.coalesce(WorkflowRunModel.transcript_text, "")
+        )
+        tsquery = func.websearch_to_tsquery("english", query_text)
+
+        conditions = [
+            WorkflowModel.organization_id == organization_id,
+            tsvector.op("@@")(tsquery),
+        ]
+        if workflow_id is not None:
+            conditions.append(WorkflowRunModel.workflow_id == workflow_id)
+        if start_utc is not None:
+            conditions.append(WorkflowRunModel.created_at >= start_utc)
+        if end_utc is not None:
+            conditions.append(WorkflowRunModel.created_at <= end_utc)
+
+        async with self.async_session() as session:
+            count_query = (
+                select(func.count(WorkflowRunModel.id))
+                .select_from(WorkflowRunModel)
+                .join(WorkflowModel, WorkflowRunModel.workflow_id == WorkflowModel.id)
+                .where(and_(*conditions))
+            )
+            total = (await session.execute(count_query)).scalar() or 0
+
+            rank = func.ts_rank(tsvector, tsquery)
+            query = (
+                select(
+                    WorkflowRunModel.id,
+                    WorkflowRunModel.name,
+                    WorkflowRunModel.workflow_id,
+                    WorkflowRunModel.created_at,
+                    WorkflowRunModel.call_type,
+                    WorkflowModel.name.label("workflow_name"),
+                    func.ts_headline(
+                        "english",
+                        func.coalesce(WorkflowRunModel.transcript_text, ""),
+                        tsquery,
+                        "MaxFragments=2, MinWords=8, MaxWords=25",
+                    ).label("excerpt"),
+                    rank.label("rank"),
+                )
+                .select_from(WorkflowRunModel)
+                .join(WorkflowModel, WorkflowRunModel.workflow_id == WorkflowModel.id)
+                .where(and_(*conditions))
+                .order_by(rank.desc(), WorkflowRunModel.created_at.desc())
+                .limit(limit)
+                .offset(offset)
+            )
+            result = await session.execute(query)
+            return [dict(row._mapping) for row in result], total
+
+    async def get_runs_for_conversion_analytics(
+        self,
+        organization_id: int,
+        start_utc: datetime,
+        end_utc: datetime,
+        workflow_id: Optional[int] = None,
+        definition_id: Optional[int] = None,
+    ) -> List[Dict[str, Any]]:
+        """Fetch the fields the funnel and cohort reports read.
+
+        Deliberately does not select ``logs`` — the per-call event blob is the
+        largest column on the table and none of this needs it: the node path
+        and response metrics are summarized onto ``gathered_context`` and
+        ``usage_info`` when the call ends.
+        """
+        async with self.async_session() as session:
+            query = (
+                select(
+                    WorkflowRunModel.id,
+                    WorkflowRunModel.workflow_id,
+                    WorkflowRunModel.definition_id,
+                    WorkflowRunModel.created_at,
+                    WorkflowRunModel.call_type,
+                    WorkflowRunModel.gathered_context,
+                    WorkflowRunModel.initial_context,
+                    WorkflowRunModel.usage_info,
+                )
+                .select_from(WorkflowRunModel)
+                .join(WorkflowModel, WorkflowRunModel.workflow_id == WorkflowModel.id)
+                .where(
+                    and_(
+                        WorkflowModel.organization_id == organization_id,
+                        WorkflowRunModel.created_at >= start_utc,
+                        WorkflowRunModel.created_at <= end_utc,
+                    )
+                )
+            )
+
+            if workflow_id is not None:
+                query = query.where(WorkflowRunModel.workflow_id == workflow_id)
+            if definition_id is not None:
+                query = query.where(WorkflowRunModel.definition_id == definition_id)
+
+            result = await session.execute(query)
+            return [dict(row._mapping) for row in result]
+
     async def get_workflow_runs_for_daily_report(
         self,
         organization_id: int,

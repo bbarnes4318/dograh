@@ -541,6 +541,12 @@ class WorkflowRunModel(Base):
     is_completed = Column(Boolean, default=False)
     recording_url = Column(String, nullable=True)
     transcript_url = Column(String, nullable=True)
+    # Plain-text transcript, written when the call ends. The same text lives
+    # inside `logs`, but only as a JSON event array — which cannot be searched.
+    # Objection mining ("every call where they said 'too expensive'") is the
+    # cheapest source of prompt improvements there is, and needs this column
+    # plus the full-text index on it.
+    transcript_text = Column(Text, nullable=True)
     extra = Column(
         JSON, nullable=False, default=dict, server_default=text("'{}'::json")
     )

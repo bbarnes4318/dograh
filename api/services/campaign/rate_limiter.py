@@ -405,9 +405,7 @@ class RateLimiter:
         organization_id: int, telephony_configuration_id: int | None, day: str
     ) -> str:
         """Hash of number -> dials placed today, for per-number caps."""
-        return (
-            f"from_number_daily:{organization_id}:{telephony_configuration_id}:{day}"
-        )
+        return f"from_number_daily:{organization_id}:{telephony_configuration_id}:{day}"
 
     @staticmethod
     def _from_number_stats_key(
@@ -594,7 +592,9 @@ class RateLimiter:
 
         for entry in stats.values():
             dials = entry.get("dials", 0)
-            entry["answer_rate"] = round(entry.get("answers", 0) / dials, 4) if dials else 0.0
+            entry["answer_rate"] = (
+                round(entry.get("answers", 0) / dials, 4) if dials else 0.0
+            )
         return stats
 
     async def release_from_number(

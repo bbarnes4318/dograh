@@ -163,9 +163,7 @@ def seconds_until_local_window(
                 hour, minute = int(hour_text), int(minute_text)
             except (ValueError, TypeError):
                 continue
-            candidate = datetime(
-                day.year, day.month, day.day, hour, minute, tzinfo=tz
-            )
+            candidate = datetime(day.year, day.month, day.day, hour, minute, tzinfo=tz)
             if candidate > start and (best is None or candidate < best):
                 best = candidate
     if best is None:

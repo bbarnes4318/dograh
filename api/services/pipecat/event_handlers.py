@@ -24,6 +24,7 @@ from api.services.workflow.pipecat_engine import PipecatEngine
 from api.services.workflow_run_artifacts import upload_workflow_run_artifacts
 from api.tasks.arq import enqueue_job
 from api.tasks.function_names import FunctionNames
+from api.utils.transcript import generate_searchable_transcript
 from pipecat.frames.frames import (
     Frame,
 )
@@ -343,9 +344,7 @@ def register_event_handlers(
 
         if feedback_events_for_metrics:
             try:
-                usage_info.update(
-                    compute_response_metrics(feedback_events_for_metrics)
-                )
+                usage_info.update(compute_response_metrics(feedback_events_for_metrics))
             except Exception as e:
                 logger.error(f"Could not compute response metrics: {e}", exc_info=True)
             try:
@@ -426,6 +425,20 @@ def register_event_handlers(
             )
             if not transcript_text:
                 logger.debug("No transcript events in logs buffer, skipping upload")
+
+            # Persist a searchable copy alongside the uploaded artifact, so
+            # "every call where they said 'too expensive'" is a query rather
+            # than a re-parse of every run's event log.
+            try:
+                searchable = generate_searchable_transcript(
+                    in_memory_logs_buffer.get_events()
+                )
+                if searchable:
+                    await db_client.update_workflow_run(
+                        run_id=workflow_run_id, transcript_text=searchable
+                    )
+            except Exception as e:
+                logger.error(f"Error persisting searchable transcript: {e}")
 
             await upload_workflow_run_artifacts(
                 workflow_run_id,

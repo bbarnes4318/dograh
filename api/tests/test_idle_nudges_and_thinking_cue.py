@@ -91,9 +91,7 @@ class TestIdleNudgeLadder:
             EndTaskReason.USER_IDLE_MAX_DURATION_EXCEEDED.value
         )
 
-    async def test_gives_the_caller_more_room_than_it_used_to(
-        self, engine, aggregator
-    ):
+    async def test_gives_the_caller_more_room_than_it_used_to(self, engine, aggregator):
         """The old ladder hung up on the second idle; the default now waits."""
         handler = create_user_idle_handler(engine, nudges=default_idle_nudges())
 
@@ -143,9 +141,7 @@ class TestIdleNudgeLadder:
     async def test_llm_nudge_falls_back_to_the_default_instruction(
         self, engine, aggregator
     ):
-        handler = create_user_idle_handler(
-            engine, nudges=[IdleNudgeConfiguration()]
-        )
+        handler = create_user_idle_handler(engine, nudges=[IdleNudgeConfiguration()])
 
         await handler.handle_idle(aggregator)
 

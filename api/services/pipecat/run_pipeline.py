@@ -16,6 +16,7 @@ from api.schemas.workflow_configurations import (
     DEFAULT_SPEAK_DURING_TRANSITION,
     DEFAULT_TURN_START_MIN_WORDS,
     DEFAULT_TURN_START_STRATEGY,
+    DTMFConfiguration,
     IdleBehaviorConfiguration,
     ToolFillerConfiguration,
 )
@@ -32,6 +33,7 @@ from api.services.pipecat.active_calls import (
     unregister_active_call as unregister_worker_active_call,
 )
 from api.services.pipecat.audio_config import AudioConfig, create_audio_config
+from api.services.pipecat.dtmf import DTMF_CONTEXT_KEY, DTMFCaptureProcessor
 from api.services.pipecat.event_handlers import (
     register_audio_data_handler,
     register_event_handlers,
@@ -845,9 +847,10 @@ async def _run_pipeline_impl(
         context_compaction_enabled=context_compaction_enabled,
         tool_filler=tool_filler,
         speak_during_transition=bool(
-            run_configs.get(
-                "speak_during_transition", DEFAULT_SPEAK_DURING_TRANSITION
-            )
+            run_configs.get("speak_during_transition", DEFAULT_SPEAK_DURING_TRANSITION)
+        ),
+        send_dtmf_enabled=bool(
+            (run_configs.get("dtmf") or {}).get("send_enabled", False)
         ),
         llm_provider=user_config.llm.provider if user_config.llm else None,
         # Every call on this workflow version shares a system prompt and tool
@@ -1006,6 +1009,31 @@ async def _run_pipeline_impl(
             on_replay=_log_replayed_speech,
         )
 
+    # Keypad handling. Capture is on by default — a caller who presses keys
+    # instead of speaking is otherwise ignored entirely. Realtime pipelines
+    # run their own audio path, but capture still works there because the
+    # frames come from the transport, not the STT stage.
+    try:
+        dtmf_configuration = DTMFConfiguration.model_validate(
+            run_configs.get("dtmf") or {}
+        )
+    except ValidationError as e:
+        logger.warning(f"Invalid dtmf configuration, using defaults: {e}")
+        dtmf_configuration = DTMFConfiguration()
+
+    dtmf_capture = None
+    if dtmf_configuration.capture_enabled:
+
+        async def _record_dtmf_entry(entry: str) -> None:
+            entries = engine._gathered_context.setdefault(DTMF_CONTEXT_KEY, [])
+            entries.append(entry)
+
+        dtmf_capture = DTMFCaptureProcessor(
+            on_entry=_record_dtmf_entry,
+            interdigit_timeout=dtmf_configuration.interdigit_timeout_seconds,
+            max_digits=dtmf_configuration.max_digits,
+        )
+
     voicemail_detector = None
     recording_router = None
 
@@ -1101,6 +1129,7 @@ async def _run_pipeline_impl(
             voicemail_detector=voicemail_detector,
             recording_router=recording_router,
             muted_speech_buffer=muted_speech_buffer,
+            dtmf_capture=dtmf_capture,
         )
 
     # Create pipeline task with audio configuration

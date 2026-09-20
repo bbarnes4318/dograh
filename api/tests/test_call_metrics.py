@@ -64,7 +64,9 @@ class TestSummarizeSamples:
         assert summary["p95_seconds"] == 10.0
         assert summary["max_seconds"] == 10.0
 
-    @pytest.mark.parametrize("fraction_key", ["p50_seconds", "p90_seconds", "p95_seconds"])
+    @pytest.mark.parametrize(
+        "fraction_key", ["p50_seconds", "p90_seconds", "p95_seconds"]
+    )
     def test_percentiles_never_exceed_max(self, fraction_key):
         summary = summarize_samples([0.4, 0.9, 1.3, 2.7])
         assert summary[fraction_key] <= summary["max_seconds"]
