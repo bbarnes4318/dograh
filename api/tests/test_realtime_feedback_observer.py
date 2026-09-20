@@ -352,3 +352,89 @@ async def test_interrupted_bot_transcript_keeps_the_interrupted_turn_interval():
 
     await coordinator.record_bot_started_speaking(3, "2026-07-14T13:33:06.654+00:00")
     assert event["payload"]["timestamp"] == "2026-07-14T13:33:02.254+00:00"
+
+
+@pytest.mark.asyncio
+async def test_observer_logs_llm_ttft_per_turn():
+    """The per-turn LLM time-to-first-token log line rides the existing TTFB metric.
+
+    pipecat starts that clock just before the chat-completion request goes out
+    and stops it on the first streamed chunk carrying a choice, so the value is
+    measured on our side rather than reported by the provider.
+    """
+    from loguru import logger
+    from pipecat.frames.frames import MetricsFrame
+    from pipecat.metrics.metrics import TTFBMetricsData
+
+    from api.services.pipecat.realtime_feedback_observer import LLM_TTFT_LOG_TAG
+
+    messages = []
+
+    async def ws_sender(message):
+        messages.append(message)
+
+    lines = []
+    sink_id = logger.add(lambda m: lines.append(m), level="INFO")
+    try:
+        observer = RealtimeFeedbackObserver(ws_sender=ws_sender)
+        frame = MetricsFrame(
+            data=[
+                TTFBMetricsData(
+                    processor="DograhInceptionLLMService#0",
+                    value=0.187,
+                    model="mercury-2.5",
+                )
+            ]
+        )
+        await observer.on_push_frame(_frame_pushed(frame, FrameDirection.DOWNSTREAM))
+    finally:
+        logger.remove(sink_id)
+
+    ttft_lines = [line for line in lines if LLM_TTFT_LOG_TAG in line]
+    assert len(ttft_lines) == 1
+    assert "ttft_ms=187.0" in ttft_lines[0]
+    assert "processor=DograhInceptionLLMService#0" in ttft_lines[0]
+    assert "model=mercury-2.5" in ttft_lines[0]
+
+    # The existing WS/logs-buffer metric event is still emitted unchanged.
+    assert messages == [
+        {
+            "type": "rtf-ttfb-metric",
+            "payload": {
+                "ttfb_seconds": 0.187,
+                "processor": "DograhInceptionLLMService#0",
+                "model": "mercury-2.5",
+            },
+        }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_observer_does_not_log_ttft_for_non_llm_processors():
+    from loguru import logger
+    from pipecat.frames.frames import MetricsFrame
+    from pipecat.metrics.metrics import TTFBMetricsData
+
+    from api.services.pipecat.realtime_feedback_observer import LLM_TTFT_LOG_TAG
+
+    async def ws_sender(message):
+        pass
+
+    lines = []
+    sink_id = logger.add(lambda m: lines.append(m), level="INFO")
+    try:
+        observer = RealtimeFeedbackObserver(ws_sender=ws_sender)
+        frame = MetricsFrame(
+            data=[
+                TTFBMetricsData(
+                    processor="ElevenLabsTTSService#0",
+                    value=0.31,
+                    model="eleven_flash_v2_5",
+                )
+            ]
+        )
+        await observer.on_push_frame(_frame_pushed(frame, FrameDirection.DOWNSTREAM))
+    finally:
+        logger.remove(sink_id)
+
+    assert [line for line in lines if LLM_TTFT_LOG_TAG in line] == []
