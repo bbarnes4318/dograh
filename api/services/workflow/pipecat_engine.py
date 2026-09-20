@@ -17,7 +17,7 @@ from pipecat.services.settings import LLMSettings
 from pipecat.utils.enums import EndTaskReason
 
 from api.db import db_client
-from api.enums import ToolCategory
+from api.enums import MuteReason, ToolCategory
 from api.services.pipecat.audio_playback import play_audio
 from api.services.workflow.workflow_graph import Node, WorkflowGraph
 
@@ -119,6 +119,13 @@ class PipecatEngine:
 
         # Tracks whether the bot is currently speaking (for allow_interrupt logic)
         self._bot_is_speaking: bool = False
+
+        # Why should_mute_user() last returned True (see MuteReason), or None.
+        self._mute_reason: Optional[str] = None
+
+        # True between the start of a transition tool call and the LLM
+        # generation that the transition itself queues.
+        self._transition_in_progress: bool = False
 
         # Custom tool manager (initialized in initialize())
         self._custom_tool_manager: Optional[CustomToolManager] = None
@@ -241,6 +248,11 @@ class PipecatEngine:
             )
             logger.info(f"Arguments: {function_call_params.arguments}")
 
+            # Held until the generation this transition queues actually starts,
+            # so anything else adding to the context meanwhile (e.g. replayed
+            # muted speech) rides that generation instead of racing it.
+            self._transition_in_progress = True
+
             try:
                 # Perform variable extraction before transitioning to new node
                 await self._perform_variable_extraction_if_needed(self._current_node)
@@ -320,6 +332,7 @@ class PipecatEngine:
                 )
 
             except Exception as e:
+                self._transition_in_progress = False
                 logger.error(f"Error in transition function {name}: {str(e)}")
                 error_result = {"status": "error", "error": str(e)}
                 await function_call_params.result_callback(error_result)
@@ -814,7 +827,12 @@ class PipecatEngine:
 
         This method tracks bot speaking state from frames and mutes the user when:
         - The pipeline is being shut down (_mute_pipeline is True), OR
+        - Queued speech (transition/tool message) is pending or playing, OR
         - The bot is speaking AND the current node has allow_interrupt=False
+
+        Side effect: records *why* the user is muted on ``_mute_reason`` so the
+        muted-speech buffer can tell "the caller talked over a no-interrupt
+        node" (worth replaying) apart from "the call is tearing down" (not).
 
         Returns:
             True if the user should be muted, False otherwise.
@@ -830,19 +848,42 @@ class PipecatEngine:
 
         # Always mute if pipeline is shutting down
         if self._mute_pipeline:
+            self._mute_reason = MuteReason.SHUTDOWN
             return True
 
         # Mute while queued speech (transition/tool message) is pending or playing
         if self._queued_speech_mute_state != "idle":
+            self._mute_reason = MuteReason.QUEUED_SPEECH
             return True
 
         # Mute if bot is speaking and current node doesn't allow interruption
         if self._bot_is_speaking and self._current_node:
             # If we should not allow interruption, mute the pipeline
             if not self._current_node.allow_interrupt:
+                self._mute_reason = MuteReason.NO_INTERRUPT
                 return True
 
+        self._mute_reason = None
         return False
+
+    def get_mute_reason(self) -> Optional[str]:
+        """Return why ``should_mute_user`` last asked for the user to be muted.
+
+        ``None`` means the engine is not currently asking for a mute. Note that
+        the user aggregator can still be muted by another strategy (e.g. while a
+        function call runs), which this does not describe.
+        """
+        return self._mute_reason
+
+    def is_transition_in_progress(self) -> bool:
+        """True while a node transition is mid-flight.
+
+        The transition itself queues an LLM generation once the function-call
+        result lands in the context, so anything else that wants to add a user
+        message during this window should append it without asking for a second
+        generation.
+        """
+        return self._transition_in_progress
 
     def create_user_idle_handler(self):
         """

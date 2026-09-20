@@ -37,6 +37,7 @@ def build_pipeline(
     pipeline_metrics_aggregator,
     voicemail_detector=None,
     recording_router=None,
+    muted_speech_buffer=None,
 ):
     """Build the main pipeline with all components.
 
@@ -48,6 +49,10 @@ def build_pipeline(
         recording_router: Optional RecordingRouterProcessor. When provided,
             inserts between callback processor and TTS to route between
             pre-recorded audio playback and dynamic TTS.
+        muted_speech_buffer: Optional MutedSpeechBufferProcessor. Sits directly
+            above the user aggregator — after the voicemail detector, so
+            classification still sees every transcription — and holds caller
+            speech that the aggregator would otherwise drop while muted.
     """
     # Build processors list with optional voicemail detection
     processors = [
@@ -70,6 +75,10 @@ def build_pipeline(
     post_llm = [pipeline_engine_callback_processor]
     if recording_router:
         post_llm.append(recording_router)
+
+    if muted_speech_buffer:
+        logger.info("Adding muted-speech buffer to pipeline")
+        processors.append(muted_speech_buffer)
 
     processors.append(user_context_aggregator)
 

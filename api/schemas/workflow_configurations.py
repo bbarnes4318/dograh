@@ -14,6 +14,7 @@ DEFAULT_TURN_START_MIN_WORDS = 3
 DEFAULT_PROVISIONAL_VAD_PAUSE_SECS = 1.5
 DEFAULT_TURN_STOP_STRATEGY = "transcription"
 DEFAULT_CONTEXT_COMPACTION_ENABLED = False
+DEFAULT_BUFFER_MUTED_SPEECH = True
 
 
 class ExternalPBXFieldMapping(BaseModel):
@@ -73,6 +74,10 @@ class WorkflowConfigurationDefaults(BaseModel):
     )
     dictionary: str = ""
     context_compaction_enabled: bool = DEFAULT_CONTEXT_COMPACTION_ENABLED
+    # When the caller is muted (a no-interrupt node, a transition line, a tool
+    # call), hold what they said and replay it into the context once they're
+    # unmuted instead of dropping it.
+    buffer_muted_speech: bool = DEFAULT_BUFFER_MUTED_SPEECH
     external_pbx_field_mappings: list[ExternalPBXFieldMapping] = Field(
         default_factory=list,
         max_length=100,

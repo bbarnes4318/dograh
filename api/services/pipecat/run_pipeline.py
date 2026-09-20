@@ -7,6 +7,7 @@ from loguru import logger
 from api.db import db_client
 from api.enums import WorkflowRunMode
 from api.schemas.workflow_configurations import (
+    DEFAULT_BUFFER_MUTED_SPEECH,
     DEFAULT_MAX_CALL_DURATION_SECONDS,
     DEFAULT_MAX_USER_IDLE_TIMEOUT_SECONDS,
     DEFAULT_PROVISIONAL_VAD_PAUSE_SECS,
@@ -32,6 +33,7 @@ from api.services.pipecat.event_handlers import (
     register_event_handlers,
 )
 from api.services.pipecat.in_memory_buffers import InMemoryLogsBuffer
+from api.services.pipecat.muted_speech_buffer import MutedSpeechBufferProcessor
 from api.services.pipecat.pipeline_builder import (
     build_pipeline,
     build_realtime_pipeline,
@@ -939,6 +941,36 @@ async def _run_pipeline_impl(
     async def on_user_turn_started(aggregator, strategy):
         user_idle_handler.reset()
 
+    # Hold caller speech that the aggregator would drop while muted (a
+    # no-interrupt node, a transition line, a running tool call) and replay it
+    # once they're unmuted. Realtime pipelines have no STT stage above the
+    # aggregator to intercept, so this is non-realtime only.
+    muted_speech_buffer = None
+    if not is_realtime and run_configs.get(
+        "buffer_muted_speech", DEFAULT_BUFFER_MUTED_SPEECH
+    ):
+
+        async def _log_replayed_speech(text: str) -> None:
+            """Record replayed speech in the transcript the aggregator never saw."""
+            try:
+                await in_memory_logs_buffer.append(
+                    {
+                        "type": RealtimeFeedbackType.USER_TRANSCRIPTION.value,
+                        "payload": {"text": text, "replayed_from_muted_speech": True},
+                    }
+                )
+            except Exception as e:
+                logger.error(f"Failed to log replayed muted speech: {e}")
+
+        muted_speech_buffer = MutedSpeechBufferProcessor(
+            is_muted=lambda: bool(
+                getattr(user_context_aggregator, "_user_is_muted", False)
+            ),
+            mute_reason=engine.get_mute_reason,
+            suppress_generation=engine.is_transition_in_progress,
+            on_replay=_log_replayed_speech,
+        )
+
     voicemail_detector = None
     recording_router = None
 
@@ -1033,6 +1065,7 @@ async def _run_pipeline_impl(
             pipeline_metrics_aggregator,
             voicemail_detector=voicemail_detector,
             recording_router=recording_router,
+            muted_speech_buffer=muted_speech_buffer,
         )
 
     # Create pipeline task with audio configuration

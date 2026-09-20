@@ -73,7 +73,7 @@ class StartCall(TypedNode):
     Pre-recorded audio file played at the start of the call.
     """
 
-    allow_interrupt: bool = False
+    allow_interrupt: bool = True
     """
     When true, the user can interrupt the agent mid-utterance.
     """

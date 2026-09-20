@@ -131,5 +131,5 @@ def test_typed_sdk_surfaces_spec_default_to_field(client: _StubClient):
     to the spec's `"Start Call"` literal."""
     s = StartCall(prompt="hi")
     assert s.name == "Start Call"
-    assert s.allow_interrupt is False  # matches spec default from earlier edits
+    assert s.allow_interrupt is True  # matches the spec default
     assert s.add_global_prompt is True

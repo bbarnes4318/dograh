@@ -97,6 +97,9 @@ def create_generation_started_callback(engine: "PipecatEngine"):
         logger.debug("LLM generation started in callback processor")
         # Clear reference text from previous generation
         engine._current_llm_generation_reference_text = ""
+        # A generation is now under way, so a pending node transition is no
+        # longer "about to queue one".
+        engine._transition_in_progress = False
 
     return handle_generation_started
 

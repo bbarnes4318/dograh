@@ -110,10 +110,15 @@ class _PromptedNodeDataMixin(BaseModel):
         min_length=1,
     )
     allow_interrupt: bool = spec_field(
-        default=False,
+        default=True,
         ui_type=PropertyType.boolean,
         display_name="Allow Interruption",
-        description="When true, the user can interrupt the agent mid-utterance.",
+        description=(
+            "When true, the user can interrupt the agent mid-utterance. Turning "
+            "this off makes the agent finish its whole turn first; what the caller "
+            "said meanwhile is still captured and replayed once the agent stops "
+            "(see the workflow's `buffer_muted_speech` setting)."
+        ),
     )
     add_global_prompt: bool = spec_field(
         default=True,
