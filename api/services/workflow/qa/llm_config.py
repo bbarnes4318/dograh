@@ -3,6 +3,7 @@
 import random
 
 from api.db.models import WorkflowRunModel
+from api.services.configuration.registry import ServiceProviders
 from api.services.workflow.dto import QANodeData
 
 
@@ -82,6 +83,13 @@ async def resolve_user_llm_config(
         kwargs["endpoint"] = llm_config.get("endpoint", "")
     elif provider == "openrouter" and llm_config.get("base_url"):
         kwargs["base_url"] = llm_config["base_url"]
+    elif provider == ServiceProviders.INCEPTION.value:
+        # reasoning_effort is what makes Mercury worth using, so it has to
+        # survive the hop into QA/node-summary inference too.
+        if llm_config.get("base_url"):
+            kwargs["base_url"] = llm_config["base_url"]
+        if llm_config.get("reasoning_effort"):
+            kwargs["reasoning_effort"] = llm_config["reasoning_effort"]
 
     return provider, model, api_key, kwargs
 

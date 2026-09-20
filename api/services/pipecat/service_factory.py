@@ -10,7 +10,11 @@ from api.services.configuration.options import (
     DEEPGRAM_FLUX_MODELS,
     DEEPGRAM_FLUX_MULTILINGUAL_LANGUAGE_OPTIONS,
 )
-from api.services.configuration.registry import ServiceProviders
+from api.services.configuration.registry import (
+    INCEPTION_DEFAULT_BASE_URL,
+    INCEPTION_DEFAULT_REASONING_EFFORT,
+    ServiceProviders,
+)
 from api.services.pipecat.gemini_json_schema_adapter import (
     DograhGeminiJSONSchemaAdapter,
 )
@@ -61,6 +65,7 @@ from pipecat.services.huggingface.stt import (
     HuggingFaceSTTService,
     HuggingFaceSTTSettings,
 )
+from pipecat.services.inception.llm import InceptionLLMService
 from pipecat.services.inworld.tts import InworldTTSService, InworldTTSSettings
 from pipecat.services.lmnt.tts import LmntTTSService, LmntTTSSettings
 from pipecat.services.minimax.llm import MiniMaxLLMService
@@ -176,6 +181,38 @@ class DograhGoogleLLMService(GoogleLLMService):
 
 class DograhGoogleVertexLLMService(GoogleVertexLLMService):
     adapter_class = DograhGeminiJSONSchemaAdapter
+
+
+class DograhInceptionLLMService(InceptionLLMService):
+    """Inception Mercury with a structured-output guard.
+
+    Inception's OpenAI-compatible endpoint does not advertise native
+    ``json_schema`` structured outputs and rejects a strict ``json_schema``
+    ``response_format``. Dograh's structured-output callers (variable
+    extraction, gathered-context extraction, QA analysis, node summaries) ask
+    for JSON in the prompt and parse leniently, so they work as-is — but if a
+    caller ever does set a ``json_schema`` response format, downgrade it to
+    JSON mode here rather than letting the request fail.
+
+    This overrides the single method every request path funnels through
+    (streaming ``_process_context`` and one-shot ``run_inference`` both build
+    their params here), and only ever runs for Inception.
+    """
+
+    def build_chat_completion_params(self, params_from_context) -> dict:
+        params = super().build_chat_completion_params(params_from_context)
+        response_format = params.get("response_format")
+        is_json_schema = (
+            isinstance(response_format, dict)
+            and response_format.get("type") == "json_schema"
+        )
+        if is_json_schema:
+            logger.warning(
+                "Inception does not support json_schema response_format; "
+                "falling back to JSON mode for this request."
+            )
+            params["response_format"] = {"type": "json_object"}
+        return params
 
 
 def _validate_runtime_service_url(url: str, field_name: str) -> None:
@@ -887,6 +924,7 @@ def create_llm_service_from_provider(
     credentials: str | None = None,
     temperature: float | None = None,
     bill_to: str | None = None,
+    reasoning_effort: str | None = None,
 ):
     """Create an LLM service from explicit provider/model/api_key.
 
@@ -926,6 +964,18 @@ def create_llm_service_from_provider(
             api_key=api_key,
             settings=OpenRouterLLMSettings(model=model, temperature=0.1),
             **kwargs,
+        )
+    elif provider == ServiceProviders.INCEPTION.value:
+        base_url = base_url or INCEPTION_DEFAULT_BASE_URL
+        _validate_runtime_service_url(base_url, "base_url")
+        return DograhInceptionLLMService(
+            api_key=api_key,
+            base_url=base_url,
+            settings=DograhInceptionLLMService.Settings(
+                model=model,
+                temperature=0.1,
+                reasoning_effort=reasoning_effort or INCEPTION_DEFAULT_REASONING_EFFORT,
+            ),
         )
     elif provider == ServiceProviders.GOOGLE.value:
         model = _migrate_deprecated_google_model(model)
@@ -1216,6 +1266,9 @@ def create_llm_service(user_config, correlation_id: str | None = None):
         kwargs["base_url"] = user_config.llm.base_url
     elif provider == ServiceProviders.OPENROUTER.value:
         kwargs["base_url"] = user_config.llm.base_url
+    elif provider == ServiceProviders.INCEPTION.value:
+        kwargs["base_url"] = user_config.llm.base_url
+        kwargs["reasoning_effort"] = user_config.llm.reasoning_effort
     elif provider == ServiceProviders.AZURE.value:
         kwargs["endpoint"] = user_config.llm.endpoint
     elif provider == ServiceProviders.SPEACHES.value:

@@ -1,0 +1,1500 @@
+{
+  "llm": {
+    "openai": {
+      "properties": {
+        "provider": {
+          "const": "openai",
+          "default": "openai",
+          "title": "Provider",
+          "type": "string"
+        },
+        "api_key": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          ],
+          "title": "Api Key"
+        },
+        "model": {
+          "allow_custom_input": true,
+          "default": "gpt-4.1",
+          "description": "OpenAI chat model to use.",
+          "examples": [
+            "gpt-4.1",
+            "gpt-4.1-mini",
+            "gpt-4.1-nano",
+            "gpt-5",
+            "gpt-5-mini",
+            "gpt-5-nano",
+            "gpt-3.5-turbo"
+          ],
+          "title": "Model",
+          "type": "string"
+        },
+        "base_url": {
+          "default": "https://api.openai.com/v1",
+          "description": "Override only if using an OpenAI-compatible API (e.g. local LLM, proxy).",
+          "title": "Base Url",
+          "type": "string"
+        }
+      },
+      "required": [
+        "api_key"
+      ],
+      "title": "OpenAI",
+      "type": "object"
+    },
+    "google": {
+      "properties": {
+        "provider": {
+          "const": "google",
+          "default": "google",
+          "title": "Provider",
+          "type": "string"
+        },
+        "api_key": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          ],
+          "title": "Api Key"
+        },
+        "model": {
+          "allow_custom_input": true,
+          "default": "gemini-2.5-flash",
+          "description": "Gemini model on Google AI Studio (not Vertex).",
+          "examples": [
+            "gemini-2.5-flash",
+            "gemini-2.5-flash-lite",
+            "gemini-3.5-flash",
+            "gemini-3.5-flash-lite"
+          ],
+          "title": "Model",
+          "type": "string"
+        }
+      },
+      "required": [
+        "api_key"
+      ],
+      "title": "Google",
+      "type": "object"
+    },
+    "google_vertex": {
+      "properties": {
+        "provider": {
+          "const": "google_vertex",
+          "default": "google_vertex",
+          "title": "Provider",
+          "type": "string"
+        },
+        "api_key": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Not used for Vertex AI \u2014 authentication is via the service account in `credentials` (or ADC). Leave blank.",
+          "title": "Api Key"
+        },
+        "model": {
+          "allow_custom_input": true,
+          "default": "gemini-2.5-flash",
+          "description": "Gemini model on Vertex AI.",
+          "examples": [
+            "gemini-2.5-flash",
+            "gemini-2.5-flash-lite",
+            "gemini-3.1-flash-lite",
+            "gemini-3.5-flash"
+          ],
+          "title": "Model",
+          "type": "string"
+        },
+        "project_id": {
+          "description": "Google Cloud project ID for Vertex AI.",
+          "title": "Project Id",
+          "type": "string"
+        },
+        "location": {
+          "default": "global",
+          "description": "GCP region for the Vertex AI endpoint (e.g. 'global').",
+          "title": "Location",
+          "type": "string"
+        },
+        "credentials": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Paste the entire service-account JSON file contents. If omitted, falls back to Application Default Credentials (ADC).",
+          "multiline": true,
+          "title": "Credentials"
+        }
+      },
+      "required": [
+        "project_id"
+      ],
+      "title": "Google Vertex",
+      "type": "object"
+    },
+    "groq": {
+      "properties": {
+        "provider": {
+          "const": "groq",
+          "default": "groq",
+          "title": "Provider",
+          "type": "string"
+        },
+        "api_key": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          ],
+          "title": "Api Key"
+        },
+        "model": {
+          "allow_custom_input": true,
+          "default": "llama-3.3-70b-versatile",
+          "description": "Groq-hosted model identifier.",
+          "examples": [
+            "llama-3.3-70b-versatile",
+            "deepseek-r1-distill-llama-70b",
+            "qwen-qwq-32b",
+            "meta-llama/llama-4-scout-17b-16e-instruct",
+            "meta-llama/llama-4-maverick-17b-128e-instruct",
+            "gemma2-9b-it",
+            "llama-3.1-8b-instant",
+            "openai/gpt-oss-120b"
+          ],
+          "title": "Model",
+          "type": "string"
+        }
+      },
+      "required": [
+        "api_key"
+      ],
+      "title": "Groq",
+      "type": "object"
+    },
+    "openrouter": {
+      "properties": {
+        "provider": {
+          "const": "openrouter",
+          "default": "openrouter",
+          "title": "Provider",
+          "type": "string"
+        },
+        "api_key": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          ],
+          "title": "Api Key"
+        },
+        "model": {
+          "allow_custom_input": true,
+          "default": "openai/gpt-4.1",
+          "description": "OpenRouter model slug in 'vendor/model' form.",
+          "examples": [
+            "openai/gpt-4.1",
+            "openai/gpt-4.1-mini",
+            "anthropic/claude-sonnet-4",
+            "google/gemini-2.5-flash",
+            "meta-llama/llama-3.3-70b-instruct",
+            "deepseek/deepseek-chat-v3-0324"
+          ],
+          "title": "Model",
+          "type": "string"
+        },
+        "base_url": {
+          "default": "https://openrouter.ai/api/v1",
+          "description": "Override only if proxying OpenRouter through your own gateway.",
+          "title": "Base Url",
+          "type": "string"
+        }
+      },
+      "required": [
+        "api_key"
+      ],
+      "title": "Open Router",
+      "type": "object"
+    },
+    "inception": {
+      "description": "Inception Mercury diffusion LLMs. Mercury 2.5 decodes tokens in parallel for very low time-to-first-token, and exposes a reasoning effort knob to trade latency against depth.",
+      "properties": {
+        "provider": {
+          "const": "inception",
+          "default": "inception",
+          "title": "Provider",
+          "type": "string"
+        },
+        "api_key": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          ],
+          "title": "Api Key"
+        },
+        "model": {
+          "allow_custom_input": true,
+          "default": "mercury-2.5",
+          "description": "Inception Mercury model identifier.",
+          "examples": [
+            "mercury-2.5",
+            "mercury-2"
+          ],
+          "title": "Model",
+          "type": "string"
+        },
+        "base_url": {
+          "default": "https://api.inceptionlabs.ai/v1",
+          "description": "Override only if proxying Inception through your own gateway.",
+          "title": "Base Url",
+          "type": "string"
+        },
+        "reasoning_effort": {
+          "default": "low",
+          "description": "How much of the diffusion budget Mercury spends on reasoning. 'instant' is fastest; raise it for harder turns at the cost of time-to-first-token.",
+          "enum": [
+            "instant",
+            "low",
+            "medium",
+            "high"
+          ],
+          "title": "Reasoning Effort",
+          "type": "string"
+        }
+      },
+      "provider_docs_url": "https://docs.inceptionlabs.ai/",
+      "required": [
+        "api_key"
+      ],
+      "title": "Inception",
+      "type": "object"
+    },
+    "azure": {
+      "properties": {
+        "provider": {
+          "const": "azure",
+          "default": "azure",
+          "title": "Provider",
+          "type": "string"
+        },
+        "api_key": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          ],
+          "title": "Api Key"
+        },
+        "model": {
+          "allow_custom_input": true,
+          "default": "gpt-4.1-mini",
+          "description": "Azure deployment name (not the upstream OpenAI model id).",
+          "examples": [
+            "gpt-4.1-mini"
+          ],
+          "title": "Model",
+          "type": "string"
+        },
+        "endpoint": {
+          "description": "Azure OpenAI resource endpoint (e.g. https://<resource>.openai.azure.com).",
+          "title": "Endpoint",
+          "type": "string"
+        }
+      },
+      "required": [
+        "api_key",
+        "endpoint"
+      ],
+      "title": "Azure OpenAI",
+      "type": "object"
+    },
+    "dograh": {
+      "properties": {
+        "provider": {
+          "const": "dograh",
+          "default": "dograh",
+          "title": "Provider",
+          "type": "string"
+        },
+        "api_key": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          ],
+          "title": "Api Key"
+        },
+        "model": {
+          "allow_custom_input": true,
+          "default": "default",
+          "description": "Dograh-hosted model tier.",
+          "examples": [
+            "default",
+            "accurate",
+            "fast",
+            "lite",
+            "zen"
+          ],
+          "title": "Model",
+          "type": "string"
+        }
+      },
+      "required": [
+        "api_key"
+      ],
+      "title": "Dograh",
+      "type": "object"
+    },
+    "aws_bedrock": {
+      "properties": {
+        "provider": {
+          "const": "aws_bedrock",
+          "default": "aws_bedrock",
+          "title": "Provider",
+          "type": "string"
+        },
+        "api_key": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Not used for Bedrock \u2014 authentication is via the AWS credentials above. Leave blank.",
+          "title": "Api Key"
+        },
+        "model": {
+          "allow_custom_input": true,
+          "default": "us.amazon.nova-pro-v1:0",
+          "description": "Bedrock model ID \u2014 include the region inference-profile prefix (e.g. 'us.').",
+          "examples": [
+            "us.amazon.nova-pro-v1:0",
+            "us.amazon.nova-lite-v1:0",
+            "us.amazon.nova-micro-v1:0",
+            "us.anthropic.claude-sonnet-4-20250514-v1:0",
+            "us.anthropic.claude-3-5-sonnet-20241022-v2:0",
+            "us.anthropic.claude-haiku-4-5-20251001-v1:0"
+          ],
+          "title": "Model",
+          "type": "string"
+        },
+        "aws_access_key": {
+          "default": "",
+          "description": "AWS access key ID with bedrock:InvokeModel permission.",
+          "title": "Aws Access Key",
+          "type": "string"
+        },
+        "aws_secret_key": {
+          "default": "",
+          "description": "AWS secret access key paired with the access key ID.",
+          "title": "Aws Secret Key",
+          "type": "string"
+        },
+        "aws_region": {
+          "default": "us-east-1",
+          "description": "AWS region where the Bedrock model is available.",
+          "title": "Aws Region",
+          "type": "string"
+        }
+      },
+      "title": "AWS Bedrock",
+      "type": "object"
+    },
+    "speaches": {
+      "description": "Self-hosted OpenAI-compatible local models. See the Speaches project for setup and supported backends.",
+      "properties": {
+        "provider": {
+          "const": "speaches",
+          "default": "speaches",
+          "title": "Provider",
+          "type": "string"
+        },
+        "api_key": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Usually not required for self-hosted endpoints. Leave blank unless your server enforces one.",
+          "title": "Api Key"
+        },
+        "model": {
+          "allow_custom_input": true,
+          "default": "llama3",
+          "description": "Model name as exposed by your OpenAI-compatible server.",
+          "examples": [
+            "llama3",
+            "mistral",
+            "phi3",
+            "qwen2",
+            "gemma2",
+            "deepseek-r1"
+          ],
+          "title": "Model",
+          "type": "string"
+        },
+        "base_url": {
+          "default": "http://localhost:11434/v1",
+          "description": "OpenAI-compatible endpoint (Ollama, vLLM, etc.).",
+          "title": "Base Url",
+          "type": "string"
+        }
+      },
+      "provider_docs_url": "https://github.com/speaches-ai/speaches",
+      "title": "Local Models (Speaches)",
+      "type": "object"
+    },
+    "huggingface": {
+      "description": "Hosted Hugging Face Inference Providers API for usage-based inference.",
+      "properties": {
+        "provider": {
+          "const": "huggingface",
+          "default": "huggingface",
+          "title": "Provider",
+          "type": "string"
+        },
+        "api_key": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          ],
+          "title": "Api Key"
+        },
+        "model": {
+          "allow_custom_input": true,
+          "default": "openai/gpt-oss-120b:cerebras",
+          "description": "Hugging Face chat-completion model identifier, optionally with provider suffix.",
+          "examples": [
+            "openai/gpt-oss-120b:cerebras",
+            "deepseek-ai/DeepSeek-R1:fastest",
+            "Qwen/Qwen3-Coder-480B-A35B-Instruct:fastest"
+          ],
+          "title": "Model",
+          "type": "string"
+        },
+        "base_url": {
+          "default": "https://router.huggingface.co/v1",
+          "description": "Hugging Face OpenAI-compatible chat-completions router base URL.",
+          "title": "Base Url",
+          "type": "string"
+        },
+        "bill_to": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional Hugging Face organization or user to bill using X-HF-Bill-To.",
+          "title": "Bill To"
+        }
+      },
+      "provider_docs_url": "https://huggingface.co/docs/inference-providers/en/index",
+      "required": [
+        "api_key"
+      ],
+      "title": "Hugging Face",
+      "type": "object"
+    },
+    "minimax": {
+      "properties": {
+        "provider": {
+          "const": "minimax",
+          "default": "minimax",
+          "title": "Provider",
+          "type": "string"
+        },
+        "api_key": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          ],
+          "title": "Api Key"
+        },
+        "model": {
+          "allow_custom_input": true,
+          "default": "MiniMax-M2.7",
+          "description": "MiniMax chat model.",
+          "examples": [
+            "MiniMax-M2.7",
+            "MiniMax-M2.7-highspeed",
+            "MiniMax-M3"
+          ],
+          "title": "Model",
+          "type": "string"
+        },
+        "base_url": {
+          "default": "https://api.minimax.io/v1",
+          "description": "MiniMax OpenAI-compatible API endpoint.",
+          "title": "Base Url",
+          "type": "string"
+        },
+        "temperature": {
+          "default": 1.0,
+          "description": "Sampling temperature. MiniMax requires > 0.",
+          "exclusiveMinimum": 0.0,
+          "maximum": 2.0,
+          "title": "Temperature",
+          "type": "number"
+        }
+      },
+      "required": [
+        "api_key"
+      ],
+      "title": "MiniMaxLLMConfiguration",
+      "type": "object"
+    },
+    "sarvam": {
+      "properties": {
+        "provider": {
+          "const": "sarvam",
+          "default": "sarvam",
+          "title": "Provider",
+          "type": "string"
+        },
+        "api_key": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          ],
+          "title": "Api Key"
+        },
+        "model": {
+          "allow_custom_input": true,
+          "default": "sarvam-30b",
+          "description": "Sarvam chat model. Use sarvam-30b for low-latency voice agents; sarvam-105b for complex multi-step reasoning.",
+          "examples": [
+            "sarvam-30b",
+            "sarvam-105b"
+          ],
+          "title": "Model",
+          "type": "string"
+        },
+        "temperature": {
+          "default": 0.5,
+          "description": "Sampling temperature. Sarvam recommends 0.5 for balanced conversational responses.",
+          "maximum": 2.0,
+          "minimum": 0.0,
+          "title": "Temperature",
+          "type": "number"
+        }
+      },
+      "required": [
+        "api_key"
+      ],
+      "title": "Sarvam",
+      "type": "object"
+    }
+  },
+  "tts": {
+    "elevenlabs": {
+      "properties": {
+        "provider": {
+          "const": "elevenlabs",
+          "default": "elevenlabs",
+          "title": "Provider",
+          "type": "string"
+        },
+        "api_key": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          ],
+          "title": "Api Key"
+        },
+        "voice": {
+          "default": "21m00Tcm4TlvDq8ikWAM",
+          "description": "ElevenLabs voice ID from your Voice Library.",
+          "title": "Voice",
+          "type": "string"
+        },
+        "speed": {
+          "default": 1.0,
+          "description": "Speed of the voice.",
+          "maximum": 2.0,
+          "minimum": 0.1,
+          "title": "Speed",
+          "type": "number"
+        },
+        "model": {
+          "allow_custom_input": true,
+          "default": "eleven_flash_v2_5",
+          "description": "ElevenLabs TTS model.",
+          "examples": [
+            "eleven_flash_v2_5"
+          ],
+          "title": "Model",
+          "type": "string"
+        },
+        "base_url": {
+          "default": "https://api.elevenlabs.io",
+          "description": "ElevenLabs API base URL. Override to use a Data Residency endpoint (e.g. https://api.eu.residency.elevenlabs.io) for GDPR / HIPAA / regional compliance.",
+          "title": "Base Url",
+          "type": "string"
+        }
+      },
+      "required": [
+        "api_key"
+      ],
+      "title": "ElevenLabs",
+      "type": "object"
+    }
+  },
+  "stt": {
+    "deepgram": {
+      "properties": {
+        "provider": {
+          "const": "deepgram",
+          "default": "deepgram",
+          "title": "Provider",
+          "type": "string"
+        },
+        "api_key": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          ],
+          "title": "Api Key"
+        },
+        "model": {
+          "default": "nova-3-general",
+          "description": "Deepgram STT model.",
+          "examples": [
+            "nova-3-general",
+            "flux-general-en",
+            "flux-general-multi"
+          ],
+          "title": "Model",
+          "type": "string"
+        },
+        "language": {
+          "default": "multi",
+          "description": "Language code. 'multi' enables Nova-3 auto-detect and omits language hints for Flux multilingual auto-detect.",
+          "examples": [
+            "multi",
+            "ar",
+            "ar-AE",
+            "ar-SA",
+            "ar-QA",
+            "ar-KW",
+            "ar-SY",
+            "ar-LB",
+            "ar-PS",
+            "ar-JO",
+            "ar-EG",
+            "ar-SD",
+            "ar-TD",
+            "ar-MA",
+            "ar-DZ",
+            "ar-TN",
+            "ar-IQ",
+            "ar-IR",
+            "be",
+            "bn",
+            "bs",
+            "bg",
+            "ca",
+            "cs",
+            "da",
+            "da-DK",
+            "de",
+            "de-CH",
+            "el",
+            "en",
+            "en-US",
+            "en-AU",
+            "en-GB",
+            "en-IN",
+            "en-NZ",
+            "es",
+            "es-419",
+            "et",
+            "fa",
+            "fi",
+            "fr",
+            "fr-CA",
+            "he",
+            "hi",
+            "hr",
+            "hu",
+            "id",
+            "it",
+            "ja",
+            "kn",
+            "ko",
+            "ko-KR",
+            "lt",
+            "lv",
+            "mk",
+            "mr",
+            "ms",
+            "nl",
+            "nl-BE",
+            "no",
+            "pl",
+            "pt",
+            "pt-BR",
+            "pt-PT",
+            "ro",
+            "ru",
+            "sk",
+            "sl",
+            "sr",
+            "sv",
+            "sv-SE",
+            "ta",
+            "te",
+            "th",
+            "tl",
+            "tr",
+            "uk",
+            "ur",
+            "vi",
+            "zh-CN",
+            "zh-TW"
+          ],
+          "model_options": {
+            "flux-general-en": [
+              "en"
+            ],
+            "flux-general-multi": [
+              "multi",
+              "de",
+              "en",
+              "es",
+              "fr",
+              "hi",
+              "it",
+              "ja",
+              "nl",
+              "pt",
+              "ru"
+            ],
+            "nova-3-general": [
+              "multi",
+              "ar",
+              "ar-AE",
+              "ar-SA",
+              "ar-QA",
+              "ar-KW",
+              "ar-SY",
+              "ar-LB",
+              "ar-PS",
+              "ar-JO",
+              "ar-EG",
+              "ar-SD",
+              "ar-TD",
+              "ar-MA",
+              "ar-DZ",
+              "ar-TN",
+              "ar-IQ",
+              "ar-IR",
+              "be",
+              "bn",
+              "bs",
+              "bg",
+              "ca",
+              "cs",
+              "da",
+              "da-DK",
+              "de",
+              "de-CH",
+              "el",
+              "en",
+              "en-US",
+              "en-AU",
+              "en-GB",
+              "en-IN",
+              "en-NZ",
+              "es",
+              "es-419",
+              "et",
+              "fa",
+              "fi",
+              "fr",
+              "fr-CA",
+              "he",
+              "hi",
+              "hr",
+              "hu",
+              "id",
+              "it",
+              "ja",
+              "kn",
+              "ko",
+              "ko-KR",
+              "lt",
+              "lv",
+              "mk",
+              "mr",
+              "ms",
+              "nl",
+              "nl-BE",
+              "no",
+              "pl",
+              "pt",
+              "pt-BR",
+              "pt-PT",
+              "ro",
+              "ru",
+              "sk",
+              "sl",
+              "sr",
+              "sv",
+              "sv-SE",
+              "ta",
+              "te",
+              "th",
+              "tl",
+              "tr",
+              "uk",
+              "ur",
+              "vi",
+              "zh-CN",
+              "zh-TW"
+            ]
+          },
+          "title": "Language",
+          "type": "string"
+        }
+      },
+      "required": [
+        "api_key"
+      ],
+      "title": "Deepgram",
+      "type": "object"
+    }
+  },
+  "embeddings": {
+    "openai": {
+      "properties": {
+        "provider": {
+          "const": "openai",
+          "default": "openai",
+          "title": "Provider",
+          "type": "string"
+        },
+        "api_key": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          ],
+          "title": "Api Key"
+        },
+        "model": {
+          "default": "text-embedding-3-small",
+          "description": "OpenAI embedding model.",
+          "examples": [
+            "text-embedding-3-small"
+          ],
+          "title": "Model",
+          "type": "string"
+        }
+      },
+      "required": [
+        "api_key"
+      ],
+      "title": "OpenAI",
+      "type": "object"
+    }
+  },
+  "realtime": {
+    "openai_realtime": {
+      "properties": {
+        "provider": {
+          "const": "openai_realtime",
+          "default": "openai_realtime",
+          "title": "Provider",
+          "type": "string"
+        },
+        "api_key": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          ],
+          "title": "Api Key"
+        },
+        "model": {
+          "allow_custom_input": true,
+          "default": "gpt-realtime-2",
+          "description": "OpenAI realtime (speech-to-speech) model.",
+          "examples": [
+            "gpt-realtime-2"
+          ],
+          "title": "Model",
+          "type": "string"
+        },
+        "voice": {
+          "allow_custom_input": true,
+          "default": "alloy",
+          "description": "Voice the model speaks in.",
+          "examples": [
+            "alloy",
+            "ash",
+            "ballad",
+            "coral",
+            "echo",
+            "sage",
+            "shimmer",
+            "verse"
+          ],
+          "title": "Voice",
+          "type": "string"
+        },
+        "language": {
+          "allow_custom_input": true,
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "ISO 639-1 language code for input audio transcription (e.g. 'pt', 'es'). Improves transcription accuracy and latency. Leave unset to auto-detect.",
+          "examples": [
+            "en",
+            "es",
+            "pt",
+            "fr",
+            "de",
+            "it",
+            "hi",
+            "ja",
+            "ko",
+            "zh"
+          ],
+          "title": "Language"
+        }
+      },
+      "required": [
+        "api_key"
+      ],
+      "title": "OpenAI Realtime",
+      "type": "object"
+    },
+    "grok_realtime": {
+      "properties": {
+        "provider": {
+          "const": "grok_realtime",
+          "default": "grok_realtime",
+          "title": "Provider",
+          "type": "string"
+        },
+        "api_key": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          ],
+          "title": "Api Key"
+        },
+        "model": {
+          "allow_custom_input": true,
+          "default": "grok-voice-think-fast-1.0",
+          "description": "Grok realtime voice-agent model.",
+          "examples": [
+            "grok-voice-think-fast-1.0"
+          ],
+          "title": "Model",
+          "type": "string"
+        },
+        "voice": {
+          "allow_custom_input": true,
+          "default": "ara",
+          "description": "Voice the model speaks in.",
+          "examples": [
+            "ara",
+            "rex",
+            "sal",
+            "eve",
+            "leo"
+          ],
+          "title": "Voice",
+          "type": "string"
+        }
+      },
+      "required": [
+        "api_key"
+      ],
+      "title": "Grok Realtime",
+      "type": "object"
+    },
+    "ultravox_realtime": {
+      "properties": {
+        "provider": {
+          "const": "ultravox_realtime",
+          "default": "ultravox_realtime",
+          "title": "Provider",
+          "type": "string"
+        },
+        "api_key": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          ],
+          "title": "Api Key"
+        },
+        "model": {
+          "allow_custom_input": true,
+          "default": "ultravox-v0.7",
+          "description": "Ultravox realtime voice-agent model.",
+          "examples": [
+            "ultravox-v0.7",
+            "fixie-ai/ultravox"
+          ],
+          "title": "Model",
+          "type": "string"
+        },
+        "voice": {
+          "default": "Mark",
+          "description": "Ultravox voice name or voice ID.",
+          "title": "Voice",
+          "type": "string"
+        }
+      },
+      "required": [
+        "api_key"
+      ],
+      "title": "Ultravox Realtime",
+      "type": "object"
+    },
+    "google_realtime": {
+      "properties": {
+        "provider": {
+          "const": "google_realtime",
+          "default": "google_realtime",
+          "title": "Provider",
+          "type": "string"
+        },
+        "api_key": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          ],
+          "title": "Api Key"
+        },
+        "model": {
+          "allow_custom_input": true,
+          "default": "gemini-3.1-flash-live-preview",
+          "description": "Gemini Live model on Google AI Studio (not Vertex).",
+          "examples": [
+            "gemini-3.1-flash-live-preview"
+          ],
+          "title": "Model",
+          "type": "string"
+        },
+        "voice": {
+          "allow_custom_input": true,
+          "default": "Puck",
+          "description": "Voice the model speaks in.",
+          "examples": [
+            "Puck",
+            "Charon",
+            "Kore",
+            "Fenrir",
+            "Aoede"
+          ],
+          "title": "Voice",
+          "type": "string"
+        },
+        "language": {
+          "allow_custom_input": true,
+          "default": "en",
+          "description": "ISO 639-1 language code.",
+          "examples": [
+            "ar",
+            "bn",
+            "de",
+            "en",
+            "es",
+            "fr",
+            "gu",
+            "hi",
+            "id",
+            "it",
+            "ja",
+            "kn",
+            "ko",
+            "ml",
+            "mr",
+            "nl",
+            "pl",
+            "pt",
+            "ru",
+            "ta",
+            "te",
+            "th",
+            "tr",
+            "vi",
+            "zh"
+          ],
+          "title": "Language",
+          "type": "string"
+        }
+      },
+      "required": [
+        "api_key"
+      ],
+      "title": "Google Realtime",
+      "type": "object"
+    },
+    "google_vertex_realtime": {
+      "properties": {
+        "provider": {
+          "const": "google_vertex_realtime",
+          "default": "google_vertex_realtime",
+          "title": "Provider",
+          "type": "string"
+        },
+        "api_key": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Not used for Vertex AI \u2014 authentication is via the service account in `credentials` (or ADC). Leave blank.",
+          "title": "Api Key"
+        },
+        "model": {
+          "allow_custom_input": true,
+          "default": "google/gemini-live-2.5-flash-native-audio",
+          "description": "Vertex AI publisher/model identifier.",
+          "examples": [
+            "google/gemini-live-2.5-flash-native-audio"
+          ],
+          "title": "Model",
+          "type": "string"
+        },
+        "voice": {
+          "allow_custom_input": true,
+          "default": "Charon",
+          "description": "Voice the model speaks in.",
+          "examples": [
+            "Puck",
+            "Charon",
+            "Kore",
+            "Fenrir",
+            "Aoede"
+          ],
+          "title": "Voice",
+          "type": "string"
+        },
+        "language": {
+          "allow_custom_input": true,
+          "default": "en",
+          "description": "BCP-47 language code (e.g. 'en-US').",
+          "examples": [
+            "ar",
+            "bn",
+            "de",
+            "en",
+            "es",
+            "fr",
+            "gu",
+            "hi",
+            "id",
+            "it",
+            "ja",
+            "kn",
+            "ko",
+            "ml",
+            "mr",
+            "nl",
+            "pl",
+            "pt",
+            "ru",
+            "ta",
+            "te",
+            "th",
+            "tr",
+            "vi",
+            "zh"
+          ],
+          "title": "Language",
+          "type": "string"
+        },
+        "project_id": {
+          "description": "Google Cloud project ID for Vertex AI.",
+          "title": "Project Id",
+          "type": "string"
+        },
+        "location": {
+          "default": "global",
+          "description": "GCP region for the Vertex AI endpoint (e.g. 'global').",
+          "title": "Location",
+          "type": "string"
+        },
+        "credentials": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Paste the entire service-account JSON file contents. If omitted, falls back to Application Default Credentials (ADC).",
+          "multiline": true,
+          "title": "Credentials"
+        }
+      },
+      "required": [
+        "project_id"
+      ],
+      "title": "Google Vertex Realtime",
+      "type": "object"
+    },
+    "azure_realtime": {
+      "description": "Azure OpenAI Realtime API \u2014 low-latency speech-to-speech conversations.",
+      "properties": {
+        "provider": {
+          "const": "azure_realtime",
+          "default": "azure_realtime",
+          "title": "Provider",
+          "type": "string"
+        },
+        "api_key": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          ],
+          "title": "Api Key"
+        },
+        "model": {
+          "allow_custom_input": true,
+          "default": "gpt-realtime",
+          "description": "Azure OpenAI realtime deployment name.",
+          "examples": [
+            "gpt-realtime",
+            "gpt-realtime-1.5",
+            "gpt-realtime-mini"
+          ],
+          "title": "Model",
+          "type": "string"
+        },
+        "endpoint": {
+          "description": "Azure OpenAI resource endpoint (e.g. https://<resource>.openai.azure.com).",
+          "title": "Endpoint",
+          "type": "string"
+        },
+        "voice": {
+          "allow_custom_input": true,
+          "default": "alloy",
+          "description": "Voice the model speaks in.",
+          "examples": [
+            "alloy",
+            "ash",
+            "ballad",
+            "coral",
+            "echo",
+            "sage",
+            "shimmer",
+            "verse"
+          ],
+          "title": "Voice",
+          "type": "string"
+        },
+        "api_version": {
+          "default": "v1",
+          "description": "Azure OpenAI Realtime protocol version. Use 'v1' for the GA API; date-based versions select the deprecated preview endpoint.",
+          "examples": [
+            "v1",
+            "2025-04-01-preview",
+            "2024-10-01-preview",
+            "2024-12-17"
+          ],
+          "title": "Api Version",
+          "type": "string"
+        }
+      },
+      "provider_docs_url": "https://learn.microsoft.com/en-us/azure/ai-services/openai/how-to/realtime-audio-quickstart",
+      "required": [
+        "api_key",
+        "endpoint"
+      ],
+      "title": "Azure OpenAI Realtime",
+      "type": "object"
+    }
+  },
+  "default_providers": {
+    "llm": "openai",
+    "tts": "elevenlabs",
+    "stt": "deepgram",
+    "embeddings": "openai"
+  }
+}

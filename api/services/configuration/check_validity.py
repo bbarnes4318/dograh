@@ -39,6 +39,7 @@ class UserConfigurationValidator:
             ServiceProviders.DEEPGRAM.value: self._check_deepgram_api_key,
             ServiceProviders.GROQ.value: self._check_groq_api_key,
             ServiceProviders.OPENROUTER.value: self._check_openrouter_api_key,
+            ServiceProviders.INCEPTION.value: self._check_inception_api_key,
             ServiceProviders.INWORLD.value: self._check_inworld_api_key,
             ServiceProviders.ELEVENLABS.value: self._validate_elevenlabs_api_key,
             ServiceProviders.GOOGLE.value: self._check_google_api_key,
@@ -230,6 +231,7 @@ class UserConfigurationValidator:
         if provider in (
             ServiceProviders.OPENAI.value,
             ServiceProviders.OPENAI_REALTIME.value,
+            ServiceProviders.INCEPTION.value,
         ):
             return validator(provider, api_key, service_config)
         return validator(provider, api_key)
@@ -347,6 +349,37 @@ class UserConfigurationValidator:
         return True
 
     def _check_openrouter_api_key(self, model: str, api_key: str) -> bool:
+        return True
+
+    def _check_inception_api_key(
+        self, model: str, api_key: str, service_config: Optional[ServiceConfig] = None
+    ) -> bool:
+        """Best-effort check against Inception's OpenAI-compatible model list.
+
+        Only a clear auth rejection blocks save; anything else (rate limit,
+        outage, a gateway that doesn't implement /models) is allowed through so
+        a transient upstream problem can't lock a user out of their own config.
+        """
+        base_url = (
+            getattr(service_config, "base_url", None) if service_config else None
+        ) or "https://api.inceptionlabs.ai/v1"
+        try:
+            response = httpx.get(
+                f"{base_url.rstrip('/')}/models",
+                headers={"Authorization": f"Bearer {api_key}"},
+                timeout=10.0,
+            )
+        except httpx.RequestError:
+            raise ValueError(
+                f"Could not connect to the Inception API at {base_url}. Please check "
+                "the base URL and your network connection, and try again."
+            )
+        if response.status_code in (401, 403):
+            raise ValueError(
+                "Invalid Inception API key. The key was rejected by the Inception API. "
+                "Please check that your API key is correct and active. You can manage "
+                "keys at https://platform.inceptionlabs.ai/."
+            )
         return True
 
     def _check_inworld_api_key(self, model: str, api_key: str) -> bool:
