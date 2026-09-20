@@ -18,7 +18,9 @@ from pipecat.utils.enums import EndTaskReason
 
 from api.db import db_client
 from api.enums import MuteReason, ToolCategory
+from api.schemas.workflow_configurations import ToolFillerConfiguration
 from api.services.pipecat.audio_playback import play_audio
+from api.services.pipecat.thinking_cue import ThinkingCue
 from api.services.workflow.workflow_graph import Node, WorkflowGraph
 
 if TYPE_CHECKING:
@@ -78,6 +80,7 @@ class PipecatEngine:
         embeddings_api_version: Optional[str] = None,
         has_recordings: bool = False,
         context_compaction_enabled: bool = False,
+        tool_filler: Optional["ToolFillerConfiguration"] = None,
     ):
         self.task = task
         self.llm = llm
@@ -157,6 +160,10 @@ class PipecatEngine:
         # True when the workflow has active recordings; enables recording
         # response mode instructions on all nodes for in-context learning.
         self._has_recordings: bool = has_recordings
+
+        # Holding phrase spoken when a tool call outruns its deadline.
+        self._tool_filler = tool_filler or ToolFillerConfiguration()
+        self._last_filler_phrase: Optional[str] = None
 
         # Background context summarization on node transitions
         self._context_compaction_enabled: bool = context_compaction_enabled
@@ -875,6 +882,26 @@ class PipecatEngine:
         """
         return self._mute_reason
 
+    def thinking_cue(self, *, enabled: bool = True) -> ThinkingCue:
+        """Build a cue that fills the silence if the wrapped call runs long.
+
+        Remembers the phrase it spoke so back-to-back tool calls don't repeat
+        the same line. Pass ``enabled=False`` for a call site that has already
+        said something on its own.
+        """
+
+        def _remember(phrase: str) -> None:
+            self._last_filler_phrase = phrase
+
+        return ThinkingCue(
+            queue_frame=self.task.queue_frame if self.task is not None else None,
+            phrases=self._tool_filler.phrases,
+            delay_seconds=self._tool_filler.delay_seconds,
+            enabled=enabled and self._tool_filler.enabled,
+            last_phrase=self._last_filler_phrase,
+            on_spoken=_remember,
+        )
+
     def is_transition_in_progress(self) -> bool:
         """True while a node transition is mid-flight.
 
@@ -885,12 +912,23 @@ class PipecatEngine:
         """
         return self._transition_in_progress
 
-    def create_user_idle_handler(self):
+    def create_user_idle_handler(self, idle_behavior=None):
         """
         Returns a UserIdleHandler that manages user-idle timeouts with state.
-        The handler tracks retry count and handles escalating prompts.
+        The handler walks the configured nudge ladder, escalating from a fast
+        canned prompt to ending the call.
+
+        Args:
+            idle_behavior: Optional IdleBehaviorConfiguration. Falls back to
+                the built-in ladder when not supplied.
         """
-        return engine_callbacks.create_user_idle_handler(self)
+        if idle_behavior is None:
+            return engine_callbacks.create_user_idle_handler(self)
+        return engine_callbacks.create_user_idle_handler(
+            self,
+            nudges=idle_behavior.nudges,
+            enabled=idle_behavior.enabled,
+        )
 
     def create_max_duration_callback(self):
         """

@@ -1,37 +1,41 @@
 """Call metrics computation from raw event logs."""
 
-from pipecat.utils.enums import RealtimeFeedbackType
+from api.services.pipecat.call_metrics import (
+    count_turns,
+    extract_latency_samples,
+    extract_ttfb_samples,
+    summarize_samples,
+)
 
 
 def compute_call_metrics(
     logs: list[dict], call_duration_seconds: float | None = None
 ) -> dict:
-    """Pre-compute quantitative metrics from raw call logs."""
-    latencies = []
-    ttfb_values = []
+    """Pre-compute quantitative metrics from raw call logs.
 
-    for event in logs:
-        if event["type"] == RealtimeFeedbackType.LATENCY_MEASURED.value:
-            latencies.append(event["payload"]["latency_seconds"])
-        elif event["type"] == RealtimeFeedbackType.TTFB_METRIC.value:
-            ttfb_values.append(event["payload"]["ttfb_seconds"])
+    Shares its extraction with ``api.services.pipecat.call_metrics`` so the
+    numbers a QA judge is shown are the same ones persisted on the run. The
+    flat ``avg_*``/``max_*`` keys are kept because user-authored QA prompts
+    interpolate them by name; the percentile keys are additive.
+    """
+    latencies = extract_latency_samples(logs)
+    ttfb_values = extract_ttfb_samples(logs)
 
-    turns = set()
-    for event in logs:
-        if event["type"] in (
-            RealtimeFeedbackType.USER_TRANSCRIPTION.value,
-            RealtimeFeedbackType.BOT_TEXT.value,
-        ):
-            turns.add(event.get("turn", 0))
+    latency_summary = summarize_samples(latencies)
+    ttfb_summary = summarize_samples(ttfb_values)
 
     return {
         "call_duration_seconds": call_duration_seconds,
-        "num_turns": len(turns),
+        "num_turns": count_turns(logs),
         "avg_latency_seconds": (
-            round(sum(latencies) / len(latencies), 2) if latencies else None
+            latency_summary["avg_seconds"] if latency_summary else None
         ),
-        "avg_ttfb_seconds": (
-            round(sum(ttfb_values) / len(ttfb_values), 2) if ttfb_values else None
+        "avg_ttfb_seconds": (ttfb_summary["avg_seconds"] if ttfb_summary else None),
+        "max_latency_seconds": (
+            latency_summary["max_seconds"] if latency_summary else None
         ),
-        "max_latency_seconds": round(max(latencies), 2) if latencies else None,
+        "p95_latency_seconds": (
+            latency_summary["p95_seconds"] if latency_summary else None
+        ),
+        "p95_ttfb_seconds": (ttfb_summary["p95_seconds"] if ttfb_summary else None),
     }

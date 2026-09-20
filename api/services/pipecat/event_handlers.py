@@ -8,6 +8,10 @@ from api.services.campaign.circuit_breaker import circuit_breaker
 from api.services.integrations import IntegrationRuntimeSession
 from api.services.pipecat.audio_config import AudioConfig
 from api.services.pipecat.audio_playback import play_audio_loop
+from api.services.pipecat.call_metrics import (
+    compute_node_path,
+    compute_response_metrics,
+)
 from api.services.pipecat.in_memory_buffers import (
     InMemoryLogsBuffer,
     InMemoryRecordingBuffers,
@@ -327,6 +331,29 @@ def register_event_handlers(
             logger.warning(f"Failed to close Smart-Turn analyzer gracefully: {exc}")
 
         usage_info = pipeline_metrics_aggregator.get_all_usage_metrics_serialized()
+
+        # Fold response-quality metrics (latency, TTFB, turn count) into
+        # usage_info, and the node path into gathered_context, so reports can
+        # aggregate them without re-parsing every run's event log.
+        try:
+            feedback_events_for_metrics = in_memory_logs_buffer.get_events()
+        except Exception as e:
+            logger.error(f"Could not read feedback events for metrics: {e}")
+            feedback_events_for_metrics = []
+
+        if feedback_events_for_metrics:
+            try:
+                usage_info.update(
+                    compute_response_metrics(feedback_events_for_metrics)
+                )
+            except Exception as e:
+                logger.error(f"Could not compute response metrics: {e}", exc_info=True)
+            try:
+                node_path = compute_node_path(feedback_events_for_metrics)
+                if node_path:
+                    gathered_context["node_path"] = node_path
+            except Exception as e:
+                logger.error(f"Could not compute node path: {e}", exc_info=True)
 
         logger.debug(
             f"Usage metrics: {usage_info}, Gathered context: {gathered_context}"

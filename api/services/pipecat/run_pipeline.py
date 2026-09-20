@@ -3,6 +3,7 @@ from typing import Optional
 
 from fastapi import HTTPException
 from loguru import logger
+from pydantic import ValidationError
 
 from api.db import db_client
 from api.enums import WorkflowRunMode
@@ -14,6 +15,8 @@ from api.schemas.workflow_configurations import (
     DEFAULT_SMART_TURN_STOP_SECS,
     DEFAULT_TURN_START_MIN_WORDS,
     DEFAULT_TURN_START_STRATEGY,
+    IdleBehaviorConfiguration,
+    ToolFillerConfiguration,
 )
 from api.services.call_concurrency import call_concurrency
 from api.services.configuration.registry import ServiceProviders
@@ -816,6 +819,14 @@ async def _run_pipeline_impl(
         logger.info("Disabling context_compaction_enabled for realtime workflow run")
         context_compaction_enabled = False
 
+    try:
+        tool_filler = ToolFillerConfiguration.model_validate(
+            run_configs.get("tool_filler") or {}
+        )
+    except ValidationError as e:
+        logger.warning(f"Invalid tool_filler configuration, using defaults: {e}")
+        tool_filler = ToolFillerConfiguration()
+
     engine = PipecatEngine(
         llm=llm,
         inference_llm=inference_llm,
@@ -831,6 +842,7 @@ async def _run_pipeline_impl(
         embeddings_api_version=embeddings_api_version,
         has_recordings=has_recordings,
         context_compaction_enabled=context_compaction_enabled,
+        tool_filler=tool_filler,
     )
 
     # Create pipeline components
@@ -930,8 +942,17 @@ async def _run_pipeline_impl(
     user_context_aggregator = context_aggregator.user()
     assistant_context_aggregator = context_aggregator.assistant()
 
-    # Register user idle event handlers
-    user_idle_handler = engine.create_user_idle_handler()
+    # Register user idle event handlers. The nudge ladder is workflow config;
+    # a malformed block falls back to the built-in ladder rather than failing
+    # the call.
+    try:
+        idle_behavior = IdleBehaviorConfiguration.model_validate(
+            run_configs.get("idle_behavior") or {}
+        )
+    except ValidationError as e:
+        logger.warning(f"Invalid idle_behavior configuration, using defaults: {e}")
+        idle_behavior = IdleBehaviorConfiguration()
+    user_idle_handler = engine.create_user_idle_handler(idle_behavior)
 
     @user_context_aggregator.event_handler("on_user_turn_idle")
     async def on_user_turn_idle(aggregator):

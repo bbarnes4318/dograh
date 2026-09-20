@@ -127,6 +127,7 @@ def mock_engine():
     runs against a patched `db_client.get_organization_id_by_workflow_run_id`
     (returns org_id=1) for the duration of the fixture.
     """
+    from api.services.pipecat.thinking_cue import ThinkingCue
     from api.services.workflow.pipecat_engine import PipecatEngine
 
     engine = Mock()
@@ -136,6 +137,11 @@ def mock_engine():
     engine._get_organization_id = PipecatEngine._get_organization_id.__get__(engine)
     engine.llm = Mock()
     engine.llm.register_function = Mock()
+    # Tool handlers wrap their work in a thinking cue; a bare Mock isn't an
+    # async context manager, so hand back a real, silent one.
+    engine.thinking_cue = lambda **kwargs: ThinkingCue(
+        queue_frame=None, phrases=[], delay_seconds=1.0, enabled=False
+    )
 
     with patch(
         "api.db:db_client.get_organization_id_by_workflow_run_id",
