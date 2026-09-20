@@ -68,6 +68,7 @@ class ServiceProviders(str, Enum):
     DEEPGRAM = "deepgram"
     GROQ = "groq"
     OPENROUTER = "openrouter"
+    INCEPTION = "inception"
     INWORLD = "inworld"
     CARTESIA = "cartesia"
     # NEUPHONIC = "neuphonic"
@@ -104,6 +105,7 @@ class BaseServiceConfiguration(BaseModel):
         ServiceProviders.DEEPGRAM,
         ServiceProviders.GROQ,
         ServiceProviders.OPENROUTER,
+        ServiceProviders.INCEPTION,
         ServiceProviders.INWORLD,
         ServiceProviders.ELEVENLABS,
         ServiceProviders.GOOGLE,
@@ -248,6 +250,15 @@ OPENAI_PROVIDER_MODEL_CONFIG = provider_model_config("OpenAI")
 GOOGLE_PROVIDER_MODEL_CONFIG = provider_model_config("Google")
 GROQ_PROVIDER_MODEL_CONFIG = provider_model_config("Groq")
 OPENROUTER_PROVIDER_MODEL_CONFIG = provider_model_config("Open Router")
+INCEPTION_PROVIDER_MODEL_CONFIG = provider_model_config(
+    "Inception",
+    description=(
+        "Inception Mercury diffusion LLMs. Mercury 2.5 decodes tokens in "
+        "parallel for very low time-to-first-token, and exposes a "
+        "reasoning effort knob to trade latency against depth."
+    ),
+    provider_docs_url="https://docs.inceptionlabs.ai/",
+)
 AZURE_OPENAI_PROVIDER_MODEL_CONFIG = provider_model_config("Azure OpenAI")
 DOGRAH_PROVIDER_MODEL_CONFIG = provider_model_config("Dograh")
 AWS_BEDROCK_PROVIDER_MODEL_CONFIG = provider_model_config("AWS Bedrock")
@@ -331,6 +342,17 @@ OPENROUTER_MODELS = [
     "meta-llama/llama-3.3-70b-instruct",
     "deepseek/deepseek-chat-v3-0324",
 ]
+INCEPTION_MODELS = [
+    "mercury-2.5",
+    "mercury-2",
+]
+INCEPTION_DEFAULT_MODEL = "mercury-2.5"
+INCEPTION_DEFAULT_BASE_URL = "https://api.inceptionlabs.ai/v1"
+# Inception's diffusion models expose a reasoning-effort knob instead of a
+# separate "thinking" model tier. "instant" is the lowest latency; "high"
+# spends the most decoding budget on reasoning.
+INCEPTION_DEFAULT_REASONING_EFFORT = "low"
+
 DOGRAH_LLM_MODELS = ["default", "accurate", "fast", "lite", "zen"]
 AWS_BEDROCK_MODELS = [
     "us.amazon.nova-pro-v1:0",
@@ -426,6 +448,29 @@ class OpenRouterLLMConfiguration(BaseLLMConfiguration):
     base_url: str = Field(
         default="https://openrouter.ai/api/v1",
         description="Override only if proxying OpenRouter through your own gateway.",
+    )
+
+
+@register_llm
+class InceptionLLMConfiguration(BaseLLMConfiguration):
+    model_config = INCEPTION_PROVIDER_MODEL_CONFIG
+    provider: Literal[ServiceProviders.INCEPTION] = ServiceProviders.INCEPTION
+    model: str = Field(
+        default=INCEPTION_DEFAULT_MODEL,
+        description="Inception Mercury model identifier.",
+        json_schema_extra={"examples": INCEPTION_MODELS, "allow_custom_input": True},
+    )
+    base_url: str = Field(
+        default=INCEPTION_DEFAULT_BASE_URL,
+        description="Override only if proxying Inception through your own gateway.",
+    )
+    reasoning_effort: Literal["instant", "low", "medium", "high"] = Field(
+        default=INCEPTION_DEFAULT_REASONING_EFFORT,
+        description=(
+            "How much of the diffusion budget Mercury spends on reasoning. "
+            "'instant' is fastest; raise it for harder turns at the cost of "
+            "time-to-first-token."
+        ),
     )
 
 
@@ -830,6 +875,7 @@ LLMConfig = Annotated[
         GoogleVertexLLMConfiguration,
         GroqLLMService,
         OpenRouterLLMConfiguration,
+        InceptionLLMConfiguration,
         GoogleLLMService,
         AzureLLMService,
         DograhLLMService,

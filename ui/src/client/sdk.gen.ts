@@ -1211,8 +1211,8 @@ export const getCampaignDefaultsApiV1OrganizationsCampaignDefaultsGet = <ThrowOn
  *
  * Access Control:
  * * Known org-scoped keys (for example ``campaigns/{org_id}/...`` and
- * ``knowledge_base/{org_id}/...``) are authorized by matching the org_id
- * against the requesting user's organization.
+ * ``recordings/{org_id}/{recording_id}/...``) are authorized by matching the
+ * org_id against the requesting user's organization.
  * * Legacy keys (``recordings/{run_id}.wav``, ``transcripts/{run_id}.txt``)
  * are authorized via the workflow run they belong to.
  * * Superusers can request any key.

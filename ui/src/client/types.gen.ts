@@ -519,6 +519,8 @@ export type ByokPipelineAiModelConfiguration = {
     } & GroqLlmService) | ({
         provider: 'openrouter';
     } & OpenRouterLlmConfiguration) | ({
+        provider: 'inception';
+    } & InceptionLlmConfiguration) | ({
         provider: 'google';
     } & GoogleLlmService) | ({
         provider: 'azure';
@@ -649,6 +651,8 @@ export type ByokRealtimeAiModelConfiguration = {
     } & GroqLlmService) | ({
         provider: 'openrouter';
     } & OpenRouterLlmConfiguration) | ({
+        provider: 'inception';
+    } & InceptionLlmConfiguration) | ({
         provider: 'google';
     } & GoogleLlmService) | ({
         provider: 'azure';
@@ -3257,6 +3261,40 @@ export type ImpersonateResponse = {
      * Access Token
      */
     access_token: string;
+};
+
+/**
+ * Inception
+ *
+ * Inception Mercury diffusion LLMs. Mercury 2.5 decodes tokens in parallel for very low time-to-first-token, and exposes a reasoning effort knob to trade latency against depth.
+ */
+export type InceptionLlmConfiguration = {
+    /**
+     * Provider
+     */
+    provider?: 'inception';
+    /**
+     * Api Key
+     */
+    api_key: string | Array<string>;
+    /**
+     * Model
+     *
+     * Inception Mercury model identifier.
+     */
+    model?: string;
+    /**
+     * Base Url
+     *
+     * Override only if proxying Inception through your own gateway.
+     */
+    base_url?: string;
+    /**
+     * Reasoning Effort
+     *
+     * How much of the diffusion budget Mercury spends on reasoning. 'instant' is fastest; raise it for harder turns at the cost of time-to-first-token.
+     */
+    reasoning_effort?: 'instant' | 'low' | 'medium' | 'high';
 };
 
 /**

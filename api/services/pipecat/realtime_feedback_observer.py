@@ -34,6 +34,10 @@ from api.services.pipecat.realtime_feedback_events import (
     build_user_transcription_event,
 )
 
+#: Prefix on the per-turn LLM time-to-first-token log line. Stable so call-log
+#: pipelines can filter these timing lines out (``grep -v llm_ttft``).
+LLM_TTFT_LOG_TAG = "[llm_ttft]"
+
 if TYPE_CHECKING:
     from api.services.pipecat.in_memory_buffers import InMemoryLogsBuffer
     from api.services.pipecat.transcript_log_coordinator import (
@@ -227,6 +231,19 @@ class RealtimeFeedbackObserver(BaseObserver):
                 if isinstance(metric_data, TTFBMetricsData):
                     # Only send TTFB if it's from an LLM processor
                     if metric_data.processor and "LLM" in metric_data.processor:
+                        # Per-turn time-to-first-token for the LLM leg. This is
+                        # measured on our side by the LLM service itself:
+                        # the clock starts just before the chat-completion
+                        # request goes out and stops on the first streamed chunk
+                        # that carries a choice — never a provider-reported
+                        # number. The LLM_TTFT_LOG_TAG prefix is there so these
+                        # lines can be grepped out of call logs.
+                        logger.info(
+                            f"{LLM_TTFT_LOG_TAG} ttft_ms="
+                            f"{metric_data.value * 1000:.1f} "
+                            f"processor={metric_data.processor} "
+                            f"model={metric_data.model}"
+                        )
                         await self._send_message(
                             build_ttfb_metric_event(
                                 ttfb_seconds=metric_data.value,
