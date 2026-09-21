@@ -11,13 +11,20 @@ unit-testing.
 from __future__ import annotations
 
 import re
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from loguru import logger
 from pipecat.frames.frames import (
     LLMMessagesAppendFrame,
+    TTSSpeakFrame,
+    UserIdleTimeoutUpdateFrame,
 )
 from pipecat.utils.enums import EndTaskReason
+
+from api.schemas.workflow_configurations import (
+    IdleNudgeConfiguration,
+    default_idle_nudges,
+)
 
 if TYPE_CHECKING:
     from api.services.workflow.pipecat_engine import PipecatEngine
@@ -28,43 +35,139 @@ if TYPE_CHECKING:
 # ---------------------------------------------------------------------------
 
 
+DEFAULT_LLM_IDLE_INSTRUCTION = (
+    "The user has been quiet. Politely and briefly ask if they're still there "
+    "in the language that the user has been speaking so far."
+)
+
+
 class UserIdleHandler:
-    """Helper class to manage user idle retry logic with state."""
+    """Escalate through configured nudges when the caller stops responding.
 
-    def __init__(self, engine: "PipecatEngine"):
+    Each nudge either speaks a canned line straight to TTS — instant, no model
+    round trip, which is what you want at the moment attention is slipping — or
+    asks the LLM to generate one, which is what a non-English workflow wants so
+    the nudge lands in the caller's language. A nudge marked ``end_call`` ends
+    the call after speaking.
+
+    Nudges can carry their own ``after_seconds``, pushed to the aggregator's
+    idle controller as the previous nudge fires, so the agent can wait longer
+    after each unanswered prompt instead of hanging up on a fixed clock.
+    """
+
+    def __init__(
+        self,
+        engine: "PipecatEngine",
+        nudges: Optional[list["IdleNudgeConfiguration"]] = None,
+        enabled: bool = True,
+        base_timeout: Optional[float] = None,
+    ):
         self._engine = engine
+        self._enabled = enabled
+        self._nudges = list(nudges) if nudges else default_idle_nudges()
         self._retry_count = 0
+        # The timeout the aggregator was configured with (max_user_idle_timeout),
+        # so a reset can put back what a nudge's own after_seconds overrode.
+        self._base_timeout = base_timeout
+        self._timeout_overridden = False
 
-    def reset(self):
-        """Reset the retry count when user becomes active."""
+    async def reset(self):
+        """Restart the ladder when the caller becomes active again.
+
+        Restoring the timeout matters as much as the counter: each nudge can
+        push its own (longer) ``after_seconds`` to the aggregator as the
+        previous one fires, and without putting the original back, the last
+        nudge's timeout would stick for the rest of the call — so a caller who
+        answered and then went quiet again would wait the escalated silence
+        before the first nudge, every time.
+        """
         self._retry_count = 0
+        if not self._timeout_overridden:
+            return
+        restore_to = self._nudges[0].after_seconds if self._nudges else None
+        if restore_to is None:
+            restore_to = self._base_timeout
+        self._timeout_overridden = False
+        if not restore_to or self._engine.task is None:
+            return
+        await self._engine.task.queue_frame(
+            UserIdleTimeoutUpdateFrame(timeout=restore_to)
+        )
 
     async def handle_idle(self, aggregator):
-        """Handle user idle event with escalating prompts."""
+        """Handle a user-idle event by firing the next nudge in the ladder."""
+        if not self._enabled:
+            return
+
+        index = self._retry_count
         self._retry_count += 1
         logger.debug(f"Handling user_idle, attempt: {self._retry_count}")
 
-        if self._retry_count == 1:
-            message = {
-                "role": "user",
-                "content": "The user has been quiet. Politely and briefly ask if they're still there in the language that the user has been speaking so far.",
-            }
-            await aggregator.push_frame(LLMMessagesAppendFrame([message], run_llm=True))
+        if index >= len(self._nudges):
+            # Ran past the configured ladder — treat it as the end.
+            await self._engine.end_call_with_reason(
+                EndTaskReason.USER_IDLE_MAX_DURATION_EXCEEDED.value
+            )
             return
 
-        message = {
-            "role": "user",
-            "content": "The user has been quiet. We will be disconnecting the call now. Wish them a good day in the language that the user has been speaking so far.",
-        }
-        await aggregator.push_frame(LLMMessagesAppendFrame([message], run_llm=True))
-        await self._engine.end_call_with_reason(
-            EndTaskReason.USER_IDLE_MAX_DURATION_EXCEEDED.value
+        nudge = self._nudges[index]
+
+        if nudge.message:
+            await self._speak_canned(nudge.message)
+        else:
+            await self._ask_llm(
+                aggregator, nudge.llm_instruction or DEFAULT_LLM_IDLE_INSTRUCTION
+            )
+
+        if nudge.end_call:
+            await self._engine.end_call_with_reason(
+                EndTaskReason.USER_IDLE_MAX_DURATION_EXCEEDED.value
+            )
+            return
+
+        await self._arm_next_timeout(index + 1)
+
+    async def _speak_canned(self, message: str) -> None:
+        """Speak a fixed line without going through the LLM."""
+        if self._engine.task is None:
+            logger.warning("No pipeline task available to speak idle nudge")
+            return
+        # append_to_context so the model knows it already prompted the caller
+        # and doesn't repeat the question on its next turn.
+        await self._engine.task.queue_frame(
+            TTSSpeakFrame(message, append_to_context=True, persist_to_logs=True)
+        )
+
+    async def _ask_llm(self, aggregator, instruction: str) -> None:
+        await aggregator.push_frame(
+            LLMMessagesAppendFrame(
+                [{"role": "user", "content": instruction}], run_llm=True
+            )
+        )
+
+    async def _arm_next_timeout(self, next_index: int) -> None:
+        """Apply the next nudge's own idle timeout, if it sets one."""
+        if next_index >= len(self._nudges):
+            return
+        after_seconds = self._nudges[next_index].after_seconds
+        if not after_seconds or self._engine.task is None:
+            return
+        self._timeout_overridden = True
+        await self._engine.task.queue_frame(
+            UserIdleTimeoutUpdateFrame(timeout=after_seconds)
         )
 
 
-def create_user_idle_handler(engine: "PipecatEngine") -> UserIdleHandler:
+def create_user_idle_handler(
+    engine: "PipecatEngine",
+    nudges: Optional[list["IdleNudgeConfiguration"]] = None,
+    enabled: bool = True,
+    base_timeout: Optional[float] = None,
+) -> UserIdleHandler:
     """Return a UserIdleHandler that manages user-idle timeouts with state."""
-    return UserIdleHandler(engine)
+    return UserIdleHandler(
+        engine, nudges=nudges, enabled=enabled, base_timeout=base_timeout
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -97,6 +200,9 @@ def create_generation_started_callback(engine: "PipecatEngine"):
         logger.debug("LLM generation started in callback processor")
         # Clear reference text from previous generation
         engine._current_llm_generation_reference_text = ""
+        # A generation is now under way, so a pending node transition is no
+        # longer "about to queue one".
+        engine._transition_in_progress = False
 
     return handle_generation_started
 

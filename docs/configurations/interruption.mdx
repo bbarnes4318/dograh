@@ -25,11 +25,32 @@ VAD also feeds turn-taking more generally — it's part of how Dograh decides a 
 
 Each node in your workflow has an **Allow Interruption** toggle:
 
-- **Disabled (default)** — The bot finishes its entire response before accepting user input. The user's microphone is temporarily muted while the bot speaks.
-- **Enabled** — The bot stops speaking as soon as the user starts talking, and immediately processes their input. This creates a natural, conversational experience.
+- **Enabled (default)** — The bot stops speaking as soon as the user starts talking, and immediately processes their input. This creates a natural, conversational experience.
+- **Disabled** — The bot finishes its entire response before accepting user input. The user's microphone is temporarily muted while the bot speaks.
 
 <Note>
 When interruption is disabled and the user tries to speak during bot speech, a one-time warning appears in the live transcript indicating that interruption is disabled for that step.
+</Note>
+
+## Speech Captured While Muted
+
+Muting the caller used to mean discarding whatever they said. A caller who
+answered "no thanks, I'm not interested" over a disclaimer was never heard, and
+the agent carried on as if they had said nothing.
+
+Dograh now **buffers** caller speech that arrives while they're muted — whether
+that's a no-interrupt node, a transition line, or a running tool call — and
+replays it into the conversation as soon as the agent stops speaking, marked so
+the model knows it arrived out of turn. The agent answers what the caller
+actually said instead of talking past it.
+
+This is on by default. To turn it off, set `buffer_muted_speech` to `false` in
+the workflow's configuration.
+
+<Note>
+Buffered speech is dropped rather than replayed when the call is already
+hanging up, when it is older than 45 seconds, and beyond 600 characters only
+the most recent speech is kept.
 </Note>
 
 ## When to Disable Interruption

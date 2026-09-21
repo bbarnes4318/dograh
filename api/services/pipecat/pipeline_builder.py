@@ -37,6 +37,8 @@ def build_pipeline(
     pipeline_metrics_aggregator,
     voicemail_detector=None,
     recording_router=None,
+    muted_speech_buffer=None,
+    dtmf_capture=None,
 ):
     """Build the main pipeline with all components.
 
@@ -48,12 +50,23 @@ def build_pipeline(
         recording_router: Optional RecordingRouterProcessor. When provided,
             inserts between callback processor and TTS to route between
             pre-recorded audio playback and dynamic TTS.
+        muted_speech_buffer: Optional MutedSpeechBufferProcessor. Sits directly
+            above the user aggregator — after the voicemail detector, so
+            classification still sees every transcription — and holds caller
+            speech that the aggregator would otherwise drop while muted.
+        dtmf_capture: Optional DTMFCaptureProcessor. Collects caller keypresses
+            into whole entries and hands them to the model as a turn.
     """
-    # Build processors list with optional voicemail detection
+    # Build processors list with optional voicemail detection. DTMF capture
+    # sits directly under the transport so keypresses are collected into whole
+    # entries before anything downstream sees them.
     processors = [
         transport.input(),  # Transport user input
-        stt,
     ]
+    if dtmf_capture:
+        logger.info("Adding DTMF capture to pipeline")
+        processors.append(dtmf_capture)
+    processors.append(stt)
 
     # Insert voicemail detector after STT if enabled
     # Note: We intentionally do NOT use voicemail_detector.gate() to allow TTS
@@ -70,6 +83,10 @@ def build_pipeline(
     post_llm = [pipeline_engine_callback_processor]
     if recording_router:
         post_llm.append(recording_router)
+
+    if muted_speech_buffer:
+        logger.info("Adding muted-speech buffer to pipeline")
+        processors.append(muted_speech_buffer)
 
     processors.append(user_context_aggregator)
 
@@ -103,6 +120,7 @@ def build_realtime_pipeline(
     pipeline_engine_callback_processor,
     pipeline_metrics_aggregator,
     voicemail_detector=None,
+    dtmf_capture=None,
 ):
     """Build a pipeline for realtime (speech-to-speech) LLM services.
 
@@ -129,11 +147,21 @@ def build_realtime_pipeline(
             ConversationGate also blocks downstream audio output until the call
             ends.
     """
-    processors = [
-        transport.input(),
-        user_context_aggregator,
-        realtime_llm,
-    ]
+    processors = [transport.input()]
+
+    # Keypresses arrive as InputDTMFFrame from the transport, not from an STT
+    # stage, so capture works here too — it just has to be placed above the
+    # user aggregator so the entry it appends lands in the context.
+    if dtmf_capture:
+        logger.info("Adding DTMF capture to realtime pipeline")
+        processors.append(dtmf_capture)
+
+    processors.extend(
+        [
+            user_context_aggregator,
+            realtime_llm,
+        ]
+    )
 
     if voicemail_detector:
         logger.info("Adding native voicemail detector to realtime pipeline")

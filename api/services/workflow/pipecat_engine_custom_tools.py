@@ -199,7 +199,13 @@ class CustomToolManager:
                         if mcp_tool_filters is None
                         else set(mcp_tool_filters.get(tool.tool_uuid, []))
                     )
-                    schemas.extend(session.function_schemas(allowed))
+                    # Sorted by name: an MCP server is free to list its tools
+                    # in any order, and a tool list that reshuffles between
+                    # calls changes the serialized request prefix and misses
+                    # the provider's prompt cache every time.
+                    schemas.extend(
+                        sorted(session.function_schemas(allowed), key=lambda s: s.name)
+                    )
                     continue
 
                 raw_schema = tool_to_function_schema(tool)
@@ -399,6 +405,7 @@ class CustomToolManager:
                 config = tool.definition.get("config", {}) if tool.definition else {}
                 custom_msg_type = config.get("customMessageType", "text")
                 custom_message = config.get("customMessage", "")
+                already_spoke = False
                 if custom_msg_type == "audio":
                     recording_pk = config.get("customMessageRecordingId")
                     if recording_pk and self._engine._fetch_recording_audio:
@@ -410,6 +417,7 @@ class CustomToolManager:
                             recording_pk=int(recording_pk)
                         )
                         if result:
+                            already_spoke = True
                             await play_audio(
                                 result.audio,
                                 sample_rate=self._engine._audio_config.pipeline_sample_rate
@@ -423,6 +431,7 @@ class CustomToolManager:
                     logger.info(
                         f"Playing custom message before HTTP tool: {custom_message}"
                     )
+                    already_spoke = True
                     self._engine._queued_speech_mute_state = "waiting"
                     await self._engine.task.queue_frame(
                         TTSSpeakFrame(
@@ -432,13 +441,17 @@ class CustomToolManager:
                         )
                     )
 
-                result = await execute_http_tool(
-                    tool=tool,
-                    arguments=function_call_params.arguments,
-                    call_context_vars=self._engine._call_context_vars,
-                    gathered_context_vars=self._engine._gathered_context,
-                    organization_id=await self.get_organization_id(),
-                )
+                # Fill the silence if the request outruns the filler deadline.
+                # A tool with its own pre-call message has already spoken, so
+                # a cue on top would just be a second line of padding.
+                async with self._engine.thinking_cue(enabled=not already_spoke):
+                    result = await execute_http_tool(
+                        tool=tool,
+                        arguments=function_call_params.arguments,
+                        call_context_vars=self._engine._call_context_vars,
+                        gathered_context_vars=self._engine._gathered_context,
+                        organization_id=await self.get_organization_id(),
+                    )
 
                 await function_call_params.result_callback(result)
 
@@ -461,9 +474,12 @@ class CustomToolManager:
             logger.info(f"MCP Tool EXECUTED: {function_name}")
             logger.info(f"Arguments: {function_call_params.arguments}")
             try:
-                result = await session.call(
-                    function_name, function_call_params.arguments or {}
-                )
+                # MCP tools have no per-tool pre-call message to configure, so
+                # without a cue a slow server is pure dead air.
+                async with self._engine.thinking_cue():
+                    result = await session.call(
+                        function_name, function_call_params.arguments or {}
+                    )
                 await function_call_params.result_callback(result)
             except Exception as e:
                 logger.error(f"MCP tool '{function_name}' failed: {e}")

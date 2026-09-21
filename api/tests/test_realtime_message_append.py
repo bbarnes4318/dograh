@@ -5,6 +5,7 @@ import pytest
 from pipecat.frames.frames import LLMMessagesAppendFrame
 from pipecat.services.openai.realtime import events
 
+from api.schemas.workflow_configurations import IdleNudgeConfiguration
 from api.services.pipecat.realtime.openai_realtime import (
     DograhOpenAIRealtimeLLMService,
 )
@@ -40,10 +41,13 @@ async def test_openai_realtime_messages_append_frame_sends_conversation_item():
 async def test_user_idle_handler_uses_realtime_append_path():
     engine = SimpleNamespace(
         llm=SimpleNamespace(),
+        task=None,
         end_call_with_reason=AsyncMock(),
     )
     aggregator = SimpleNamespace(push_frame=AsyncMock())
-    handler = UserIdleHandler(engine)
+    # An LLM-generated nudge (message=None) is the step that has to reach the
+    # realtime service's append path; a canned step never touches the LLM.
+    handler = UserIdleHandler(engine, nudges=[IdleNudgeConfiguration()])
 
     await handler.handle_idle(aggregator)
 

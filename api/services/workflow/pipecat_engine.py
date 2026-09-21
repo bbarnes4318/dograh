@@ -17,8 +17,11 @@ from pipecat.services.settings import LLMSettings
 from pipecat.utils.enums import EndTaskReason
 
 from api.db import db_client
-from api.enums import ToolCategory
+from api.enums import MuteReason, ToolCategory
+from api.schemas.workflow_configurations import ToolFillerConfiguration
 from api.services.pipecat.audio_playback import play_audio
+from api.services.pipecat.dtmf import send_dtmf_digits
+from api.services.pipecat.thinking_cue import ThinkingCue
 from api.services.workflow.workflow_graph import Node, WorkflowGraph
 
 if TYPE_CHECKING:
@@ -34,10 +37,37 @@ import asyncio
 
 from loguru import logger
 
+# Providers documented to accept OpenAI's `prompt_cache_key`. An
+# OpenAI-compatible endpoint that doesn't know the parameter rejects the whole
+# request, so this stays an allowlist rather than "anything OpenAI-shaped".
+PROMPT_CACHE_KEY_PROVIDERS = frozenset({"openai", "azure"})
+
+# A transition line is meant to be a handful of words. Models sometimes ignore
+# that and write a paragraph, which would delay the very generation the line
+# exists to cover.
+MAX_TRANSITION_MESSAGE_CHARS = 120
+
+
+def _clean_transition_message(value: object) -> Optional[str]:
+    """Normalize a model-supplied transition line, or None if unusable."""
+    if not isinstance(value, str):
+        return None
+    text = value.strip()
+    if not text:
+        return None
+    if len(text) > MAX_TRANSITION_MESSAGE_CHARS:
+        logger.debug(
+            f"Transition line over {MAX_TRANSITION_MESSAGE_CHARS} chars, dropping it"
+        )
+        return None
+    return text
+
+
 from api.services.managed_model_services import MPS_CORRELATION_ID_CONTEXT_KEY
 from api.services.workflow import pipecat_engine_callbacks as engine_callbacks
 from api.services.workflow.mcp_tool_session import McpToolSession
 from api.services.workflow.pipecat_engine_context_composer import (
+    TRANSITION_MESSAGE_ARG,
     compose_functions_for_node,
     compose_system_prompt_for_node,
 )
@@ -78,6 +108,11 @@ class PipecatEngine:
         embeddings_api_version: Optional[str] = None,
         has_recordings: bool = False,
         context_compaction_enabled: bool = False,
+        tool_filler: Optional["ToolFillerConfiguration"] = None,
+        speak_during_transition: bool = True,
+        send_dtmf_enabled: bool = False,
+        llm_provider: Optional[str] = None,
+        prompt_cache_namespace: Optional[str] = None,
     ):
         self.task = task
         self.llm = llm
@@ -120,6 +155,13 @@ class PipecatEngine:
         # Tracks whether the bot is currently speaking (for allow_interrupt logic)
         self._bot_is_speaking: bool = False
 
+        # Why should_mute_user() last returned True (see MuteReason), or None.
+        self._mute_reason: Optional[str] = None
+
+        # True between the start of a transition tool call and the LLM
+        # generation that the transition itself queues.
+        self._transition_in_progress: bool = False
+
         # Custom tool manager (initialized in initialize())
         self._custom_tool_manager: Optional[CustomToolManager] = None
 
@@ -150,6 +192,21 @@ class PipecatEngine:
         # True when the workflow has active recordings; enables recording
         # response mode instructions on all nodes for in-context learning.
         self._has_recordings: bool = has_recordings
+
+        # Holding phrase spoken when a tool call outruns its deadline.
+        self._tool_filler = tool_filler or ToolFillerConfiguration()
+        self._last_filler_phrase: Optional[str] = None
+
+        # Let the model supply a line to say while a node transition runs, so
+        # the second generation isn't dead air.
+        self._speak_during_transition: bool = speak_during_transition
+
+        # Whether the agent can press keys on a phone menu.
+        self._send_dtmf_enabled: bool = send_dtmf_enabled
+
+        # Prompt-cache routing (see _apply_prompt_cache_key).
+        self._llm_provider: Optional[str] = llm_provider
+        self._prompt_cache_namespace: Optional[str] = prompt_cache_namespace
 
         # Background context summarization on node transitions
         self._context_compaction_enabled: bool = context_compaction_enabled
@@ -220,6 +277,28 @@ class PipecatEngine:
 
         await self.llm._update_settings(LLMSettings(system_instruction=system_prompt))
 
+    def _apply_prompt_cache_key(self, node_id: str) -> None:
+        """Point the provider at a per-node prompt cache.
+
+        Every turn inside a node resends the same system prompt and tool
+        schemas, and so does every *other call* running the same workflow
+        version — a campaign dialling thousands of leads reuses one prefix.
+        Providers cache on that prefix automatically, but a cache key makes
+        requests that share it land on the same cache instead of scattering.
+
+        Only set for providers documented to accept it; an OpenAI-compatible
+        endpoint that doesn't know the parameter would reject the request.
+        """
+        if self._prompt_cache_namespace is None:
+            return
+        if self._llm_provider not in PROMPT_CACHE_KEY_PROVIDERS:
+            return
+        settings = getattr(self.llm, "_settings", None)
+        extra = getattr(settings, "extra", None)
+        if not isinstance(extra, dict):
+            return
+        extra["prompt_cache_key"] = f"{self._prompt_cache_namespace}:{node_id}"
+
     def _format_prompt(self, prompt: str) -> str:
         """Delegate prompt formatting to the shared workflow.utils implementation."""
 
@@ -240,6 +319,11 @@ class PipecatEngine:
                 f"Function: {name} -> transitioning to node: {transition_to_node}"
             )
             logger.info(f"Arguments: {function_call_params.arguments}")
+
+            # Held until the generation this transition queues actually starts,
+            # so anything else adding to the context meanwhile (e.g. replayed
+            # muted speech) rides that generation instead of racing it.
+            self._transition_in_progress = True
 
             try:
                 # Perform variable extraction before transitioning to new node
@@ -283,6 +367,25 @@ class PipecatEngine:
                             persist_to_logs=True,
                         )
                     )
+                else:
+                    # No configured line for this edge — use the one the model
+                    # supplied in this very tool call, so the second generation
+                    # (the one that speaks in the new node) isn't dead air.
+                    model_message = _clean_transition_message(
+                        (function_call_params.arguments or {}).get(
+                            TRANSITION_MESSAGE_ARG
+                        )
+                    )
+                    if model_message:
+                        logger.info(f"Playing model transition line: {model_message}")
+                        self._queued_speech_mute_state = "waiting"
+                        await self.task.queue_frame(
+                            TTSSpeakFrame(
+                                model_message,
+                                append_to_context=True,
+                                persist_to_logs=True,
+                            )
+                        )
 
                 # Set context for the new node, so that when the function call result
                 # frame is received by LLMContextAggregator and an LLM generation
@@ -302,6 +405,13 @@ class PipecatEngine:
 
                     # Queue EndFrame if we just transitioned to EndNode
                     if self._current_node.is_end:
+                        # No generation follows an end node, and
+                        # generation-started is the only other thing that
+                        # clears this flag — leaving it set would make the
+                        # muted-speech buffer replay with run_llm=False for
+                        # the rest of the call, so the caller's last words are
+                        # appended and never answered. Clear it here.
+                        self._transition_in_progress = False
                         await self.end_call_with_reason(
                             EndTaskReason.USER_QUALIFIED.value
                         )
@@ -320,6 +430,7 @@ class PipecatEngine:
                 )
 
             except Exception as e:
+                self._transition_in_progress = False
                 logger.error(f"Error in transition function {name}: {str(e)}")
                 error_result = {"status": "error", "error": str(e)}
                 await function_call_params.result_callback(error_result)
@@ -353,6 +464,25 @@ class PipecatEngine:
             transition_func,
             is_node_transition=True,
         )
+
+    async def _register_send_dtmf_function(self) -> None:
+        """Let the agent press keys on a phone menu.
+
+        Queued on the transport output so the tones go out on the media stream
+        the provider's serializer is already encoding.
+        """
+
+        async def send_dtmf_func(function_call_params: FunctionCallParams) -> None:
+            digits = (function_call_params.arguments or {}).get("digits", "")
+            queue_frame = (
+                self._transport_output.queue_frame
+                if self._transport_output is not None
+                else None
+            )
+            result = await send_dtmf_digits(queue_frame, digits)
+            await function_call_params.result_callback(result)
+
+        self.llm.register_function("send_dtmf", send_dtmf_func)
 
     async def _register_knowledge_base_function(
         self, document_uuids: list[str]
@@ -571,10 +701,16 @@ class PipecatEngine:
             format_prompt=self._format_prompt,
             has_recordings=self._has_recordings,
         )
+        if self._send_dtmf_enabled:
+            await self._register_send_dtmf_function()
+
         functions = await compose_functions_for_node(
             node=node,
             custom_tool_manager=self._custom_tool_manager,
+            include_transition_message=self._speak_during_transition,
+            include_send_dtmf=self._send_dtmf_enabled,
         )
+        self._apply_prompt_cache_key(node.id)
         await self._update_llm_context(system_prompt, functions)
 
     async def set_node(self, node_id: str, emit_transition_event: bool = True):
@@ -814,7 +950,12 @@ class PipecatEngine:
 
         This method tracks bot speaking state from frames and mutes the user when:
         - The pipeline is being shut down (_mute_pipeline is True), OR
+        - Queued speech (transition/tool message) is pending or playing, OR
         - The bot is speaking AND the current node has allow_interrupt=False
+
+        Side effect: records *why* the user is muted on ``_mute_reason`` so the
+        muted-speech buffer can tell "the caller talked over a no-interrupt
+        node" (worth replaying) apart from "the call is tearing down" (not).
 
         Returns:
             True if the user should be muted, False otherwise.
@@ -830,26 +971,86 @@ class PipecatEngine:
 
         # Always mute if pipeline is shutting down
         if self._mute_pipeline:
+            self._mute_reason = MuteReason.SHUTDOWN
             return True
 
         # Mute while queued speech (transition/tool message) is pending or playing
         if self._queued_speech_mute_state != "idle":
+            self._mute_reason = MuteReason.QUEUED_SPEECH
             return True
 
         # Mute if bot is speaking and current node doesn't allow interruption
         if self._bot_is_speaking and self._current_node:
             # If we should not allow interruption, mute the pipeline
             if not self._current_node.allow_interrupt:
+                self._mute_reason = MuteReason.NO_INTERRUPT
                 return True
 
+        self._mute_reason = None
         return False
 
-    def create_user_idle_handler(self):
+    def get_mute_reason(self) -> Optional[str]:
+        """Return why ``should_mute_user`` last asked for the user to be muted.
+
+        ``None`` means the engine is not currently asking for a mute. Note that
+        the user aggregator can still be muted by another strategy (e.g. while a
+        function call runs), which this does not describe.
+        """
+        return self._mute_reason
+
+    def thinking_cue(self, *, enabled: bool = True) -> ThinkingCue:
+        """Build a cue that fills the silence if the wrapped call runs long.
+
+        Remembers the phrase it spoke so back-to-back tool calls don't repeat
+        the same line. Pass ``enabled=False`` for a call site that has already
+        said something on its own.
+        """
+
+        def _remember(phrase: str) -> None:
+            self._last_filler_phrase = phrase
+
+        return ThinkingCue(
+            queue_frame=self.task.queue_frame if self.task is not None else None,
+            phrases=self._tool_filler.phrases,
+            delay_seconds=self._tool_filler.delay_seconds,
+            enabled=enabled and self._tool_filler.enabled,
+            last_phrase=self._last_filler_phrase,
+            on_spoken=_remember,
+        )
+
+    def is_transition_in_progress(self) -> bool:
+        """True while a node transition is mid-flight.
+
+        The transition itself queues an LLM generation once the function-call
+        result lands in the context, so anything else that wants to add a user
+        message during this window should append it without asking for a second
+        generation.
+        """
+        return self._transition_in_progress
+
+    def create_user_idle_handler(self, idle_behavior=None, base_timeout=None):
         """
         Returns a UserIdleHandler that manages user-idle timeouts with state.
-        The handler tracks retry count and handles escalating prompts.
+        The handler walks the configured nudge ladder, escalating from a fast
+        canned prompt to ending the call.
+
+        Args:
+            idle_behavior: Optional IdleBehaviorConfiguration. Falls back to
+                the built-in ladder when not supplied.
+            base_timeout: The aggregator's configured idle timeout
+                (``max_user_idle_timeout``), so the handler can restore it
+                after a nudge has pushed its own longer one.
         """
-        return engine_callbacks.create_user_idle_handler(self)
+        if idle_behavior is None:
+            return engine_callbacks.create_user_idle_handler(
+                self, base_timeout=base_timeout
+            )
+        return engine_callbacks.create_user_idle_handler(
+            self,
+            nudges=idle_behavior.nudges,
+            enabled=idle_behavior.enabled,
+            base_timeout=base_timeout,
+        )
 
     def create_max_duration_callback(self):
         """

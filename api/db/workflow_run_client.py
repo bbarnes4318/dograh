@@ -342,6 +342,7 @@ class WorkflowRunClient(BaseDBClient):
         is_completed: bool = False,
         recording_url: str | None = None,
         transcript_url: str | None = None,
+        transcript_text: str | None = None,
         storage_backend: str | None = None,
         usage_info: dict | None = None,
         cost_info: dict | None = None,
@@ -366,6 +367,8 @@ class WorkflowRunClient(BaseDBClient):
                 run.recording_url = recording_url
             if transcript_url:
                 run.transcript_url = transcript_url
+            if transcript_text:
+                run.transcript_text = transcript_text
             if storage_backend:
                 run.storage_backend = storage_backend
             if usage_info:

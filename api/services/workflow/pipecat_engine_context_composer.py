@@ -83,10 +83,27 @@ def compose_system_prompt_for_node(
     return "\n\n".join(parts)
 
 
+TRANSITION_MESSAGE_ARG = "transition_message"
+
+TRANSITION_MESSAGE_PROPERTY = {
+    TRANSITION_MESSAGE_ARG: {
+        "type": "string",
+        "description": (
+            "A short, natural line to say out loud right now while the "
+            "conversation moves on — for example 'got it, one sec' or 'okay, "
+            "let me pull that up'. Under ten words. Leave empty if nothing "
+            "needs saying."
+        ),
+    }
+}
+
+
 async def compose_functions_for_node(
     *,
     node: "Node",
     custom_tool_manager: Optional["CustomToolManager"],
+    include_transition_message: bool = False,
+    include_send_dtmf: bool = False,
 ) -> list[dict]:
     """Compose the function/tool schemas for a workflow node.
 
@@ -97,11 +114,23 @@ async def compose_functions_for_node(
     Args:
         node: The workflow node to compose functions for.
         custom_tool_manager: Manager for custom and built-in tools (may be None).
+        include_transition_message: When true, transition functions take an
+            optional line for the agent to speak while the transition runs.
+            Moving nodes costs two model round trips — one to choose the
+            transition, one to speak in the new node — and the gap between
+            them is silence. The line comes back in the *first* call's
+            arguments, so it costs no extra round trip and covers the second.
 
     Returns:
         A list of function schemas to register with the LLM.
     """
     functions: list[dict] = []
+
+    # Keypad sender, when the workflow dials into phone menus
+    if include_send_dtmf:
+        from api.services.pipecat.dtmf import get_send_dtmf_tool_schema
+
+        functions.append(get_send_dtmf_tool_schema())
 
     # Knowledge base retrieval tool
     if node.document_uuids:
@@ -124,8 +153,15 @@ async def compose_functions_for_node(
 
     # Transition function schemas
     for outgoing_edge in node.out_edges:
+        # An edge with its own configured transition speech already covers the
+        # gap, so asking the model for a line too would stack two.
+        wants_message = (
+            include_transition_message and not outgoing_edge.transition_speech
+        )
         function_schema = get_function_schema(
-            outgoing_edge.get_function_name(), outgoing_edge.condition
+            outgoing_edge.get_function_name(),
+            outgoing_edge.condition,
+            properties=dict(TRANSITION_MESSAGE_PROPERTY) if wants_message else None,
         )
         functions.append(function_schema)
 

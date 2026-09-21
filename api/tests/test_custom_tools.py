@@ -31,6 +31,7 @@ from pipecat.services.llm_service import FunctionCallParams
 
 from api.enums import WorkflowRunMode
 from api.services.configuration.masking import mask_key
+from api.services.pipecat.thinking_cue import ThinkingCue
 from api.services.workflow.pipecat_engine_custom_tools import get_function_schema
 from api.services.workflow.tools.custom_tool import (
     _coerce_parameter_value,
@@ -1493,6 +1494,11 @@ class TestCustomToolManagerUnit:
             mock_engine
         )
         mock_engine.llm = mock_llm
+        # The handler runs the request inside a thinking cue; a bare Mock is
+        # not an async context manager, so hand back a real, silent one.
+        mock_engine.thinking_cue = lambda **kwargs: ThinkingCue(
+            queue_frame=None, phrases=[], delay_seconds=1.0, enabled=False
+        )
 
         manager = CustomToolManager(mock_engine)
 

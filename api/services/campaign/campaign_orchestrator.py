@@ -33,6 +33,12 @@ from api.services.campaign.campaign_event_protocol import (
 )
 from api.services.campaign.campaign_event_publisher import CampaignEventPublisher
 from api.services.campaign.circuit_breaker import circuit_breaker
+from api.services.campaign.dialing_windows import (
+    dialing_config,
+    resolve_lead_timezone,
+    resolve_retry_delay_seconds,
+    seconds_until_local_window,
+)
 from api.tasks.arq import enqueue_job
 from api.tasks.function_names import FunctionNames
 
@@ -226,18 +232,51 @@ class CampaignOrchestrator:
             return
 
         # Create scheduled retry entry
-        retry_delay = retry_config.get("retry_delay_seconds", 120)
-        await self._schedule_retry(queued_run, reason, retry_delay)
+        attempt = queued_run.retry_count + 1
+        retry_delay = resolve_retry_delay_seconds(retry_config, attempt)
+        await self._schedule_retry(queued_run, reason, retry_delay, campaign)
 
         # Update last activity
         self._last_activity[campaign_id] = datetime.now(UTC)
 
     async def _schedule_retry(
-        self, original_run: QueuedRunModel, reason: str, delay_seconds: int
+        self,
+        original_run: QueuedRunModel,
+        reason: str,
+        delay_seconds: int,
+        campaign: CampaignModel | None = None,
     ):
-        """Create a new queued run for retry."""
+        """Create a new queued run for retry.
+
+        The retry time is pushed forward to the next open slot in the lead's
+        own calling window when one applies — otherwise a retry computed from
+        a daypart ladder can land at 4am local.
+        """
 
         campaign_id = original_run.campaign_id
+        scheduled_for = datetime.now(UTC) + timedelta(seconds=delay_seconds)
+
+        if campaign is not None:
+            policy = dialing_config(campaign)
+            if policy.schedule_enabled:
+                timezone = (
+                    resolve_lead_timezone(
+                        original_run.context_variables,
+                        (original_run.context_variables or {}).get("phone_number"),
+                        policy.timezone,
+                    )
+                    if policy.per_lead_timezone
+                    else policy.timezone
+                )
+                wait = seconds_until_local_window(
+                    policy.slots, timezone, now=scheduled_for
+                )
+                if wait is not None:
+                    scheduled_for += timedelta(seconds=wait)
+                    logger.debug(
+                        f"campaign_id: {campaign_id} - Retry pushed to the next "
+                        f"open window in {timezone}: {scheduled_for.isoformat()}"
+                    )
 
         # Create retry context
         retry_context = {
@@ -260,13 +299,13 @@ class CampaignOrchestrator:
             state="queued",
             retry_count=original_run.retry_count + 1,
             parent_queued_run_id=original_run.id,
-            scheduled_for=datetime.now(UTC) + timedelta(seconds=delay_seconds),
+            scheduled_for=scheduled_for,
             retry_reason=reason,
         )
 
         logger.info(
-            f"campaign_id: {campaign_id} - Scheduled retry {retry_run.id} for {reason} in {delay_seconds}s, "
-            f"retry attempt {retry_run.retry_count}"
+            f"campaign_id: {campaign_id} - Scheduled retry {retry_run.id} for {reason} "
+            f"at {scheduled_for.isoformat()}, retry attempt {retry_run.retry_count}"
         )
 
     async def _mark_final_failure(self, queued_run: QueuedRunModel, reason: str):
@@ -409,7 +448,7 @@ class CampaignOrchestrator:
                 return
 
             # Check for available work (queued runs + due retries)
-            has_work = await self._has_pending_work(campaign_id)
+            has_work = await self._has_pending_work(campaign_id, due_only=True)
 
             if has_work:
                 # Schedule batch immediately
@@ -493,7 +532,7 @@ class CampaignOrchestrator:
                         del self._batch_in_progress[campaign_id]
 
                         # Check if there's work to be done
-                        if await self._has_pending_work(campaign_id):
+                        if await self._has_pending_work(campaign_id, due_only=True):
                             logger.info(
                                 f"campaign_id: {campaign_id} - Found pending work after stuck batch, "
                                 f"scheduling new batch"
@@ -503,7 +542,7 @@ class CampaignOrchestrator:
 
                 # Check for orphaned work (e.g., newly created retries with no batch in progress)
                 if campaign_id not in self._batch_in_progress:
-                    has_work = await self._has_pending_work(campaign_id)
+                    has_work = await self._has_pending_work(campaign_id, due_only=True)
                     if has_work:
                         if not self._is_within_schedule(campaign):
                             logger.info(
@@ -573,11 +612,23 @@ class CampaignOrchestrator:
         )
         return True
 
-    async def _has_pending_work(self, campaign_id: int) -> bool:
-        """Check if campaign has any work to do."""
-        # Check queued runs
+    async def _has_pending_work(
+        self, campaign_id: int, *, due_only: bool = False
+    ) -> bool:
+        """Check if campaign has work to do.
+
+        Args:
+            due_only: Count only runs a batch could actually claim right now.
+                Runs parked for later — a scheduled retry, or a lead outside
+                its local calling window — are work the campaign still owes,
+                but scheduling a batch for them now just claims nothing and
+                comes straight back. Use True to decide whether to run a batch
+                and False to decide whether the campaign is finished.
+        """
         queued_count = await db_client.get_queued_runs_count(
-            campaign_id=campaign_id, states=["queued"]
+            campaign_id=campaign_id,
+            states=["queued"],
+            due_before=datetime.now(UTC) if due_only else None,
         )
 
         if queued_count > 0:

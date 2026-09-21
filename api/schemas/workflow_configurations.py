@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -14,6 +14,8 @@ DEFAULT_TURN_START_MIN_WORDS = 3
 DEFAULT_PROVISIONAL_VAD_PAUSE_SECS = 1.5
 DEFAULT_TURN_STOP_STRATEGY = "transcription"
 DEFAULT_CONTEXT_COMPACTION_ENABLED = False
+DEFAULT_BUFFER_MUTED_SPEECH = True
+DEFAULT_SPEAK_DURING_TRANSITION = True
 
 
 class ExternalPBXFieldMapping(BaseModel):
@@ -40,6 +42,109 @@ class AmbientNoiseConfigurationDefaults(BaseModel):
     volume: float = 0.3
 
 
+class ToolFillerConfiguration(BaseModel):
+    """Short holding phrase spoken when a tool call outruns its deadline.
+
+    Tools can already be configured to speak a message *before* they run, but
+    that fires even when the call returns in 50ms — so the agent sounds slow
+    on fast tools and silent on slow ones. This speaks only once a call has
+    actually taken too long, and covers every tool (HTTP, MCP) rather than
+    only the ones someone remembered to configure.
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    enabled: bool = True
+    # Below roughly a second, callers read a pause as normal conversational
+    # rhythm rather than dead air.
+    delay_seconds: float = Field(default=1.2, gt=0, le=10)
+    phrases: list[str] = Field(
+        default_factory=lambda: [
+            "One moment.",
+            "Let me check that.",
+            "Just a second.",
+        ],
+        max_length=20,
+    )
+
+
+class DTMFConfiguration(BaseModel):
+    """Keypad handling for telephony calls.
+
+    Capture is on by default and costs nothing: a caller who presses keys
+    instead of speaking is currently ignored entirely.
+
+    Sending is opt-in because it puts a tool on every node — worth it for
+    outbound calls into business phone menus, where an agent that can't press
+    "2 for sales" never reaches a human, and noise for consumer calls.
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    capture_enabled: bool = True
+    send_enabled: bool = False
+    # Quiet after a keypress before the entry is treated as finished.
+    interdigit_timeout_seconds: float = Field(default=2.5, gt=0, le=30)
+    max_digits: int = Field(default=32, gt=0, le=64)
+
+
+class IdleNudgeConfiguration(BaseModel):
+    """One step in the escalating response to a caller going quiet."""
+
+    model_config = ConfigDict(extra="allow")
+
+    # Seconds of silence before *this* step fires. None keeps the previous
+    # step's timeout (the first step always uses `max_user_idle_timeout`).
+    after_seconds: Optional[float] = Field(default=None, gt=0, le=120)
+    # A canned line, spoken straight to TTS with no LLM round trip — the point
+    # is to be instant at the moment the caller is already disengaging. Set to
+    # null to have the LLM generate the nudge instead, which is what a
+    # non-English workflow wants so the nudge matches the caller's language.
+    message: Optional[str] = None
+    # Instruction handed to the LLM when `message` is null.
+    llm_instruction: Optional[str] = None
+    end_call: bool = False
+
+
+def default_idle_nudges() -> list["IdleNudgeConfiguration"]:
+    return [
+        IdleNudgeConfiguration(message="Sorry, are you still there?"),
+        IdleNudgeConfiguration(
+            after_seconds=8.0,
+            llm_instruction=(
+                "The user has gone quiet again. Briefly re-ask your last "
+                "question in a different way, in the language the user has "
+                "been speaking."
+            ),
+        ),
+        IdleNudgeConfiguration(
+            after_seconds=8.0,
+            llm_instruction=(
+                "The user has been quiet. We will be disconnecting the call "
+                "now. Wish them a good day in the language that the user has "
+                "been speaking so far."
+            ),
+            end_call=True,
+        ),
+    ]
+
+
+class IdleBehaviorConfiguration(BaseModel):
+    """How the agent escalates when the caller stops responding.
+
+    The default gives the caller one more chance than a straight
+    nudge-then-hang-up, and makes the first nudge instant instead of waiting on
+    a model round trip at exactly the moment attention is slipping.
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    enabled: bool = True
+    nudges: list[IdleNudgeConfiguration] = Field(
+        default_factory=default_idle_nudges, max_length=10
+    )
+
+
 class WorkflowConfigurationDefaults(BaseModel):
     model_config = ConfigDict(extra="allow")
 
@@ -56,6 +161,13 @@ class WorkflowConfigurationDefaults(BaseModel):
     ambient_noise_configuration: AmbientNoiseConfigurationDefaults = Field(
         default_factory=AmbientNoiseConfigurationDefaults
     )
+    tool_filler: ToolFillerConfiguration = Field(
+        default_factory=ToolFillerConfiguration
+    )
+    idle_behavior: IdleBehaviorConfiguration = Field(
+        default_factory=IdleBehaviorConfiguration
+    )
+    dtmf: DTMFConfiguration = Field(default_factory=DTMFConfiguration)
     max_call_duration: int = Field(
         default=DEFAULT_MAX_CALL_DURATION_SECONDS,
         gt=0,
@@ -73,6 +185,15 @@ class WorkflowConfigurationDefaults(BaseModel):
     )
     dictionary: str = ""
     context_compaction_enabled: bool = DEFAULT_CONTEXT_COMPACTION_ENABLED
+    # When the caller is muted (a no-interrupt node, a transition line, a tool
+    # call), hold what they said and replay it into the context once they're
+    # unmuted instead of dropping it.
+    buffer_muted_speech: bool = DEFAULT_BUFFER_MUTED_SPEECH
+    # Let the model hand back a short line to speak while a node transition
+    # runs, covering the gap between the transition call and the generation
+    # that speaks in the new node. Edges with their own configured transition
+    # speech are unaffected.
+    speak_during_transition: bool = DEFAULT_SPEAK_DURING_TRANSITION
     external_pbx_field_mappings: list[ExternalPBXFieldMapping] = Field(
         default_factory=list,
         max_length=100,

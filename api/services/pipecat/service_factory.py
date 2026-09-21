@@ -925,6 +925,7 @@ def create_llm_service_from_provider(
     temperature: float | None = None,
     bill_to: str | None = None,
     reasoning_effort: str | None = None,
+    enable_prompt_caching: bool = False,
 ):
     """Create an LLM service from explicit provider/model/api_key.
 
@@ -1010,7 +1011,22 @@ def create_llm_service_from_provider(
             aws_access_key=aws_access_key,
             aws_secret_key=aws_secret_key,
             aws_region=aws_region,
-            settings=AWSBedrockLLMSettings(model=model),
+            settings=AWSBedrockLLMSettings(
+                model=model,
+                # Bedrock does no prompt caching unless asked, and every turn
+                # of a voice call resends the same system prompt and tool
+                # schemas, so cache points on both cut time-to-first-token
+                # sharply where they are accepted.
+                #
+                # Off by default, though: Bedrock rejects cache points on
+                # models that don't support them (Amazon Nova and older Claude
+                # snapshots among them, both reachable from this product's own
+                # model picker and from allow_custom_input), and a
+                # ValidationException fails *every* turn — a dead call, not a
+                # slow one. The operator opts in per organization once they
+                # have confirmed their model accepts them.
+                enable_prompt_caching=enable_prompt_caching,
+            ),
         )
     elif provider == ServiceProviders.SPEACHES.value:
         base_url = base_url or "http://localhost:11434/v1"
@@ -1280,6 +1296,9 @@ def create_llm_service(user_config, correlation_id: str | None = None):
         kwargs["aws_access_key"] = user_config.llm.aws_access_key
         kwargs["aws_secret_key"] = user_config.llm.aws_secret_key
         kwargs["aws_region"] = user_config.llm.aws_region
+        kwargs["enable_prompt_caching"] = getattr(
+            user_config.llm, "enable_prompt_caching", False
+        )
     elif provider == ServiceProviders.GOOGLE_VERTEX.value:
         kwargs["project_id"] = user_config.llm.project_id
         kwargs["location"] = user_config.llm.location

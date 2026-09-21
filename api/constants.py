@@ -9,8 +9,6 @@ ENVIRONMENT = os.getenv("ENVIRONMENT", Environment.LOCAL.value)
 # when constructing file-system paths elsewhere in the codebase.
 APP_ROOT_DIR: Path = Path(__file__).resolve().parent
 
-FILLER_SOUND_PROBABILITY = 0.0
-
 VOICEMAIL_RECORDING_DURATION = 5.0
 
 # Langfuse Configuration
@@ -156,10 +154,21 @@ COUNTRY_CODES = {
 DEFAULT_ORG_CONCURRENCY_LIMIT = max(
     1, int(os.getenv("DEFAULT_ORG_CONCURRENCY_LIMIT", "10"))
 )
+# Retry ladder for new campaigns. `retry_delays_seconds` is per attempt and
+# spreads attempts across the day: 30 minutes, then ~3 hours later, then the
+# next day. A no-answer retried two minutes later is close to worthless — the
+# person is still away — and a fixed delay means every attempt samples the same
+# daypart that already failed.
+#
+# `retry_delay_seconds` is kept for campaigns that set it explicitly; when
+# there is no ladder it is used as the base, optionally spread by
+# `daypart_shift_hours`.
 DEFAULT_CAMPAIGN_RETRY_CONFIG = {
     "enabled": True,
     "max_retries": 1,
     "retry_delay_seconds": 120,
+    "retry_delays_seconds": [1800, 10800, 86400],
+    "daypart_shift_hours": 3.0,
     "retry_on_busy": True,
     "retry_on_no_answer": True,
     "retry_on_voicemail": False,

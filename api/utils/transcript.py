@@ -20,6 +20,27 @@ def _format_timestamp_range(
     return start_timestamp
 
 
+def generate_searchable_transcript(events: List[dict]) -> str:
+    """Transcript text for full-text search: speakers and words, no timestamps.
+
+    The uploaded artifact keeps timestamps because a human reading a call wants
+    them. The searchable copy drops them — ISO timestamps tokenize into lexemes
+    that bloat the index and never match anything anyone searches for.
+    """
+    lines: List[str] = []
+    for event in events:
+        event_type = event.get("type")
+        payload = event.get("payload", {})
+        if (
+            event_type == RealtimeFeedbackType.USER_TRANSCRIPTION.value
+            and payload.get("final") is True
+        ):
+            lines.append(f"user: {payload.get('text', '')}")
+        elif event_type == RealtimeFeedbackType.BOT_TEXT.value:
+            lines.append(f"assistant: {payload.get('text', '')}")
+    return "\n".join(line for line in lines if line.split(": ", 1)[-1].strip())
+
+
 def generate_transcript_text(
     events: List[dict], *, include_end_timestamps: bool = False
 ) -> str:

@@ -17,6 +17,19 @@ class CallType(Enum):
     OUTBOUND = "outbound"
 
 
+class MuteReason(str, Enum):
+    """Why the engine is asking for the caller's audio to be muted.
+
+    The muted-speech buffer replays what the caller said for the reasons that
+    are just "the agent is holding the floor", and drops it for SHUTDOWN, where
+    the call is already tearing down.
+    """
+
+    SHUTDOWN = "shutdown"
+    QUEUED_SPEECH = "queued_speech"
+    NO_INTERRUPT = "no_interrupt"
+
+
 class TelephonyCallStatus(str, Enum):
     INITIATED = "initiated"
     RINGING = "ringing"

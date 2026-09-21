@@ -66,13 +66,13 @@ def test_builds_minimal_workflow_and_roundtrips_through_dto(client: _StubClient)
 
 
 def test_defaults_applied_from_spec(client: _StubClient):
-    """Spec defaults (e.g., `allow_interrupt=False` on startCall) fill in
+    """Spec defaults (e.g., `allow_interrupt=True` on startCall) fill in
     when the user doesn't pass them."""
     wf = Workflow(client=client, name="defaults")
     start = wf.add(type="startCall", name="greeting", prompt="hello")
     payload = wf.to_json()
     data = payload["nodes"][0]["data"]
-    assert data["allow_interrupt"] is False  # spec default
+    assert data["allow_interrupt"] is True  # spec default
     assert data["add_global_prompt"] is True  # spec default
     _ = start  # used implicitly; silence unused
 

@@ -3,16 +3,22 @@ from typing import Optional
 
 from fastapi import HTTPException
 from loguru import logger
+from pydantic import ValidationError
 
 from api.db import db_client
 from api.enums import WorkflowRunMode
 from api.schemas.workflow_configurations import (
+    DEFAULT_BUFFER_MUTED_SPEECH,
     DEFAULT_MAX_CALL_DURATION_SECONDS,
     DEFAULT_MAX_USER_IDLE_TIMEOUT_SECONDS,
     DEFAULT_PROVISIONAL_VAD_PAUSE_SECS,
     DEFAULT_SMART_TURN_STOP_SECS,
+    DEFAULT_SPEAK_DURING_TRANSITION,
     DEFAULT_TURN_START_MIN_WORDS,
     DEFAULT_TURN_START_STRATEGY,
+    DTMFConfiguration,
+    IdleBehaviorConfiguration,
+    ToolFillerConfiguration,
 )
 from api.services.call_concurrency import call_concurrency
 from api.services.configuration.registry import ServiceProviders
@@ -27,11 +33,13 @@ from api.services.pipecat.active_calls import (
     unregister_active_call as unregister_worker_active_call,
 )
 from api.services.pipecat.audio_config import AudioConfig, create_audio_config
+from api.services.pipecat.dtmf import DTMF_CONTEXT_KEY, DTMFCaptureProcessor
 from api.services.pipecat.event_handlers import (
     register_audio_data_handler,
     register_event_handlers,
 )
 from api.services.pipecat.in_memory_buffers import InMemoryLogsBuffer
+from api.services.pipecat.muted_speech_buffer import MutedSpeechBufferProcessor
 from api.services.pipecat.pipeline_builder import (
     build_pipeline,
     build_realtime_pipeline,
@@ -814,6 +822,14 @@ async def _run_pipeline_impl(
         logger.info("Disabling context_compaction_enabled for realtime workflow run")
         context_compaction_enabled = False
 
+    try:
+        tool_filler = ToolFillerConfiguration.model_validate(
+            run_configs.get("tool_filler") or {}
+        )
+    except ValidationError as e:
+        logger.warning(f"Invalid tool_filler configuration, using defaults: {e}")
+        tool_filler = ToolFillerConfiguration()
+
     engine = PipecatEngine(
         llm=llm,
         inference_llm=inference_llm,
@@ -829,6 +845,21 @@ async def _run_pipeline_impl(
         embeddings_api_version=embeddings_api_version,
         has_recordings=has_recordings,
         context_compaction_enabled=context_compaction_enabled,
+        tool_filler=tool_filler,
+        speak_during_transition=bool(
+            run_configs.get("speak_during_transition", DEFAULT_SPEAK_DURING_TRANSITION)
+        ),
+        send_dtmf_enabled=bool(
+            (run_configs.get("dtmf") or {}).get("send_enabled", False)
+        ),
+        llm_provider=user_config.llm.provider if user_config.llm else None,
+        # Every call on this workflow version shares a system prompt and tool
+        # set per node, so they can share a prompt cache.
+        prompt_cache_namespace=(
+            f"dograh:{workflow.organization_id}:{workflow_run.definition_id}"
+            if getattr(workflow_run, "definition_id", None) is not None
+            else None
+        ),
     )
 
     # Create pipeline components
@@ -928,8 +959,19 @@ async def _run_pipeline_impl(
     user_context_aggregator = context_aggregator.user()
     assistant_context_aggregator = context_aggregator.assistant()
 
-    # Register user idle event handlers
-    user_idle_handler = engine.create_user_idle_handler()
+    # Register user idle event handlers. The nudge ladder is workflow config;
+    # a malformed block falls back to the built-in ladder rather than failing
+    # the call.
+    try:
+        idle_behavior = IdleBehaviorConfiguration.model_validate(
+            run_configs.get("idle_behavior") or {}
+        )
+    except ValidationError as e:
+        logger.warning(f"Invalid idle_behavior configuration, using defaults: {e}")
+        idle_behavior = IdleBehaviorConfiguration()
+    user_idle_handler = engine.create_user_idle_handler(
+        idle_behavior, base_timeout=max_user_idle_timeout
+    )
 
     @user_context_aggregator.event_handler("on_user_turn_idle")
     async def on_user_turn_idle(aggregator):
@@ -937,7 +979,72 @@ async def _run_pipeline_impl(
 
     @user_context_aggregator.event_handler("on_user_turn_started")
     async def on_user_turn_started(aggregator, strategy):
-        user_idle_handler.reset()
+        await user_idle_handler.reset()
+
+    # Hold caller speech that the aggregator would drop while muted (a
+    # no-interrupt node, a transition line, a running tool call) and replay it
+    # once they're unmuted. Realtime pipelines have no STT stage above the
+    # aggregator to intercept, so this is non-realtime only.
+    muted_speech_buffer = None
+    if not is_realtime and run_configs.get(
+        "buffer_muted_speech", DEFAULT_BUFFER_MUTED_SPEECH
+    ):
+
+        async def _log_replayed_speech(text: str) -> None:
+            """Record replayed speech in the transcript the aggregator never saw."""
+            try:
+                await in_memory_logs_buffer.append(
+                    {
+                        "type": RealtimeFeedbackType.USER_TRANSCRIPTION.value,
+                        # "final" is what marks a transcription as a complete
+                        # caller utterance. Without it the transcript artifact,
+                        # the transcript_text search column and the
+                        # user_speech call tag all skip this event, so speech
+                        # the caller actually said would be missing from every
+                        # one of them.
+                        "payload": {
+                            "text": text,
+                            "final": True,
+                            "replayed_from_muted_speech": True,
+                        },
+                    }
+                )
+            except Exception as e:
+                logger.error(f"Failed to log replayed muted speech: {e}")
+
+        muted_speech_buffer = MutedSpeechBufferProcessor(
+            is_muted=lambda: bool(
+                getattr(user_context_aggregator, "_user_is_muted", False)
+            ),
+            mute_reason=engine.get_mute_reason,
+            suppress_generation=engine.is_transition_in_progress,
+            on_replay=_log_replayed_speech,
+        )
+
+    # Keypad handling. Capture is on by default — a caller who presses keys
+    # instead of speaking is otherwise ignored entirely. Realtime pipelines
+    # run their own audio path, but capture still works there because the
+    # frames come from the transport, not the STT stage.
+    try:
+        dtmf_configuration = DTMFConfiguration.model_validate(
+            run_configs.get("dtmf") or {}
+        )
+    except ValidationError as e:
+        logger.warning(f"Invalid dtmf configuration, using defaults: {e}")
+        dtmf_configuration = DTMFConfiguration()
+
+    dtmf_capture = None
+    if dtmf_configuration.capture_enabled:
+
+        async def _record_dtmf_entry(entry: str) -> None:
+            entries = engine._gathered_context.setdefault(DTMF_CONTEXT_KEY, [])
+            entries.append(entry)
+
+        dtmf_capture = DTMFCaptureProcessor(
+            on_entry=_record_dtmf_entry,
+            interdigit_timeout=dtmf_configuration.interdigit_timeout_seconds,
+            max_digits=dtmf_configuration.max_digits,
+        )
 
     voicemail_detector = None
     recording_router = None
@@ -1019,6 +1126,7 @@ async def _run_pipeline_impl(
             pipeline_engine_callback_processor,
             pipeline_metrics_aggregator,
             voicemail_detector=voicemail_detector,
+            dtmf_capture=dtmf_capture,
         )
     else:
         pipeline = build_pipeline(
@@ -1033,6 +1141,8 @@ async def _run_pipeline_impl(
             pipeline_metrics_aggregator,
             voicemail_detector=voicemail_detector,
             recording_router=recording_router,
+            muted_speech_buffer=muted_speech_buffer,
+            dtmf_capture=dtmf_capture,
         )
 
     # Create pipeline task with audio configuration

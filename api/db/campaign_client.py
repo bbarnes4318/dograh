@@ -2,7 +2,7 @@ import json
 from datetime import UTC, datetime
 from typing import Any, Dict, List, Optional
 
-from sqlalchemy import func, text, update
+from sqlalchemy import func, or_, text, update
 from sqlalchemy.future import select
 
 from api.db.base_client import BaseDBClient
@@ -740,13 +740,34 @@ class CampaignClient(BaseDBClient):
             result = await session.execute(query)
             return list(result.scalars().all())
 
-    async def get_queued_runs_count(self, campaign_id: int, states: list[str]) -> int:
-        """Get count of queued runs for a campaign in specified states"""
+    async def get_queued_runs_count(
+        self,
+        campaign_id: int,
+        states: list[str],
+        due_before: Optional[datetime] = None,
+    ) -> int:
+        """Get count of queued runs for a campaign in specified states.
+
+        Args:
+            due_before: When set, count only runs that are claimable by then —
+                either unscheduled, or scheduled at or before it. Without this,
+                a run parked for later (a retry, or a lead outside its local
+                calling window) still counts as work to do now, and the
+                orchestrator schedules batch after batch that claim nothing.
+        """
         async with self.async_session() as session:
-            query = select(func.count(QueuedRunModel.id)).where(
+            conditions = [
                 QueuedRunModel.campaign_id == campaign_id,
                 QueuedRunModel.state.in_(states),
-            )
+            ]
+            if due_before is not None:
+                conditions.append(
+                    or_(
+                        QueuedRunModel.scheduled_for.is_(None),
+                        QueuedRunModel.scheduled_for <= due_before,
+                    )
+                )
+            query = select(func.count(QueuedRunModel.id)).where(*conditions)
             result = await session.execute(query)
             return result.scalar() or 0
 
