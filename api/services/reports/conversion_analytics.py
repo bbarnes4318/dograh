@@ -58,8 +58,18 @@ def _as_mapping(value: Any) -> dict:
 def node_path_for_run(run: Mapping[str, Any]) -> list[dict[str, Any]]:
     """The ordered nodes a run reached.
 
-    Prefers the summary written when the call ended; falls back to the raw
-    event log so runs from before that existed still appear in the funnel.
+    Reads the summary written onto ``gathered_context`` when the call ends.
+
+    Runs that finished before that summary existed have no node path and are
+    reported as such: the funnel query deliberately does not select ``logs``
+    (the per-call event blob is the largest column on the table), so there is
+    nothing here to recompute a path from. ``build_node_funnel`` counts those
+    runs separately rather than silently dropping them from the denominator —
+    a funnel that quietly ignored every pre-deploy run would read as a cliff
+    that isn't there.
+
+    A caller that *does* have ``logs`` in hand (a single-run drill-down, say)
+    can pass it and get the path recomputed.
     """
     gathered = _as_mapping(run.get("gathered_context"))
     path = gathered.get("node_path")

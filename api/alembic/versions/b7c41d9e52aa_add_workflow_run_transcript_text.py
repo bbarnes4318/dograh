@@ -26,19 +26,34 @@ _INDEX_NAME = "ix_workflow_runs_transcript_text_fts"
 
 
 def upgrade() -> None:
+    # Nullable with no default, so this is a catalog-only change: no table
+    # rewrite, no long lock.
     op.add_column(
         "workflow_runs",
         sa.Column("transcript_text", sa.Text(), nullable=True),
     )
-    op.execute(
-        f"""
-        CREATE INDEX {_INDEX_NAME}
-        ON workflow_runs
-        USING GIN (to_tsvector('english', coalesce(transcript_text, '')))
-        """
-    )
+    # The index build is the dangerous half. A plain CREATE INDEX holds a SHARE
+    # lock on workflow_runs until it finishes, which blocks every in-flight
+    # call's run update — on a table with real call history that is a
+    # calls-dropping window. CONCURRENTLY trades a slower build for not
+    # blocking writes, and cannot run inside a transaction, so step outside the
+    # per-migration transaction env.py opens.
+    #
+    # If a concurrent build is interrupted it leaves an INVALID index behind;
+    # re-running this migration is safe (IF NOT EXISTS), but the invalid index
+    # must be dropped first or it will simply be skipped:
+    #   DROP INDEX CONCURRENTLY ix_workflow_runs_transcript_text_fts;
+    with op.get_context().autocommit_block():
+        op.execute(
+            f"""
+            CREATE INDEX CONCURRENTLY IF NOT EXISTS {_INDEX_NAME}
+            ON workflow_runs
+            USING GIN (to_tsvector('english', coalesce(transcript_text, '')))
+            """
+        )
 
 
 def downgrade() -> None:
-    op.execute(f"DROP INDEX IF EXISTS {_INDEX_NAME}")
+    with op.get_context().autocommit_block():
+        op.execute(f"DROP INDEX CONCURRENTLY IF EXISTS {_INDEX_NAME}")
     op.drop_column("workflow_runs", "transcript_text")

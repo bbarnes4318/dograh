@@ -1,10 +1,16 @@
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+from loguru import logger
 from sqlalchemy import String, and_, func, select
 
 from api.db.base_client import BaseDBClient
 from api.db.models import WorkflowModel, WorkflowRunModel
+
+# Ceiling on how many runs one funnel/cohort report will load. Each row
+# carries three JSON columns, so an unbounded date range is a memory risk in
+# the API worker, not just a slow query.
+MAX_CONVERSION_ANALYTICS_RUNS = 50_000
 
 
 class ReportsClient(BaseDBClient):
@@ -84,6 +90,7 @@ class ReportsClient(BaseDBClient):
         end_utc: datetime,
         workflow_id: Optional[int] = None,
         definition_id: Optional[int] = None,
+        limit: int = MAX_CONVERSION_ANALYTICS_RUNS,
     ) -> List[Dict[str, Any]]:
         """Fetch the fields the funnel and cohort reports read.
 
@@ -91,6 +98,13 @@ class ReportsClient(BaseDBClient):
         largest column on the table and none of this needs it: the node path
         and response metrics are summarized onto ``gathered_context`` and
         ``usage_info`` when the call ends.
+
+        Still bounded, though. The date range comes from the caller, and three
+        JSON columns per run across an unbounded range is enough to pull a very
+        large result set into this process — a wide enough range would take the
+        API worker down rather than return a slow report. ``limit`` caps it at
+        the most recent runs in range, and a run that hits the cap is logged so
+        a truncated report is visible rather than silently wrong.
         """
         async with self.async_session() as session:
             query = (
@@ -120,8 +134,19 @@ class ReportsClient(BaseDBClient):
             if definition_id is not None:
                 query = query.where(WorkflowRunModel.definition_id == definition_id)
 
+            # Newest first, so a range that exceeds the cap keeps the runs an
+            # operator is most likely asking about.
+            query = query.order_by(WorkflowRunModel.created_at.desc()).limit(limit)
+
             result = await session.execute(query)
-            return [dict(row._mapping) for row in result]
+            rows = [dict(row._mapping) for row in result]
+            if len(rows) >= limit:
+                logger.warning(
+                    f"Conversion analytics hit the {limit}-run cap for org "
+                    f"{organization_id} between {start_utc} and {end_utc}; "
+                    "the report covers the most recent runs only."
+                )
+            return rows
 
     async def get_workflow_runs_for_daily_report(
         self,

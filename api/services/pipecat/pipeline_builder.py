@@ -120,6 +120,7 @@ def build_realtime_pipeline(
     pipeline_engine_callback_processor,
     pipeline_metrics_aggregator,
     voicemail_detector=None,
+    dtmf_capture=None,
 ):
     """Build a pipeline for realtime (speech-to-speech) LLM services.
 
@@ -146,11 +147,21 @@ def build_realtime_pipeline(
             ConversationGate also blocks downstream audio output until the call
             ends.
     """
-    processors = [
-        transport.input(),
-        user_context_aggregator,
-        realtime_llm,
-    ]
+    processors = [transport.input()]
+
+    # Keypresses arrive as InputDTMFFrame from the transport, not from an STT
+    # stage, so capture works here too — it just has to be placed above the
+    # user aggregator so the entry it appends lands in the context.
+    if dtmf_capture:
+        logger.info("Adding DTMF capture to realtime pipeline")
+        processors.append(dtmf_capture)
+
+    processors.extend(
+        [
+            user_context_aggregator,
+            realtime_llm,
+        ]
+    )
 
     if voicemail_detector:
         logger.info("Adding native voicemail detector to realtime pipeline")

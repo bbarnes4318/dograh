@@ -3,6 +3,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Optional
+from zoneinfo import ZoneInfo
 
 import redis.asyncio as aioredis
 from loguru import logger
@@ -14,6 +15,24 @@ from api.constants import REDIS_URL
 class ConcurrentSlotAcquisition:
     slot_id: str
     active_count: int
+
+
+def _cap_day(cap_timezone: Optional[str]) -> str:
+    """The calendar day the per-number dial cap is bucketed on.
+
+    Uses the campaign's calling timezone so the cap resets at local midnight.
+    An unknown or missing zone falls back to UTC rather than failing the dial —
+    a slightly-misaligned cap is better than a call that doesn't happen.
+    """
+    if cap_timezone:
+        try:
+            return datetime.now(ZoneInfo(cap_timezone)).strftime("%Y%m%d")
+        except Exception:
+            logger.warning(
+                f"Unknown cap_timezone {cap_timezone!r}; bucketing the "
+                "per-number daily cap on the UTC day instead."
+            )
+    return datetime.now(UTC).strftime("%Y%m%d")
 
 
 class RateLimiter:
@@ -420,6 +439,7 @@ class RateLimiter:
         telephony_configuration_id: int | None,
         preferred_numbers: Optional[list[str]] = None,
         daily_cap: Optional[int] = None,
+        cap_timezone: Optional[str] = None,
     ) -> Optional[str]:
         """
         Atomically acquire an available from_number from the pool for the given
@@ -431,6 +451,11 @@ class RateLimiter:
                 presence, where a caller ID sharing the lead's area code gets
                 answered far more often. Falls back to a random available number
                 when none of the preferred ones are free.
+            cap_timezone: IANA zone whose calendar day the cap resets on —
+                the campaign's configured calling timezone. Bucketing on the
+                UTC day instead resets mid-afternoon in US zones, which lets a
+                number take up to twice the cap inside one local calling day,
+                defeating the point of the cap. Falls back to UTC.
             daily_cap: Maximum dials to place from any one number today. Numbers
                 at the cap are skipped, which keeps a single caller ID from
                 burning its reputation and getting spam-labelled. None disables
@@ -446,7 +471,7 @@ class RateLimiter:
         """
         redis_client = await self._get_redis()
         key = self._from_number_pool_key(organization_id, telephony_configuration_id)
-        day = datetime.now(UTC).strftime("%Y%m%d")
+        day = _cap_day(cap_timezone)
         daily_key = self._from_number_daily_key(
             organization_id, telephony_configuration_id, day
         )

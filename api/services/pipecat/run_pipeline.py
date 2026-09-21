@@ -969,7 +969,9 @@ async def _run_pipeline_impl(
     except ValidationError as e:
         logger.warning(f"Invalid idle_behavior configuration, using defaults: {e}")
         idle_behavior = IdleBehaviorConfiguration()
-    user_idle_handler = engine.create_user_idle_handler(idle_behavior)
+    user_idle_handler = engine.create_user_idle_handler(
+        idle_behavior, base_timeout=max_user_idle_timeout
+    )
 
     @user_context_aggregator.event_handler("on_user_turn_idle")
     async def on_user_turn_idle(aggregator):
@@ -977,7 +979,7 @@ async def _run_pipeline_impl(
 
     @user_context_aggregator.event_handler("on_user_turn_started")
     async def on_user_turn_started(aggregator, strategy):
-        user_idle_handler.reset()
+        await user_idle_handler.reset()
 
     # Hold caller speech that the aggregator would drop while muted (a
     # no-interrupt node, a transition line, a running tool call) and replay it
@@ -994,7 +996,17 @@ async def _run_pipeline_impl(
                 await in_memory_logs_buffer.append(
                     {
                         "type": RealtimeFeedbackType.USER_TRANSCRIPTION.value,
-                        "payload": {"text": text, "replayed_from_muted_speech": True},
+                        # "final" is what marks a transcription as a complete
+                        # caller utterance. Without it the transcript artifact,
+                        # the transcript_text search column and the
+                        # user_speech call tag all skip this event, so speech
+                        # the caller actually said would be missing from every
+                        # one of them.
+                        "payload": {
+                            "text": text,
+                            "final": True,
+                            "replayed_from_muted_speech": True,
+                        },
                     }
                 )
             except Exception as e:
@@ -1114,6 +1126,7 @@ async def _run_pipeline_impl(
             pipeline_engine_callback_processor,
             pipeline_metrics_aggregator,
             voicemail_detector=voicemail_detector,
+            dtmf_capture=dtmf_capture,
         )
     else:
         pipeline = build_pipeline(

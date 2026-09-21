@@ -405,6 +405,13 @@ class PipecatEngine:
 
                     # Queue EndFrame if we just transitioned to EndNode
                     if self._current_node.is_end:
+                        # No generation follows an end node, and
+                        # generation-started is the only other thing that
+                        # clears this flag — leaving it set would make the
+                        # muted-speech buffer replay with run_llm=False for
+                        # the rest of the call, so the caller's last words are
+                        # appended and never answered. Clear it here.
+                        self._transition_in_progress = False
                         await self.end_call_with_reason(
                             EndTaskReason.USER_QUALIFIED.value
                         )
@@ -1021,7 +1028,7 @@ class PipecatEngine:
         """
         return self._transition_in_progress
 
-    def create_user_idle_handler(self, idle_behavior=None):
+    def create_user_idle_handler(self, idle_behavior=None, base_timeout=None):
         """
         Returns a UserIdleHandler that manages user-idle timeouts with state.
         The handler walks the configured nudge ladder, escalating from a fast
@@ -1030,13 +1037,19 @@ class PipecatEngine:
         Args:
             idle_behavior: Optional IdleBehaviorConfiguration. Falls back to
                 the built-in ladder when not supplied.
+            base_timeout: The aggregator's configured idle timeout
+                (``max_user_idle_timeout``), so the handler can restore it
+                after a nudge has pushed its own longer one.
         """
         if idle_behavior is None:
-            return engine_callbacks.create_user_idle_handler(self)
+            return engine_callbacks.create_user_idle_handler(
+                self, base_timeout=base_timeout
+            )
         return engine_callbacks.create_user_idle_handler(
             self,
             nudges=idle_behavior.nudges,
             enabled=idle_behavior.enabled,
+            base_timeout=base_timeout,
         )
 
     def create_max_duration_callback(self):

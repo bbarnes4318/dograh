@@ -328,6 +328,8 @@ class CampaignCallDispatcher:
                 telephony_configuration_id=campaign.telephony_configuration_id,
                 preferred_numbers=preferred_numbers,
                 daily_cap=dialing.from_number_daily_cap,
+                # Reset the cap on the campaign's calling day, not the UTC day.
+                cap_timezone=dialing.timezone,
             )
             if from_number is None:
                 raise PhoneNumberPoolExhaustedError(
@@ -581,6 +583,7 @@ class CampaignCallDispatcher:
         timeout: float = 600,
         preferred_numbers: Optional[list[str]] = None,
         daily_cap: Optional[int] = None,
+        cap_timezone: Optional[str] = None,
     ) -> Optional[str]:
         """
         Acquire a from_number from the (org, telephony config) pool with retry.
@@ -589,6 +592,7 @@ class CampaignCallDispatcher:
         Args:
             preferred_numbers: Ranked caller IDs to try first (local presence).
             daily_cap: Max dials per caller ID per day, or None for no cap.
+            cap_timezone: Zone whose calendar day the cap resets on.
 
         Returns:
             The acquired phone number as a string, or None if timeout is exceeded.
@@ -601,6 +605,7 @@ class CampaignCallDispatcher:
                 telephony_configuration_id,
                 preferred_numbers=preferred_numbers,
                 daily_cap=daily_cap,
+                cap_timezone=cap_timezone,
             )
             if from_number:
                 return from_number

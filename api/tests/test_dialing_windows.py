@@ -273,9 +273,21 @@ class TestDialingConfig:
     def test_defaults_when_nothing_is_configured(self):
         policy = dialing_config(SimpleNamespace(orchestrator_metadata=None))
         assert policy.schedule_enabled is False
+        # On: dialling a lead outside their own local window is a compliance
+        # problem, not a preference, so it applies without being asked for.
         assert policy.per_lead_timezone is True
-        assert policy.local_presence is True
+        # Off: this only changes which caller ID is chosen, and flipping
+        # caller-ID selection under a campaign that is already running (and
+        # already has answer-rate history against its numbers) is a surprise
+        # the operator should opt into.
+        assert policy.local_presence is False
         assert policy.from_number_daily_cap is None
+
+    def test_local_presence_can_be_opted_into(self):
+        policy = dialing_config(
+            SimpleNamespace(orchestrator_metadata={"dialing": {"local_presence": True}})
+        )
+        assert policy.local_presence is True
 
     def test_schedule_is_only_enabled_with_slots(self):
         policy = dialing_config(

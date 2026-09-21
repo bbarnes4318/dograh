@@ -213,8 +213,17 @@ def dialing_config(campaign: Any) -> DialingPolicy:
         schedule_enabled=bool(schedule.get("enabled", False)) and bool(slots),
         slots=tuple(slot for slot in slots if isinstance(slot, Mapping)),
         timezone=schedule.get("timezone") or "UTC",
+        # On by default, and deliberately so even for campaigns that were
+        # already running: dialling a New York lead at 7am because the campaign
+        # is set to Pacific is the problem this exists to stop, and in the US
+        # it is a TCPA exposure, not a preference. Turning it off is the opt-in.
         per_lead_timezone=bool(dialing.get("per_lead_timezone", True)),
-        local_presence=bool(dialing.get("local_presence", True)),
+        # Off by default. Unlike the window check there is no compliance driver
+        # here — it only changes which caller ID is chosen — and silently
+        # changing caller-ID selection under a campaign that is already running
+        # and already has answer-rate history is a surprise an operator should
+        # opt into.
+        local_presence=bool(dialing.get("local_presence", False)),
         from_number_daily_cap=_positive_int(dialing.get("from_number_daily_cap")),
     )
 

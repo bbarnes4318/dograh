@@ -521,6 +521,16 @@ class AWSBedrockLLMConfiguration(BaseLLMConfiguration):
         default="us-east-1",
         description="AWS region where the Bedrock model is available.",
     )
+    enable_prompt_caching: bool = Field(
+        default=False,
+        description=(
+            "Send prompt cache points on the system prompt and tool schemas. "
+            "Cuts time-to-first-token on models that support it, but Bedrock "
+            "rejects cache points on models that do not — and a rejected "
+            "request fails every turn of the call. Leave off unless you have "
+            "confirmed your model accepts them."
+        ),
+    )
     api_key: str | list[str] | None = Field(
         default=None,
         description="Not used for Bedrock — authentication is via the AWS credentials above. Leave blank.",

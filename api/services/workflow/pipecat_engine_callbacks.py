@@ -60,15 +60,39 @@ class UserIdleHandler:
         engine: "PipecatEngine",
         nudges: Optional[list["IdleNudgeConfiguration"]] = None,
         enabled: bool = True,
+        base_timeout: Optional[float] = None,
     ):
         self._engine = engine
         self._enabled = enabled
         self._nudges = list(nudges) if nudges else default_idle_nudges()
         self._retry_count = 0
+        # The timeout the aggregator was configured with (max_user_idle_timeout),
+        # so a reset can put back what a nudge's own after_seconds overrode.
+        self._base_timeout = base_timeout
+        self._timeout_overridden = False
 
-    def reset(self):
-        """Reset the retry count when user becomes active."""
+    async def reset(self):
+        """Restart the ladder when the caller becomes active again.
+
+        Restoring the timeout matters as much as the counter: each nudge can
+        push its own (longer) ``after_seconds`` to the aggregator as the
+        previous one fires, and without putting the original back, the last
+        nudge's timeout would stick for the rest of the call — so a caller who
+        answered and then went quiet again would wait the escalated silence
+        before the first nudge, every time.
+        """
         self._retry_count = 0
+        if not self._timeout_overridden:
+            return
+        restore_to = self._nudges[0].after_seconds if self._nudges else None
+        if restore_to is None:
+            restore_to = self._base_timeout
+        self._timeout_overridden = False
+        if not restore_to or self._engine.task is None:
+            return
+        await self._engine.task.queue_frame(
+            UserIdleTimeoutUpdateFrame(timeout=restore_to)
+        )
 
     async def handle_idle(self, aggregator):
         """Handle a user-idle event by firing the next nudge in the ladder."""
@@ -128,6 +152,7 @@ class UserIdleHandler:
         after_seconds = self._nudges[next_index].after_seconds
         if not after_seconds or self._engine.task is None:
             return
+        self._timeout_overridden = True
         await self._engine.task.queue_frame(
             UserIdleTimeoutUpdateFrame(timeout=after_seconds)
         )
@@ -137,9 +162,12 @@ def create_user_idle_handler(
     engine: "PipecatEngine",
     nudges: Optional[list["IdleNudgeConfiguration"]] = None,
     enabled: bool = True,
+    base_timeout: Optional[float] = None,
 ) -> UserIdleHandler:
     """Return a UserIdleHandler that manages user-idle timeouts with state."""
-    return UserIdleHandler(engine, nudges=nudges, enabled=enabled)
+    return UserIdleHandler(
+        engine, nudges=nudges, enabled=enabled, base_timeout=base_timeout
+    )
 
 
 # ---------------------------------------------------------------------------

@@ -145,6 +145,11 @@ class DTMFCaptureProcessor(FrameProcessor):
         self._digits.clear()
         logger.info(f"Caller entered DTMF: {entry}")
 
+        # Interrupt first, the way pipecat's own DTMFAggregator does. Without
+        # it, a keypress during an utterance queues a generation while the
+        # agent is still speaking and the two talk over each other.
+        await self.broadcast_interruption()
+
         await self.push_frame(
             LLMMessagesAppendFrame(
                 [

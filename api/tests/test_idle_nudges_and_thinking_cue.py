@@ -178,7 +178,7 @@ class TestIdleNudgeLadder:
         )
 
         await handler.handle_idle(aggregator)
-        handler.reset()
+        await handler.reset()
         await handler.handle_idle(aggregator)
 
         assert [frame.text for frame in _spoken(engine)] == ["first", "first"]
