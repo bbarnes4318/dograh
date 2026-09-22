@@ -104,6 +104,7 @@ async def compose_functions_for_node(
     custom_tool_manager: Optional["CustomToolManager"],
     include_transition_message: bool = False,
     include_send_dtmf: bool = False,
+    include_add_to_dnc: bool = False,
 ) -> list[dict]:
     """Compose the function/tool schemas for a workflow node.
 
@@ -131,6 +132,13 @@ async def compose_functions_for_node(
         from api.services.pipecat.dtmf import get_send_dtmf_tool_schema
 
         functions.append(get_send_dtmf_tool_schema())
+
+    # Do-not-call request, so "stop calling me" is honoured during the call
+    # rather than left to a disposition someone has to notice later.
+    if include_add_to_dnc:
+        from api.services.dnc.tool import get_add_to_dnc_tool_schema
+
+        functions.append(get_add_to_dnc_tool_schema())
 
     # Knowledge base retrieval tool
     if node.document_uuids:

@@ -862,6 +862,9 @@ async def _run_pipeline_impl(
         send_dtmf_enabled=bool(
             (run_configs.get("dtmf") or {}).get("send_enabled", False)
         ),
+        dnc_tool_enabled=bool(
+            (run_configs.get("dnc") or {}).get("agent_tool_enabled", True)
+        ),
         llm_provider=user_config.llm.provider if user_config.llm else None,
         # Every call on this workflow version shares a system prompt and tool
         # set per node, so they can share a prompt cache.

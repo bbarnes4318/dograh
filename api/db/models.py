@@ -845,6 +845,54 @@ class QueuedRunModel(Base):
     )
 
 
+class DNCEntryModel(Base):
+    """A number this organization must not call.
+
+    Scoped per organization: one tenant's suppression list is not another's,
+    and a shared list would leak who a competitor has been calling.
+
+    ``phone_number`` holds the canonical key from
+    ``api.services.dnc.normalize_dnc_number`` — never the raw input — so the
+    same person stored as ``(555) 123-4567`` and looked up as
+    ``+15551234567`` still matches. ``raw_input`` keeps what was actually
+    submitted, for an operator auditing why a row is on the list.
+    """
+
+    __tablename__ = "dnc_entries"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    phone_number = Column(String(20), nullable=False)
+    raw_input = Column(String(64), nullable=True)
+    source = Column(String(32), nullable=False, default="manual")
+    reason = Column(Text, nullable=True)
+    # Null for entries added automatically by a call or a disposition.
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    # Null means permanent. Set it to honour a suppression that lapses — a US
+    # internal do-not-call request runs five years, not forever.
+    expires_at = Column(DateTime(timezone=True), nullable=True)
+    workflow_run_id = Column(
+        Integer, ForeignKey("workflow_runs.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at = Column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
+    )
+
+    __table_args__ = (
+        # One row per number per org; re-adding updates the existing row rather
+        # than growing a pile of duplicates that all have to be checked.
+        UniqueConstraint(
+            "organization_id", "phone_number", name="uq_dnc_entries_org_number"
+        ),
+        # The dial-time check is always "is this number suppressed for this
+        # org", so the composite index is the one that matters.
+        Index("idx_dnc_entries_org_number", "organization_id", "phone_number"),
+        Index("idx_dnc_entries_org_created", "organization_id", "created_at"),
+    )
+
+
 class EmbedTokenModel(Base):
     """Model for storing workflow embed tokens"""
 

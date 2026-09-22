@@ -5,6 +5,7 @@ from loguru import logger
 from api.db import db_client
 from api.enums import PostHogEvent, WorkflowRunState
 from api.services.campaign.circuit_breaker import circuit_breaker
+from api.services.dnc import counterparty_number, dnc_service
 from api.services.integrations import IntegrationRuntimeSession
 from api.services.pipecat.audio_config import AudioConfig
 from api.services.pipecat.audio_playback import play_audio_loop
@@ -284,6 +285,30 @@ def register_event_handlers(
             except Exception as e:
                 logger.error(
                     f"Error storing disposition code in workflow: {e}",
+                    exc_info=True,
+                )
+
+            # A DNC disposition used to be only a label on a finished call.
+            # Writing it to the suppression list here is what stops the next
+            # campaign dialling the same person again.
+            try:
+                organization_id = getattr(
+                    getattr(workflow_run, "workflow", None), "organization_id", None
+                )
+                number = counterparty_number(
+                    workflow_run.initial_context, workflow_run.call_type
+                )
+                if organization_id and number:
+                    await dnc_service.record_disposition(
+                        organization_id=organization_id,
+                        raw_number=number,
+                        disposition=disposition_code,
+                        workflow_run_id=workflow_run_id,
+                    )
+            except Exception as e:
+                logger.error(
+                    f"Error recording do-not-call suppression for run "
+                    f"{workflow_run_id}: {e}",
                     exc_info=True,
                 )
 

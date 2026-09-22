@@ -1,0 +1,148 @@
+---
+title: "Do Not Call"
+description: "Suppress numbers so campaigns never dial them, and capture removal requests during the call."
+---
+
+## Overview
+
+Every organization has its own do-not-call list. Numbers on it are skipped at
+**dial time**, not at upload time — so a number added while a campaign is
+running stops the calls still queued against it, without re-uploading anything.
+
+A lead skipped this way is marked `suppressed` rather than `failed`, so a
+compliance skip stays distinguishable from a dialling error in your campaign
+counts.
+
+## How numbers get on the list
+
+There are three ways, and each entry records which one it was.
+
+### The caller asks during a call
+
+The agent has an `add_to_do_not_call` tool. When someone says "take me off your
+list" or "stop calling me", the model calls it and the number is suppressed
+immediately — before the call has even ended.
+
+```json
+{
+  "dnc": {
+    "agent_tool_enabled": true
+  }
+}
+```
+
+This is on by default. It adds one tool to every node, which costs a small
+number of prompt tokens per turn; that is the price of hearing the request at
+all. Set it to `false` only if you handle removal requests another way.
+
+<Note>
+The tool takes no phone number. It always suppresses the number on the current
+call, because a model passing a number invites a misheard digit string — or
+your own caller ID, read back from the transcript — onto the list, and a wrong
+entry there silently stops a campaign.
+</Note>
+
+### The call ends with a DNC disposition
+
+Any call whose final disposition is `DNC` adds its number to the list. This is
+not configurable: a workflow that classifies someone as do-not-call and then
+calls them again isn't a setting anyone wants.
+
+### Through the API
+
+```bash
+curl -X POST https://app.dograh.com/api/v1/dnc/ \
+  -H "Authorization: Bearer $DOGRAH_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "phone_numbers": ["555-123-4567", "+15559876543"],
+    "reason": "Imported from CRM suppression list"
+  }'
+```
+
+```json
+{
+  "added": 2,
+  "already_listed": 0,
+  "invalid": []
+}
+```
+
+Rows that aren't usable phone numbers come back in `invalid` rather than
+failing the whole request, so a paste of thousands of numbers isn't rejected
+because one cell holds a note. Up to 5,000 numbers per request.
+
+## Number matching
+
+The same person appears across lists as `5551234567`, `(555) 123-4567` and
+`+1 555 123 4567`. Every number is reduced to one canonical key before it is
+stored or compared, so it doesn't matter which form you add or which form your
+lead list uses.
+
+North American numbers collapse onto `+1XXXXXXXXXX` whether or not the country
+code was given.
+
+<Warning>
+Numbers outside the North American Numbering Plan only match when they carry
+their country code. `+447700900123` and `447700900123` match each other, but
+neither matches a bare national `07700900123` — without knowing the country,
+that string is ambiguous. Store non-NANP numbers in international form, and
+make sure your lead lists use the same.
+</Warning>
+
+To see how a number will be matched:
+
+```bash
+curl "https://app.dograh.com/api/v1/dnc/check?phone_number=555-123-4567" \
+  -H "Authorization: Bearer $DOGRAH_API_KEY"
+```
+
+```json
+{
+  "phone_number": "555-123-4567",
+  "normalized": "+15551234567",
+  "suppressed": true
+}
+```
+
+## Temporary suppression
+
+Leave `expires_at` unset and the suppression is permanent. Set it to honour one
+that lapses — a US internal do-not-call request runs five years, not forever.
+
+```json
+{
+  "phone_numbers": ["5551234567"],
+  "expires_at": "2031-09-22T00:00:00Z"
+}
+```
+
+An expired entry stops suppressing automatically; nothing has to clean it up.
+
+## Reviewing and removing
+
+```bash
+# List, newest first. Supports ?search=, ?limit= and ?offset=
+curl "https://app.dograh.com/api/v1/dnc/" \
+  -H "Authorization: Bearer $DOGRAH_API_KEY"
+
+# Remove one number
+curl -X DELETE "https://app.dograh.com/api/v1/dnc/+15551234567" \
+  -H "Authorization: Bearer $DOGRAH_API_KEY"
+```
+
+Each entry carries the `source` that created it — `agent`, `disposition`,
+`import` or `manual` — plus the `reason` and the original `raw_input`. That
+matters when an entry is disputed: a caller's own recorded request reads very
+differently from a bulk import.
+
+## Scope
+
+The list is per organization. One tenant's suppression list is never consulted
+for another's calls.
+
+<Note>
+This is your own internal suppression list. It is not the US national DNC
+registry, and it does not import from one — synchronising a national or state
+registry is a separate step you handle through the API.
+</Note>

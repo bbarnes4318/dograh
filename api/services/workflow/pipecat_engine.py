@@ -111,6 +111,7 @@ class PipecatEngine:
         tool_filler: Optional["ToolFillerConfiguration"] = None,
         speak_during_transition: bool = True,
         send_dtmf_enabled: bool = False,
+        dnc_tool_enabled: bool = False,
         llm_provider: Optional[str] = None,
         prompt_cache_namespace: Optional[str] = None,
     ):
@@ -203,6 +204,7 @@ class PipecatEngine:
 
         # Whether the agent can press keys on a phone menu.
         self._send_dtmf_enabled: bool = send_dtmf_enabled
+        self._dnc_tool_enabled: bool = dnc_tool_enabled
 
         # Prompt-cache routing (see _apply_prompt_cache_key).
         self._llm_provider: Optional[str] = llm_provider
@@ -484,6 +486,26 @@ class PipecatEngine:
 
         self.llm.register_function("send_dtmf", send_dtmf_func)
 
+    async def _register_add_to_dnc_function(self) -> None:
+        """Let the agent honour "take me off your list" during the call.
+
+        The number comes from the call context, never from the model — see
+        ``api.services.dnc.tool`` for why.
+        """
+        from api.services.dnc.tool import TOOL_NAME, add_caller_to_dnc
+
+        async def add_to_dnc_func(function_call_params: FunctionCallParams) -> None:
+            reason = (function_call_params.arguments or {}).get("reason")
+            result = await add_caller_to_dnc(
+                organization_id=await self._get_organization_id(),
+                call_context_vars=self._call_context_vars,
+                reason=reason,
+                workflow_run_id=self._workflow_run_id,
+            )
+            await function_call_params.result_callback(result)
+
+        self.llm.register_function(TOOL_NAME, add_to_dnc_func)
+
     async def _register_knowledge_base_function(
         self, document_uuids: list[str]
     ) -> None:
@@ -703,12 +725,15 @@ class PipecatEngine:
         )
         if self._send_dtmf_enabled:
             await self._register_send_dtmf_function()
+        if self._dnc_tool_enabled:
+            await self._register_add_to_dnc_function()
 
         functions = await compose_functions_for_node(
             node=node,
             custom_tool_manager=self._custom_tool_manager,
             include_transition_message=self._speak_during_transition,
             include_send_dtmf=self._send_dtmf_enabled,
+            include_add_to_dnc=self._dnc_tool_enabled,
         )
         self._apply_prompt_cache_key(node.id)
         await self._update_llm_context(system_prompt, functions)
