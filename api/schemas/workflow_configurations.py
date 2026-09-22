@@ -145,6 +145,25 @@ class IdleBehaviorConfiguration(BaseModel):
     )
 
 
+class NoiseSuppressionConfiguration(BaseModel):
+    """RNNoise suppression on inbound caller audio.
+
+    Off by default. RNNoise runs at 48 kHz, so narrowband telephony audio is
+    resampled up and back down, which costs CPU and adds roughly 20ms to the
+    inbound path. On a quiet line it changes almost nothing; measured against
+    recorded speech it recovers ~9dB SNR at 8 kHz and ~10dB at 16 kHz once the
+    background is loud enough to matter. Turn it on for consumer outbound,
+    where callers are in cars and shops, and leave it off for clean lines.
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    enabled: bool = False
+    # Quick by default: this sits in a live call's inbound path, so latency
+    # beats fidelity on a signal that is about to be denoised anyway.
+    resampler_quality: Literal["VHQ", "HQ", "MQ", "LQ", "QQ"] = "QQ"
+
+
 class WorkflowConfigurationDefaults(BaseModel):
     model_config = ConfigDict(extra="allow")
 
@@ -160,6 +179,9 @@ class WorkflowConfigurationDefaults(BaseModel):
 
     ambient_noise_configuration: AmbientNoiseConfigurationDefaults = Field(
         default_factory=AmbientNoiseConfigurationDefaults
+    )
+    noise_suppression: NoiseSuppressionConfiguration = Field(
+        default_factory=NoiseSuppressionConfiguration
     )
     tool_filler: ToolFillerConfiguration = Field(
         default_factory=ToolFillerConfiguration

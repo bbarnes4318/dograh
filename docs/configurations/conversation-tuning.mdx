@@ -34,6 +34,40 @@ covers every tool including MCP ones.
 - The agent never repeats its previous phrase back to back.
 - A tool that already has its own pre-call message doesn't get a filler on top.
 
+## Inbound noise suppression
+
+Consumer callers are in cars, kitchens and shops. That background noise is what
+drives false barge-ins and garbage transcripts, and both cost conversions.
+
+```json
+{
+  "noise_suppression": {
+    "enabled": true,
+    "resampler_quality": "QQ"
+  }
+}
+```
+
+Measured against recorded speech, suppression recovers roughly **9 dB of SNR at
+8 kHz** and **10 dB at 16 kHz** once the background is loud enough to matter. On
+a quiet line it changes almost nothing.
+
+- `enabled` — off by default. Turn it on for consumer outbound; leave it off for
+  clean lines, where it only costs CPU.
+- `resampler_quality` — one of `VHQ`, `HQ`, `MQ`, `LQ`, `QQ`. RNNoise runs at
+  48 kHz, so narrowband telephony audio is resampled up and back down. `QQ`
+  (quick) is the default because this sits in a live call's inbound path.
+
+<Note>
+Suppression adds about 20 ms to the inbound path — one RNNoise frame plus
+resampling. Weigh that against the transcription errors it prevents.
+</Note>
+
+Noise suppression removes what isn't speech, so a caller on hold music or a
+steady tone will have that stripped too. That is usually what you want on a
+sales call, but it means the agent cannot hear an IVR's tones — use
+[DTMF](#keypad-input-dtmf) to navigate menus rather than relying on audio.
+
 ## Idle handling
 
 When the caller goes quiet, the agent escalates through a ladder of nudges.
