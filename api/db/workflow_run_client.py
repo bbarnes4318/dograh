@@ -16,6 +16,10 @@ from api.db.models import (
 )
 from api.enums import CallType, StorageBackend
 from api.schemas.workflow import WorkflowRunResponseSchema
+from api.services.workflow.call_duration import (
+    apply_telephony_duration,
+    carry_over_telephony_duration,
+)
 from api.services.workflow.run_usage_response import format_public_cost_info
 from api.utils.recording_artifacts import get_recording_storage_key
 
@@ -372,7 +376,9 @@ class WorkflowRunClient(BaseDBClient):
             if storage_backend:
                 run.storage_backend = storage_backend
             if usage_info:
-                run.usage_info = usage_info
+                run.usage_info = carry_over_telephony_duration(
+                    run.usage_info, usage_info
+                )
             if cost_info:
                 run.cost_info = cost_info
             if initial_context:
@@ -406,6 +412,28 @@ class WorkflowRunClient(BaseDBClient):
                 raise e
             await session.refresh(run)
         return run
+
+    async def record_telephony_duration(self, run_id: int, seconds: float) -> None:
+        """Store the carrier-reported call duration on the run's usage_info.
+
+        Merged under the row lock so it neither clobbers nor is clobbered by
+        the pipeline's own usage_info write.
+        """
+        async with self.async_session() as session:
+            result = await session.execute(
+                select(WorkflowRunModel)
+                .where(WorkflowRunModel.id == run_id)
+                .with_for_update()
+            )
+            run = result.scalars().first()
+            if not run:
+                return
+            run.usage_info = apply_telephony_duration(run.usage_info, seconds)
+            try:
+                await session.commit()
+            except Exception:
+                await session.rollback()
+                raise
 
     async def get_workflow_run_with_context(
         self, workflow_run_id: int
