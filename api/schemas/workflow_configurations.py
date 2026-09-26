@@ -145,6 +145,45 @@ class IdleBehaviorConfiguration(BaseModel):
     )
 
 
+class NoiseSuppressionConfiguration(BaseModel):
+    """RNNoise suppression on inbound caller audio.
+
+    Off by default. RNNoise runs at 48 kHz, so narrowband telephony audio is
+    resampled up and back down, which costs CPU and adds roughly 20ms to the
+    inbound path. On a quiet line it changes almost nothing; measured against
+    recorded speech it recovers ~9dB SNR at 8 kHz and ~10dB at 16 kHz once the
+    background is loud enough to matter. Turn it on for consumer outbound,
+    where callers are in cars and shops, and leave it off for clean lines.
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    enabled: bool = False
+    # Quick by default: this sits in a live call's inbound path, so latency
+    # beats fidelity on a signal that is about to be denoised anyway.
+    resampler_quality: Literal["VHQ", "HQ", "MQ", "LQ", "QQ"] = "QQ"
+
+
+class DNCConfiguration(BaseModel):
+    """Do-not-call suppression.
+
+    Numbers on the list are skipped at dial time, so a number added while a
+    campaign is running stops the calls still queued against it.
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    # On by default: a caller asking not to be contacted again is a request
+    # the platform should honour without anyone opting in to honouring it.
+    # Unlike the DTMF sender this adds a tool schema to every node, which is
+    # the price of hearing the request at all.
+    #
+    # A call ending in a DNC disposition always suppresses the number; that
+    # isn't configurable, because a workflow that classifies a caller as DNC
+    # and then calls them again is not a setting anyone wants.
+    agent_tool_enabled: bool = True
+
+
 class WorkflowConfigurationDefaults(BaseModel):
     model_config = ConfigDict(extra="allow")
 
@@ -161,6 +200,9 @@ class WorkflowConfigurationDefaults(BaseModel):
     ambient_noise_configuration: AmbientNoiseConfigurationDefaults = Field(
         default_factory=AmbientNoiseConfigurationDefaults
     )
+    noise_suppression: NoiseSuppressionConfiguration = Field(
+        default_factory=NoiseSuppressionConfiguration
+    )
     tool_filler: ToolFillerConfiguration = Field(
         default_factory=ToolFillerConfiguration
     )
@@ -168,6 +210,7 @@ class WorkflowConfigurationDefaults(BaseModel):
         default_factory=IdleBehaviorConfiguration
     )
     dtmf: DTMFConfiguration = Field(default_factory=DTMFConfiguration)
+    dnc: DNCConfiguration = Field(default_factory=DNCConfiguration)
     max_call_duration: int = Field(
         default=DEFAULT_MAX_CALL_DURATION_SECONDS,
         gt=0,

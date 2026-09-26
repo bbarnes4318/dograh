@@ -1,6 +1,7 @@
 from api.db.agent_trigger_client import AgentTriggerClient
 from api.db.api_key_client import APIKeyClient
 from api.db.campaign_client import CampaignClient
+from api.db.dnc_client import DNCClient
 from api.db.embed_token_client import EmbedTokenClient
 from api.db.folder_client import FolderClient
 from api.db.integration_client import IntegrationClient
@@ -33,6 +34,7 @@ class DBClient(
     IntegrationClient,
     WorkflowTemplateClient,
     CampaignClient,
+    DNCClient,
     ReportsClient,
     APIKeyClient,
     EmbedTokenClient,

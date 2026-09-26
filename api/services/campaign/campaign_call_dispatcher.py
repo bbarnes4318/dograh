@@ -26,6 +26,7 @@ from api.services.campaign.errors import (
     PhoneNumberPoolExhaustedError,
 )
 from api.services.campaign.rate_limiter import rate_limiter
+from api.services.dnc import dnc_service, phone_number_from_context
 from api.services.quota_service import authorize_workflow_run_start
 from api.services.workflow.run_creation import prepare_workflow_run_inputs
 from api.utils.common import get_backend_endpoints
@@ -109,8 +110,34 @@ class CampaignCallDispatcher:
         processed_count = 0
         processed_run_ids: set[int] = set()
         policy = dialing_config(campaign)
+
+        # One suppression query for the whole batch. Checked here rather than
+        # at upload time so a number added while the campaign is mid-flight
+        # still stops the calls already queued against it.
+        #
+        # A lookup that fails must not dial — the entire point of the list is
+        # that these numbers don't get called — so the claims go back on the
+        # queue and the batch aborts rather than proceeding unchecked.
+        try:
+            suppressed_numbers = await self._suppressed_numbers_in_batch(
+                campaign.organization_id, queued_runs
+            )
+        except Exception as e:
+            logger.error(
+                f"Do-not-call lookup failed for campaign {campaign_id}; "
+                f"returning claimed queued runs without dialling: {e}"
+            )
+            await self._return_unprocessed_claims(
+                queued_runs, set(), reason="dnc_lookup_failed"
+            )
+            raise
+
         for i, queued_run in enumerate(queued_runs):
             try:
+                if await self._skip_suppressed(queued_run, suppressed_numbers):
+                    processed_run_ids.add(queued_run.id)
+                    continue
+
                 # Calling windows are defined in the *called party's* local
                 # time. A lead outside their own window is put back on the
                 # queue for when it opens, rather than dialled now.
@@ -207,6 +234,63 @@ class CampaignCallDispatcher:
                     )
 
         return processed_count
+
+    async def _suppressed_numbers_in_batch(
+        self,
+        organization_id: int,
+        queued_runs: list[QueuedRunModel],
+    ) -> set[str]:
+        """The do-not-call numbers among this batch's leads.
+
+        Raises rather than returning an empty set on failure: the caller
+        aborts the batch, because an empty set here is indistinguishable from
+        "nothing is suppressed" and would dial the whole list.
+        """
+        numbers = [
+            phone_number_from_context(queued_run.context_variables)
+            for queued_run in queued_runs
+        ]
+        present = [number for number in numbers if number]
+        if not present:
+            return set()
+
+        return await dnc_service.partition_suppressed(
+            organization_id=organization_id, raw_numbers=present
+        )
+
+    async def _skip_suppressed(
+        self,
+        queued_run: QueuedRunModel,
+        suppressed_numbers: set[str],
+    ) -> bool:
+        """Retire a lead whose number is on the do-not-call list.
+
+        Returns True when the run was skipped and must not be dialled. The run
+        is marked ``suppressed`` rather than ``failed`` so a compliance skip
+        stays distinguishable from a dialling error in campaign reporting.
+        """
+        phone_number = phone_number_from_context(queued_run.context_variables)
+        if not phone_number or phone_number not in suppressed_numbers:
+            return False
+
+        logger.info(
+            f"Queued run {queued_run.id} skipped: {phone_number} is on the "
+            "do-not-call list"
+        )
+        try:
+            await db_client.update_queued_run(
+                queued_run_id=queued_run.id,
+                state="suppressed",
+                processed_at=datetime.now(UTC),
+            )
+        except Exception as e:
+            # The run stays claimed as 'processing' and is returned to the
+            # queue by the reclaim path; it will be re-checked and skipped
+            # again next batch. Not dialling is the safe failure here.
+            logger.error(
+                f"Could not mark queued run {queued_run.id} as suppressed: {e}"
+            )
+        return True
 
     async def _defer_outside_local_window(
         self,

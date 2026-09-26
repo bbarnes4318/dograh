@@ -58,6 +58,7 @@
               "configurations/agent-uuid",
               "configurations/interruption",
               "configurations/conversation-tuning",
+              "configurations/do-not-call",
               "configurations/tracing"
             ]
           },
