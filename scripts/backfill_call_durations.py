@@ -15,6 +15,7 @@ Dry run by default. Run from the repo root with the api environment loaded:
 import argparse
 import asyncio
 import json
+from collections import Counter
 from datetime import UTC, datetime
 
 from loguru import logger
@@ -63,6 +64,7 @@ async def backfill(
     scanned = len(rows)
     already_had = 0
     no_carrier_duration = 0
+    no_duration_endings: Counter[str] = Counter()
     fixed = 0
     fixed_seconds: float = 0
 
@@ -76,17 +78,27 @@ async def backfill(
         seconds = telephony_duration_from_callbacks(callbacks or [])
         if seconds <= 0:
             no_carrier_duration += 1
+            statuses = [
+                str(c.get("status")) for c in callbacks or [] if isinstance(c, dict)
+            ]
+            no_duration_endings[statuses[-1] if statuses else "no callbacks"] += 1
             continue
         fixed += 1
         fixed_seconds += seconds
         if apply:
-            await db_client.record_telephony_duration(row["id"], seconds)
+            # Re-logging the same callbacks runs update_workflow_run's
+            # carrier-duration fill under the row lock.
+            await db_client.update_workflow_run(
+                run_id=row["id"], logs={"telephony_status_callbacks": callbacks}
+            )
 
     verb = "Updated" if apply else "Would update"
     print(f"Scanned {scanned} runs created since {since.isoformat()}")
     print(f"  already had a non-zero duration: {already_had}")
     print(f"  {verb} from carrier duration:    {fixed} ({fixed_seconds / 60:.1f} min)")
     print(f"  0s with no carrier duration:     {no_carrier_duration}")
+    for status, count in no_duration_endings.most_common(8):
+        print(f"      last carrier status {status!r}: {count}")
     if not apply and fixed:
         print("Dry run; re-run with --apply to write.")
 

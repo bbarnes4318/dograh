@@ -19,6 +19,7 @@ from api.schemas.workflow import WorkflowRunResponseSchema
 from api.services.workflow.call_duration import (
     apply_telephony_duration,
     carry_over_telephony_duration,
+    telephony_duration_from_callbacks,
 )
 from api.services.workflow.run_usage_response import format_public_cost_info
 from api.utils.recording_artifacts import get_recording_storage_key
@@ -397,6 +398,18 @@ class WorkflowRunClient(BaseDBClient):
             if logs:
                 # Lets merge the incoming logs key with existing ones
                 run.logs = {**run.logs, **logs}
+                # Every carrier status callback is logged through here, so
+                # this is the one place a carrier-reported duration can be
+                # turned into the run's call duration regardless of which
+                # code path handled the callback.
+                if "telephony_status_callbacks" in logs:
+                    carrier_seconds = telephony_duration_from_callbacks(
+                        run.logs.get("telephony_status_callbacks")
+                    )
+                    if carrier_seconds > 0:
+                        run.usage_info = apply_telephony_duration(
+                            run.usage_info, carrier_seconds
+                        )
             if annotations:
                 run.annotations = {**run.annotations, **annotations}
             if extra:
