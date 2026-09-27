@@ -11,7 +11,6 @@ Create Date: 2026-09-20
 
 """
 
-import sqlalchemy as sa
 from alembic import op
 
 # revision identifiers, used by Alembic.
@@ -27,10 +26,11 @@ _INDEX_NAME = "ix_workflow_runs_transcript_text_fts"
 
 def upgrade() -> None:
     # Nullable with no default, so this is a catalog-only change: no table
-    # rewrite, no long lock.
-    op.add_column(
-        "workflow_runs",
-        sa.Column("transcript_text", sa.Text(), nullable=True),
+    # rewrite, no long lock. IF NOT EXISTS because a rollback to an image that
+    # predates this migration resets alembic_version but keeps the column (the
+    # old code ignores it); moving forward again must not trip over it.
+    op.execute(
+        "ALTER TABLE workflow_runs ADD COLUMN IF NOT EXISTS transcript_text TEXT"
     )
     # The index build is the dangerous half. A plain CREATE INDEX holds a SHARE
     # lock on workflow_runs until it finishes, which blocks every in-flight

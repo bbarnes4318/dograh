@@ -158,6 +158,7 @@ class CreateCampaignRequest(BaseModel):
     # a follow-up. When omitted, the dispatcher falls back to the org's
     # default config.
     telephony_configuration_id: Optional[int] = None
+    transfer_destination: Optional[str] = None
     retry_config: Optional[RetryConfigRequest] = None
     max_concurrency: Optional[int] = Field(default=None, ge=1, le=100)
     schedule_config: Optional[ScheduleConfigRequest] = None
@@ -209,6 +210,7 @@ class CampaignResponse(BaseModel):
     parent_campaign_id: Optional[int] = None
     redialed_campaign_id: Optional[int] = None
     telephony_configuration_id: Optional[int] = None
+    transfer_destination: Optional[str] = None
     telephony_configuration_name: Optional[str] = None
     logs: List[CampaignLogEntryResponse] = Field(default_factory=list)
 
@@ -285,6 +287,9 @@ def _build_campaign_response(
         if cb:
             circuit_breaker_config = CircuitBreakerConfigResponse(**cb)
         parent_campaign_id = campaign.orchestrator_metadata.get("parent_campaign_id")
+        transfer_destination = campaign.orchestrator_metadata.get(
+            "transfer_destination"
+        )
         redialed_campaign_id = campaign.orchestrator_metadata.get(
             "redialed_campaign_id"
         )
@@ -311,6 +316,7 @@ def _build_campaign_response(
         total_queued_count=total_queued_count,
         parent_campaign_id=parent_campaign_id,
         redialed_campaign_id=redialed_campaign_id,
+        transfer_destination=transfer_destination,
         telephony_configuration_id=campaign.telephony_configuration_id,
         telephony_configuration_name=telephony_configuration_name,
         logs=[

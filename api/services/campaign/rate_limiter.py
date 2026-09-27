@@ -440,6 +440,7 @@ class RateLimiter:
         preferred_numbers: Optional[list[str]] = None,
         daily_cap: Optional[int] = None,
         cap_timezone: Optional[str] = None,
+        allowed_numbers: Optional[list[str]] = None,
     ) -> Optional[str]:
         """
         Atomically acquire an available from_number from the pool for the given
@@ -460,6 +461,10 @@ class RateLimiter:
                 at the cap are skipped, which keeps a single caller ID from
                 burning its reputation and getting spam-labelled. None disables
                 the cap.
+            allowed_numbers: When given, only these numbers may be acquired —
+                state-matched caller ID restricts the pool to numbers in the
+                lead's state. ``None`` keeps the whole pool; an empty list
+                acquires nothing.
 
         Returns the phone number if available, None if all numbers are in use
         or capped.
@@ -469,6 +474,9 @@ class RateLimiter:
         this assumes a single-instance Redis — which is what the deployment
         uses.
         """
+        if allowed_numbers is not None and len(allowed_numbers) == 0:
+            return None
+
         redis_client = await self._get_redis()
         key = self._from_number_pool_key(organization_id, telephony_configuration_id)
         day = _cap_day(cap_timezone)
@@ -498,11 +506,25 @@ class RateLimiter:
             return nil
         end
 
-        -- Drop numbers that have already hit today's cap
+        -- Optional allowed subset (state-matched caller ID), passed after the
+        -- preferred list: ARGV[5 + preferred_count] is its size, then members.
+        local allowed_count = tonumber(ARGV[5 + preferred_count] or '-1')
+        local allowed_set = nil
+        if allowed_count >= 0 then
+            allowed_set = {}
+            for i = 1, allowed_count do
+                allowed_set[ARGV[5 + preferred_count + i]] = true
+            end
+        end
+
+        -- Drop numbers outside the allowed subset or already at today's cap
         local eligible = {}
         for i, member in ipairs(available) do
             local keep = true
-            if daily_cap > 0 then
+            if allowed_set ~= nil and not allowed_set[member] then
+                keep = false
+            end
+            if keep and daily_cap > 0 then
                 local used = tonumber(redis.call('HGET', daily_key, member) or '0')
                 if used >= daily_cap then
                     keep = false
@@ -545,6 +567,10 @@ class RateLimiter:
         """
 
         preferred = [n for n in (preferred_numbers or []) if n]
+        allowed_args: list = [-1]
+        if allowed_numbers is not None:
+            allowed = sorted({n for n in allowed_numbers if n})
+            allowed_args = [len(allowed), *allowed]
         try:
             result = await redis_client.eval(
                 lua_script,
@@ -556,6 +582,7 @@ class RateLimiter:
                 int(daily_cap or 0),
                 len(preferred),
                 *preferred,
+                *allowed_args,
             )
             if result:
                 logger.debug(f"Acquired from_number {result} for org {organization_id}")

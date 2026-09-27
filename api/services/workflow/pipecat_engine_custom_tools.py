@@ -835,6 +835,13 @@ class CustomToolManager:
                 # Mute the pipeline
                 self._engine.set_mute_pipeline(True)
 
+                # HOPWHISTLE_TRANSFER_DURATION_HOTFIX_V1
+                # Disarm the AI max-duration callback before originating the
+                # transfer leg. A transfer may begin near the configured hard
+                # limit, and the callback must not race the successful bridge
+                # swap and hang up the original customer channel.
+                self._engine._transfer_handoff_started = True
+
                 # Initiate transfer via provider with inline TwiML
                 try:
                     masked_destination = (
@@ -854,6 +861,7 @@ class CustomToolManager:
                     )
                 except Exception as e:
                     logger.error(f"Transfer provider failed: {e}")
+                    self._engine._transfer_handoff_started = False
                     self._engine.set_mute_pipeline(False)
                     await call_transfer_manager.remove_transfer_context(transfer_id)
                     provider_error_result = {
@@ -953,6 +961,7 @@ class CustomToolManager:
                 logger.error(
                     f"Transfer call tool '{function_name}' execution failed: {e}"
                 )
+                self._engine._transfer_handoff_started = False
                 self._engine.set_mute_pipeline(False)
 
                 # Handle generic exception with user-friendly message
@@ -986,6 +995,13 @@ class CustomToolManager:
         status = result.get("status", "")
 
         logger.info(f"Handling transfer result: action={action}, status={status}")
+
+        # HOPWHISTLE_TRANSFER_DURATION_HOTFIX_V1
+        # A failed or timed-out transfer returns ownership to the AI, so the
+        # normal duration policy is re-enabled. A successful handoff leaves the
+        # marker set and the AI timer can no longer tear down the human call.
+        if action == "transfer_failed":
+            self._engine._transfer_handoff_started = False
 
         if action == "destination_answered":
             # Transfer destination answered - proceeding with bridge swap/conference join

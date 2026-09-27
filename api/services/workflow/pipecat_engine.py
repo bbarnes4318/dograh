@@ -166,6 +166,10 @@ class PipecatEngine:
         # generation that the transition itself queues.
         self._transition_in_progress: bool = False
 
+        # True once a transfer leg is being originated: from then on the
+        # max-duration timer must not hang up the customer and the agent.
+        self._transfer_handoff_started: bool = False
+
         # Custom tool manager (initialized in initialize())
         self._custom_tool_manager: Optional[CustomToolManager] = None
 
