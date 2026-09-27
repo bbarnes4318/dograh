@@ -633,3 +633,13 @@ async def test_transfer_is_blocked_when_machine_answered(engine):
         tag="transfer_blocked_machine",
         abort_immediately=True,
     )
+
+
+def test_trigger_call_request_rejects_undialable_number():
+    from pydantic import ValidationError
+
+    from api.routes.public_agent import TriggerCallRequest
+
+    with pytest.raises(ValidationError, match="not a dialable number"):
+        TriggerCallRequest(phone_number="10000000000")
+    assert TriggerCallRequest(phone_number="+18653173943").phone_number
