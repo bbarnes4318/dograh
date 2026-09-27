@@ -22,6 +22,7 @@ from pipecat.frames.frames import (
 from pipecat.utils.enums import EndTaskReason
 
 from api.schemas.workflow_configurations import (
+    CallHygieneConfiguration,
     IdleNudgeConfiguration,
     default_idle_nudges,
 )
@@ -61,6 +62,7 @@ class UserIdleHandler:
         nudges: Optional[list["IdleNudgeConfiguration"]] = None,
         enabled: bool = True,
         base_timeout: Optional[float] = None,
+        call_hygiene: Optional["CallHygieneConfiguration"] = None,
     ):
         self._engine = engine
         self._enabled = enabled
@@ -70,6 +72,21 @@ class UserIdleHandler:
         # so a reset can put back what a nudge's own after_seconds overrode.
         self._base_timeout = base_timeout
         self._timeout_overridden = False
+
+        # First response: a caller who has never said a word gets one quick
+        # nudge and then the call ends, instead of the full idle ladder. The
+        # aggregator starts on the short first-response timeout, so mark it
+        # overridden — the first caller turn's reset() puts the normal one back.
+        self._call_hygiene = call_hygiene
+        self._first_response_active = bool(
+            call_hygiene is not None
+            and call_hygiene.enabled
+            and call_hygiene.first_response_timeout_seconds
+        )
+        self._user_has_spoken = False
+        self._first_response_count = 0
+        if self._first_response_active:
+            self._timeout_overridden = True
 
     async def reset(self):
         """Restart the ladder when the caller becomes active again.
@@ -82,6 +99,7 @@ class UserIdleHandler:
         before the first nudge, every time.
         """
         self._retry_count = 0
+        self._user_has_spoken = True
         if not self._timeout_overridden:
             return
         restore_to = self._nudges[0].after_seconds if self._nudges else None
@@ -97,6 +115,17 @@ class UserIdleHandler:
     async def handle_idle(self, aggregator):
         """Handle a user-idle event by firing the next nudge in the ladder."""
         if not self._enabled:
+            return
+
+        # A call screener is holding the line for the person to pick up:
+        # silence is expected, and the screener timer owns ending the call.
+        hygiene_state = getattr(self._engine, "call_hygiene", None)
+        if getattr(hygiene_state, "screener_hold", False) is True:
+            logger.debug("Ignoring user_idle while a call screener holds the line")
+            return
+
+        if self._first_response_active and not self._user_has_spoken:
+            await self._handle_first_response_idle()
             return
 
         index = self._retry_count
@@ -126,6 +155,28 @@ class UserIdleHandler:
             return
 
         await self._arm_next_timeout(index + 1)
+
+    async def _handle_first_response_idle(self) -> None:
+        """Nudge once, then end a call where the caller has never spoken."""
+        step = self._first_response_count
+        self._first_response_count += 1
+        logger.debug(f"Handling first-response idle, step: {step}")
+
+        if step == 0:
+            await self._speak_canned(self._call_hygiene.first_response_nudge)
+            if self._engine.task is not None:
+                await self._engine.task.queue_frame(
+                    UserIdleTimeoutUpdateFrame(
+                        timeout=self._call_hygiene.first_response_end_after_seconds
+                    )
+                )
+            return
+
+        await self._engine.end_call_for_hygiene(
+            disposition="no_speech",
+            tag="no_speech_dead_air",
+            abort_immediately=False,
+        )
 
     async def _speak_canned(self, message: str) -> None:
         """Speak a fixed line without going through the LLM."""
@@ -163,10 +214,15 @@ def create_user_idle_handler(
     nudges: Optional[list["IdleNudgeConfiguration"]] = None,
     enabled: bool = True,
     base_timeout: Optional[float] = None,
+    call_hygiene: Optional["CallHygieneConfiguration"] = None,
 ) -> UserIdleHandler:
     """Return a UserIdleHandler that manages user-idle timeouts with state."""
     return UserIdleHandler(
-        engine, nudges=nudges, enabled=enabled, base_timeout=base_timeout
+        engine,
+        nudges=nudges,
+        enabled=enabled,
+        base_timeout=base_timeout,
+        call_hygiene=call_hygiene,
     )
 
 

@@ -39,6 +39,8 @@ def build_pipeline(
     recording_router=None,
     muted_speech_buffer=None,
     dtmf_capture=None,
+    machine_answer_guard=None,
+    assistant_turn_guard=None,
 ):
     """Build the main pipeline with all components.
 
@@ -56,6 +58,12 @@ def build_pipeline(
             speech that the aggregator would otherwise drop while muted.
         dtmf_capture: Optional DTMFCaptureProcessor. Collects caller keypresses
             into whole entries and hands them to the model as a turn.
+        machine_answer_guard: Optional MachineAnswerGuard. Sits directly after
+            STT, ahead of the voicemail detector, and ends calls answered by
+            voicemail, carrier menus, call screeners or answering bots.
+        assistant_turn_guard: Optional AssistantTurnGuard. Sits directly after
+            the LLM and hangs up when a generation says goodbye without
+            calling the end_call tool.
     """
     # Build processors list with optional voicemail detection. DTMF capture
     # sits directly under the transport so keypresses are collected into whole
@@ -67,6 +75,10 @@ def build_pipeline(
         logger.info("Adding DTMF capture to pipeline")
         processors.append(dtmf_capture)
     processors.append(stt)
+
+    if machine_answer_guard:
+        logger.info("Adding machine-answer guard to pipeline")
+        processors.append(machine_answer_guard)
 
     # Insert voicemail detector after STT if enabled
     # Note: We intentionally do NOT use voicemail_detector.gate() to allow TTS
@@ -81,6 +93,9 @@ def build_pipeline(
 
     # Continue with the rest of the pipeline
     post_llm = [pipeline_engine_callback_processor]
+    if assistant_turn_guard:
+        logger.info("Adding assistant-turn guard to pipeline")
+        post_llm.insert(0, assistant_turn_guard)
     if recording_router:
         post_llm.append(recording_router)
 

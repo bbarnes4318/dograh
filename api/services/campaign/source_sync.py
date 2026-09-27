@@ -4,6 +4,8 @@ from typing import Any, Dict, List, Optional, Set
 
 from loguru import logger
 
+from api.utils.telephony_address import is_dialable_pstn
+
 
 @dataclass
 class ValidationError:
@@ -67,7 +69,9 @@ class CampaignSourceSyncService(ABC):
                 continue  # Skip rows that don't have enough columns
 
             phone_number = row[phone_number_idx].strip()
-            if phone_number and not phone_number.startswith("+"):
+            if phone_number and (
+                not phone_number.startswith("+") or not is_dialable_pstn(phone_number)
+            ):
                 invalid_rows.append(row_idx)
 
         if invalid_rows:
@@ -80,7 +84,7 @@ class CampaignSourceSyncService(ABC):
             return ValidationResult(
                 is_valid=False,
                 error=ValidationError(
-                    message=f"Invalid phone numbers in rows: {rows_str}. All phone numbers must include country code (start with '+')",
+                    message=f"Invalid phone numbers in rows: {rows_str}. All phone numbers must include country code (start with '+') and be dialable",
                     invalid_rows=invalid_rows,
                 ),
             )
