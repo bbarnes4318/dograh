@@ -33,6 +33,7 @@ from api.services.pipecat.call_hygiene import (
     build_tts_text_filter,
     classify_utterance,
     matches_closing_line,
+    resolve_call_hygiene,
 )
 from api.services.workflow.pipecat_engine_callbacks import create_user_idle_handler
 from api.utils.telephony_address import is_dialable_pstn
@@ -643,3 +644,62 @@ def test_trigger_call_request_rejects_undialable_number():
     with pytest.raises(ValidationError, match="not a dialable number"):
         TriggerCallRequest(phone_number="10000000000")
     assert TriggerCallRequest(phone_number="+18653173943").phone_number
+
+
+# ---------------------------------------------------------------------------
+# CALL_HYGIENE_ENABLED kill switch
+# ---------------------------------------------------------------------------
+
+
+class TestKillSwitch:
+    def test_on_by_default(self, monkeypatch):
+        monkeypatch.delenv("CALL_HYGIENE_ENABLED", raising=False)
+        config, active = resolve_call_hygiene({}, is_realtime=False)
+        assert active is True
+        assert config.first_response_timeout_seconds == 5.0
+
+    def test_true_keeps_guards_on(self, monkeypatch):
+        monkeypatch.setenv("CALL_HYGIENE_ENABLED", "true")
+        _, active = resolve_call_hygiene({}, is_realtime=False)
+        assert active is True
+
+    @pytest.mark.parametrize("value", ["false", "FALSE", "0", "off"])
+    def test_false_overrides_workflow_config(self, monkeypatch, value):
+        monkeypatch.setenv("CALL_HYGIENE_ENABLED", value)
+        _, active = resolve_call_hygiene(
+            {"call_hygiene": {"enabled": True}}, is_realtime=False
+        )
+        assert active is False
+
+    def test_workflow_can_still_disable_when_switch_is_on(self, monkeypatch):
+        monkeypatch.setenv("CALL_HYGIENE_ENABLED", "true")
+        _, active = resolve_call_hygiene(
+            {"call_hygiene": {"enabled": False}}, is_realtime=False
+        )
+        assert active is False
+
+    def test_realtime_is_never_active(self, monkeypatch):
+        monkeypatch.setenv("CALL_HYGIENE_ENABLED", "true")
+        _, active = resolve_call_hygiene({}, is_realtime=True)
+        assert active is False
+
+    def test_invalid_config_falls_back_to_defaults(self, monkeypatch):
+        monkeypatch.setenv("CALL_HYGIENE_ENABLED", "true")
+        config, active = resolve_call_hygiene(
+            {"call_hygiene": {"screener_pickup_timeout_seconds": -1}},
+            is_realtime=False,
+        )
+        assert active is True
+        assert config.screener_pickup_timeout_seconds == 30.0
+
+    @pytest.mark.parametrize("value", ["true", "false"])
+    async def test_tts_scrub_is_independent_of_the_switch(self, monkeypatch, value):
+        monkeypatch.setenv("CALL_HYGIENE_ENABLED", value)
+        assert await build_tts_text_filter().filter("Hi<|think_end|>") == "Hi"
+
+
+async def test_tts_scrub_keeps_fish_phoneme_tags():
+    text = "Say <|phoneme_start|>t ah m ey t ow<|phoneme_end|> please<|think_end|>"
+    assert await build_tts_text_filter().filter(text) == (
+        "Say <|phoneme_start|>t ah m ey t ow<|phoneme_end|> please"
+    )

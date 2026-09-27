@@ -399,6 +399,26 @@ class ARIConnection:
                 f"channel={channel_id}, cause={cause} ({cause_txt}), tech_cause = {tech_cause}"
             )
 
+            # Release the campaign concurrency slot + rotated caller-ID for a call
+            # that died without ever answering (no StasisStart -> no StasisEnd ->
+            # the StasisEnd release never ran). Idempotent: a no-op for answered
+            # calls (already released on StasisEnd) and for non-campaign runs.
+            # no-answer release
+            _run_id = await self._get_channel_run(channel_id)
+            if _run_id:
+                try:
+                    from api.services.campaign.campaign_call_dispatcher import (
+                        campaign_call_dispatcher,
+                    )
+
+                    await campaign_call_dispatcher.release_call_slot(int(_run_id))
+                except Exception as _rel_err:
+                    logger.warning(
+                        f"[ARI org={self.organization_id}] no-answer release failed "
+                        f"for run {_run_id}: {_rel_err}"
+                    )
+                await self._delete_channel_run(channel_id)
+
             # Check if this is a transfer destination that failed
             transfer_id = await self._get_transfer_id_for_channel(channel_id)
             if transfer_id:
@@ -838,6 +858,22 @@ class ARIConnection:
             # only cleanup that runs before the Redis stale timeout. No-op
             # when the slot was already released.
             await call_concurrency.unregister_active_call(int(workflow_run_id))
+
+            # ARI has no Twilio-style status webhook, so this is the only place a
+            # campaign call returns its rotated caller-ID (from_number) to the pool.
+            # Without it the pool leaks and the dispatcher starves (batch timeouts).
+            # Idempotent + a no-op for non-campaign runs.
+            try:
+                from api.services.campaign.campaign_call_dispatcher import (
+                    campaign_call_dispatcher,
+                )
+
+                await campaign_call_dispatcher.release_call_slot(int(workflow_run_id))
+            except Exception as _rel_err:
+                logger.warning(
+                    f"[ARI org={self.organization_id}] from_number release failed for "
+                    f"run {workflow_run_id}: {_rel_err}"
+                )
 
             workflow_run = await db_client.get_workflow_run_by_id(int(workflow_run_id))
             if not workflow_run or not workflow_run.gathered_context:

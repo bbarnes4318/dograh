@@ -6,6 +6,7 @@ The ARI WebSocket event listener runs as a separate process (ari_manager.py).
 """
 
 import json
+import os
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 from urllib.parse import urlparse
 
@@ -21,6 +22,19 @@ from api.services.telephony.base import (
     TelephonyProvider,
 )
 from api.services.telephony.providers.ari.external_pbx import create_adapter
+
+
+def _pjsip_endpoint(number: str) -> str:
+    """``PJSIP/<number>``, routed via ``ARI_PJSIP_DEFAULT_TRUNK`` when set.
+
+    Asterisk needs an ``@<endpoint>`` to know which trunk to dial out on; a
+    number that already names one is left alone.
+    """
+    trunk = os.environ.get("ARI_PJSIP_DEFAULT_TRUNK", "").strip()
+    if trunk and "@" not in number:
+        return f"PJSIP/{number}@{trunk}"
+    return f"PJSIP/{number}"
+
 
 if TYPE_CHECKING:
     from fastapi import WebSocket
@@ -89,7 +103,7 @@ class ARIProvider(TelephonyProvider):
             sip_endpoint = to_number
         else:
             # Default to PJSIP technology
-            sip_endpoint = f"PJSIP/{to_number}"
+            sip_endpoint = _pjsip_endpoint(to_number)
 
         # Prepare channel creation data
         params = {
@@ -459,19 +473,30 @@ class ARIProvider(TelephonyProvider):
         if destination.startswith("SIP/") or destination.startswith("PJSIP/"):
             sip_endpoint = destination
         else:
-            sip_endpoint = f"PJSIP/{destination}"
+            sip_endpoint = _pjsip_endpoint(destination)
 
         # Build transfer appArgs for event correlation
         app_args = f"transfer,{transfer_id}"
 
         try:
             endpoint = f"{self.base_url}/channels"
+            # Present a valid caller ID on the transfer leg. Without one the channel
+            # goes out anonymous ("restricted") and the carrier/endpoint rejects it as
+            # USER_BUSY. Prefer a caller_id supplied by the caller (e.g. the prospect's
+            # number); otherwise fall back to an owned DID from
+            # ARI_TRANSFER_DEFAULT_CALLER_ID.
+            transfer_caller_id = (
+                kwargs.get("caller_id")
+                or os.environ.get("ARI_TRANSFER_DEFAULT_CALLER_ID", "").strip()
+            )
             params = {
                 "endpoint": sip_endpoint,
                 "app": self.app_name,
                 "appArgs": app_args,
                 "timeout": timeout,  # Keep timeout for transfer calls
             }
+            if transfer_caller_id:
+                params["callerId"] = transfer_caller_id
 
             async with aiohttp.ClientSession() as session:
                 async with session.post(

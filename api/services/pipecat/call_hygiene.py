@@ -25,11 +25,13 @@ campaign redial and QA skipping key off that exact string.
 from __future__ import annotations
 
 import asyncio
+import os
 import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Awaitable, Callable, Literal, Optional
 
 from loguru import logger
+from pydantic import ValidationError
 
 from api.schemas.workflow_configurations import CallHygieneConfiguration
 from pipecat.frames.frames import (
@@ -128,7 +130,10 @@ END_INTENT_MARKUP_PATTERN = r"end_call|\[\s*end of (conversation|call)\s*\]|the 
 # TTS scrub — order matters, applied in sequence, flags re.I | re.S.
 LLM_MARKUP_PATTERNS = [
     r"(?<=>)\s*done\s*(?=</)",
-    r"<\|[^|<>]{0,40}\|>",
+    # Think/tool tokens like <|think_end|>. Fish TTS phoneme tags
+    # (<|phoneme_start|>...<|phoneme_end|>) are deliberate markup and must
+    # reach the TTS: stripping only the tags would read the phonemes aloud.
+    r"<\|(?!phoneme_(?:start|end)\|>)[^|<>]{0,40}\|>",
     r"</?\s*(?:think|thinking|tool_call|tool_code|tool_response|function_call|function|p\s*arameter|parameter)\b[^>]*>?",
     r"\b\w*_code>",
     r"\bprint\(.*?\)\)?",
@@ -214,6 +219,43 @@ def has_end_intent_markup(raw_text: str) -> bool:
 
 def has_llm_markup(raw_text: str) -> bool:
     return any(p.search(raw_text or "") for p in _LLM_MARKUP_RE)
+
+
+CALL_HYGIENE_ENV_VAR = "CALL_HYGIENE_ENABLED"
+
+
+def call_hygiene_env_enabled() -> bool:
+    """Deployment-wide kill switch for the call hygiene guards.
+
+    ``CALL_HYGIENE_ENABLED=false`` turns off both guards and the
+    first-response idle override for every workflow, whatever its own
+    ``call_hygiene`` config says. The TTS markup scrub is not affected.
+    Defaults to on.
+    """
+    value = os.environ.get(CALL_HYGIENE_ENV_VAR, "true").strip().lower()
+    return value not in ("false", "0", "no", "off")
+
+
+def resolve_call_hygiene(
+    run_configs: dict, *, is_realtime: bool
+) -> tuple[CallHygieneConfiguration, bool]:
+    """Parse the workflow's call hygiene config and decide if it runs.
+
+    Returns ``(config, active)``. ``active`` is False for realtime pipelines,
+    when the workflow disables it, or when the kill switch is off. A malformed
+    config falls back to defaults rather than failing the call.
+    """
+    try:
+        config = CallHygieneConfiguration.model_validate(
+            (run_configs or {}).get("call_hygiene") or {}
+        )
+    except ValidationError as e:
+        logger.warning(f"Invalid call_hygiene configuration, using defaults: {e}")
+        config = CallHygieneConfiguration()
+    active = bool(not is_realtime and config.enabled and call_hygiene_env_enabled())
+    if not is_realtime and config.enabled and not active:
+        logger.info(f"Call hygiene guards disabled by {CALL_HYGIENE_ENV_VAR}")
+    return config, active
 
 
 def build_tts_text_filter() -> XMLFunctionTagFilter:

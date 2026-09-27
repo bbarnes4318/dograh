@@ -16,7 +16,6 @@ from api.schemas.workflow_configurations import (
     DEFAULT_SPEAK_DURING_TRANSITION,
     DEFAULT_TURN_START_MIN_WORDS,
     DEFAULT_TURN_START_STRATEGY,
-    CallHygieneConfiguration,
     DTMFConfiguration,
     IdleBehaviorConfiguration,
     ToolFillerConfiguration,
@@ -34,7 +33,11 @@ from api.services.pipecat.active_calls import (
     unregister_active_call as unregister_worker_active_call,
 )
 from api.services.pipecat.audio_config import AudioConfig, create_audio_config
-from api.services.pipecat.call_hygiene import AssistantTurnGuard, MachineAnswerGuard
+from api.services.pipecat.call_hygiene import (
+    AssistantTurnGuard,
+    MachineAnswerGuard,
+    resolve_call_hygiene,
+)
 from api.services.pipecat.dtmf import DTMF_CONTEXT_KEY, DTMFCaptureProcessor
 from api.services.pipecat.event_handlers import (
     register_audio_data_handler,
@@ -832,16 +835,12 @@ async def _run_pipeline_impl(
         logger.warning(f"Invalid tool_filler configuration, using defaults: {e}")
         tool_filler = ToolFillerConfiguration()
 
-    try:
-        call_hygiene = CallHygieneConfiguration.model_validate(
-            run_configs.get("call_hygiene") or {}
-        )
-    except ValidationError as e:
-        logger.warning(f"Invalid call_hygiene configuration, using defaults: {e}")
-        call_hygiene = CallHygieneConfiguration()
     # The guards sit around STT and the text LLM, neither of which exists in a
-    # speech-to-speech pipeline.
-    call_hygiene_active = bool(not is_realtime and call_hygiene.enabled)
+    # speech-to-speech pipeline. CALL_HYGIENE_ENABLED=false turns them off
+    # deployment-wide.
+    call_hygiene, call_hygiene_active = resolve_call_hygiene(
+        run_configs, is_realtime=is_realtime
+    )
     first_response_timeout = (
         call_hygiene.first_response_timeout_seconds if call_hygiene_active else None
     )

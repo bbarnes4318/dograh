@@ -215,6 +215,15 @@ class DograhInceptionLLMService(InceptionLLMService):
         return params
 
 
+def _openai_min_reasoning_effort(model: str) -> str:
+    """Lowest reasoning effort the model accepts.
+
+    GPT-5.1 and later take "none"; GPT-5 only goes down to "minimal".
+    """
+    newer = ("gpt-5.1", "gpt-5.2", "gpt-5.3", "gpt-5.4", "gpt-5.5", "gpt-5.6")
+    return "none" if any(v in model for v in newer) else "minimal"
+
+
 def _validate_runtime_service_url(url: str, field_name: str) -> None:
     try:
         validate_user_configured_service_url(
@@ -890,6 +899,50 @@ def create_tts_service(
             skip_aggregator_types=["recording_router", "recording"],
             silence_time_s=1.0,
         )
+    elif user_config.tts.provider == ServiceProviders.FISH.value:
+        # HOPWHISTLE_FISH_TTS_V1
+        # Imported lazily and from our own shim module: pipecat's Fish service
+        # needs an ormsgpack codec that the stock image does not ship, and a
+        # lazy import keeps any problem with it contained to Fish configs
+        # instead of breaking the whole factory at import time.
+        from api.services.pipecat.fish_msgpack_shim import (
+            FishAudioTTSService,
+            FishAudioTTSSettings,
+        )
+
+        # Empty string -> None so Fish falls back to its default voice rather
+        # than rejecting a blank reference_id.
+        voice = getattr(user_config.tts, "voice", None) or None
+        model = getattr(user_config.tts, "model", None) or "s2.1-pro"
+        latency = getattr(user_config.tts, "latency", None) or "balanced"
+        speed = getattr(user_config.tts, "speed", None)
+        volume = getattr(user_config.tts, "volume", None)
+        normalize = getattr(user_config.tts, "normalize", None)
+
+        fish_settings = FishAudioTTSSettings(
+            model=model,
+            voice=voice,
+            latency=latency,
+        )
+        if speed is not None:
+            fish_settings.prosody_speed = speed
+        if volume is not None:
+            fish_settings.prosody_volume = volume
+        if normalize is not None:
+            fish_settings.normalize = normalize
+
+        return FishAudioTTSService(
+            api_key=user_config.tts.api_key,
+            # Fish emits raw PCM at whatever rate we ask for. Matching the
+            # transport (8 kHz on ARI/FracTEL) skips a resample hop in
+            # BaseOutputTransport; a mismatch still works, just costs latency.
+            sample_rate=audio_config.transport_out_sample_rate,
+            output_format="pcm",
+            settings=fish_settings,
+            text_filters=[xml_function_tag_filter],
+            skip_aggregator_types=["recording_router", "recording"],
+            silence_time_s=1.0,
+        )
     else:
         raise HTTPException(
             status_code=400, detail=f"Invalid TTS provider {user_config.tts.provider}"
@@ -943,7 +996,10 @@ def create_llm_service_from_provider(
                 api_key=api_key,
                 settings=OpenAILLMSettings(
                     model=model,
-                    extra={"reasoning_effort": "minimal", "verbosity": "low"},
+                    extra={
+                        "reasoning_effort": _openai_min_reasoning_effort(model),
+                        "verbosity": "low",
+                    },
                 ),
                 **kwargs,
             )

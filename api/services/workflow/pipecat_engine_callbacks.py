@@ -235,6 +235,18 @@ def create_max_duration_callback(engine: "PipecatEngine"):
     """Return a callback that cancels the task when the hard call limit is exceeded."""
 
     async def handle_max_duration():
+        # HOPWHISTLE_TRANSFER_DURATION_HOTFIX_V1
+        # The AI timer belongs to the AI portion of the call. After a transfer
+        # attempt starts, allowing this callback to terminate the original ARI
+        # channel can drop the customer and the connected human agent at the
+        # workflow's configured limit (300 seconds by default).
+        if getattr(engine, "_transfer_handoff_started", False) is True:
+            logger.info(
+                "Max call duration reached after transfer handoff started; "
+                "leaving the transferred PSTN call intact"
+            )
+            return
+
         logger.debug("Max call duration exceeded. Terminating call")
         await engine.end_call_with_reason(
             EndTaskReason.CALL_DURATION_EXCEEDED.value,
