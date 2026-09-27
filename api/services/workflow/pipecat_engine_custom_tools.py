@@ -571,6 +571,36 @@ class CustomToolManager:
             function_call_params: FunctionCallParams,
         ) -> None:
             logger.info(f"Transfer Call Tool EXECUTED: {function_name}")
+
+            # Never hand a licensed agent a voicemail box, call screener or
+            # answering bot.
+            hygiene = getattr(self._engine, "call_hygiene", None)
+            machine_detected = getattr(hygiene, "machine_detected", False) is True
+            answering_bot = getattr(hygiene, "answering_bot", False) is True
+            screener_hold = getattr(hygiene, "screener_hold", False) is True
+            if machine_detected or answering_bot or screener_hold:
+                logger.info(
+                    "Blocking transfer: machine answered "
+                    f"(machine_detected={machine_detected}, "
+                    f"answering_bot={answering_bot}, screener_hold={screener_hold})"
+                )
+                await function_call_params.result_callback(
+                    {
+                        "status": "failed",
+                        "action": "transfer_blocked",
+                        "reason": "machine_answered",
+                    },
+                    properties=properties,
+                )
+                await self._engine.end_call_for_hygiene(
+                    disposition=(
+                        "answering_bot" if answering_bot else "voicemail_detected"
+                    ),
+                    tag="transfer_blocked_machine",
+                    abort_immediately=True,
+                )
+                return
+
             logger.info(
                 "Transfer call arguments received "
                 f"argument_keys={list((function_call_params.arguments or {}).keys())}"

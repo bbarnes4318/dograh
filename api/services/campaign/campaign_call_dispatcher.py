@@ -29,6 +29,7 @@ from api.services.campaign.rate_limiter import rate_limiter
 from api.services.quota_service import authorize_workflow_run_start
 from api.services.workflow.run_creation import prepare_workflow_run_inputs
 from api.utils.common import get_backend_endpoints
+from api.utils.telephony_address import is_dialable_pstn
 
 if TYPE_CHECKING:
     # Type-only — importing api.services.telephony eagerly triggers the
@@ -307,6 +308,10 @@ class CampaignCallDispatcher:
             phone_number = queued_run.context_variables.get("phone_number")
             if not phone_number:
                 raise ValueError(f"No phone number in queued run {queued_run.id}")
+            if not is_dialable_pstn(phone_number):
+                raise ValueError(
+                    f"Undialable phone number in queued run {queued_run.id}"
+                )
 
             # Get provider for this campaign's pinned telephony config.
             provider = await self.get_provider_for_campaign(campaign)

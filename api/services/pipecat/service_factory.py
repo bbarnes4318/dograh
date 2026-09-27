@@ -15,6 +15,7 @@ from api.services.configuration.registry import (
     INCEPTION_DEFAULT_REASONING_EFFORT,
     ServiceProviders,
 )
+from api.services.pipecat.call_hygiene import build_tts_text_filter
 from api.services.pipecat.gemini_json_schema_adapter import (
     DograhGeminiJSONSchemaAdapter,
 )
@@ -94,7 +95,6 @@ from pipecat.services.speechmatics.stt import (
 )
 from pipecat.services.xai.tts import XAITTSService, XAIWebsocketTTSSettings
 from pipecat.transcriptions.language import Language
-from pipecat.utils.text.xml_function_tag_filter import XMLFunctionTagFilter
 
 if TYPE_CHECKING:
     from api.services.pipecat.audio_config import AudioConfig
@@ -539,8 +539,9 @@ def create_tts_service(
     logger.info(
         f"Creating TTS service: provider={user_config.tts.provider}, model={user_config.tts.model}"
     )
-    # Create function call filter to prevent TTS from speaking function call tags
-    xml_function_tag_filter = XMLFunctionTagFilter()
+    # Strip function-call tags and other model markup (think tokens, tool_code,
+    # stage directions) so TTS never reads them aloud.
+    xml_function_tag_filter = build_tts_text_filter()
     if user_config.tts.provider == ServiceProviders.DEEPGRAM.value:
         return DeepgramTTSService(
             api_key=user_config.tts.api_key,
