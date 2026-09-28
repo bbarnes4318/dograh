@@ -263,6 +263,8 @@ export default function ToolsPage() {
                 return <Badge variant="outline">Integration</Badge>;
             case "mcp":
                 return <Badge variant="outline">MCP</Badge>;
+            case "play_audio":
+                return <Badge variant="secondary">Play Audio</Badge>;
             default:
                 return <Badge variant="outline">{category}</Badge>;
         }

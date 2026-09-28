@@ -1,6 +1,6 @@
 "use client";
 
-import { Calculator, Cog, Globe, type LucideIcon, PhoneForwarded, PhoneOff, Puzzle } from "lucide-react";
+import { Calculator, Cog, Globe, type LucideIcon, Music, PhoneForwarded, PhoneOff, Puzzle } from "lucide-react";
 import { type ReactNode } from "react";
 
 import type {
@@ -9,13 +9,14 @@ import type {
     EndCallToolDefinition,
     HttpApiToolDefinition,
     McpToolDefinition,
+    PlayAudioToolDefinition,
     PresetToolParameter,
     ToolParameter,
     TransferCallConfig,
     TransferCallToolDefinition,
 } from "@/client/types.gen";
 
-export type ToolCategory = "http_api" | "end_call" | "transfer_call" | "calculator" | "native" | "integration" | "mcp";
+export type ToolCategory = "http_api" | "end_call" | "transfer_call" | "calculator" | "native" | "integration" | "mcp" | "play_audio";
 
 export type EndCallMessageType = "none" | "custom" | "audio";
 export type TransferDestinationSource = "static" | "dynamic";
@@ -96,6 +97,18 @@ export const TOOL_CATEGORIES: ToolCategoryConfig[] = [
         },
     },
     {
+        value: "play_audio",
+        label: "Play Audio",
+        description: "Play an audio file (e.g. a song) to the caller",
+        icon: Music,
+        iconName: "music",
+        iconColor: "#EC4899",
+        autoFill: {
+            name: "Play Song",
+            description: "Play the song for the caller when they ask to hear it. Stay silent while it plays.",
+        },
+    },
+    {
         value: "mcp",
         label: "MCP Server",
         description: "Connect a customer MCP server; its tools become available to the agent",
@@ -158,6 +171,8 @@ export function getToolTypeLabel(category: string): string {
             return "Integration Tool";
         case "mcp":
             return "MCP Server Tool";
+        case "play_audio":
+            return "Play Audio Tool";
         default:
             return "Tool";
     }
@@ -184,7 +199,8 @@ export type ToolDefinition =
     | EndCallToolDefinition
     | TransferCallToolDefinition
     | CalculatorToolDefinition
-    | McpToolDefinition;
+    | McpToolDefinition
+    | PlayAudioToolDefinition;
 
 export function createEndCallDefinition(config: EndCallConfig): EndCallToolDefinition {
     return {
@@ -220,6 +236,14 @@ export function createCalculatorDefinition(): CalculatorToolDefinition {
     };
 }
 
+export function createPlayAudioDefinition(audioUrl: string = ""): PlayAudioToolDefinition {
+    return {
+        schema_version: 1,
+        type: "play_audio",
+        config: { audio_url: audioUrl.trim() },
+    };
+}
+
 export const MCP_URL_PATTERN = /^https?:\/\//i;
 
 export function createMcpDefinition(
@@ -250,6 +274,8 @@ export function createToolDefinition(category: ToolCategory): ToolDefinition {
             return createTransferCallDefinition(DEFAULT_TRANSFER_CALL_CONFIG);
         case "calculator":
             return createCalculatorDefinition();
+        case "play_audio":
+            return createPlayAudioDefinition();
         case "http_api":
         default:
             return createHttpApiDefinition();
