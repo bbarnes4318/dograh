@@ -28,6 +28,7 @@ ToolCategoryValue = Literal[
     "native",
     "integration",
     "mcp",
+    "play_audio",
 ]
 
 
@@ -178,6 +179,26 @@ class EndCallConfig(BaseModel):
             "when endCallReason is enabled."
         ),
     )
+
+
+class PlayAudioConfig(BaseModel):
+    """Configuration for Play Audio tools."""
+
+    audio_url: str = Field(
+        description=(
+            "Public http(s) URL of the audio file (mp3, wav, ...) to play to "
+            "the caller. It is fetched and converted to the call's sample rate."
+        )
+    )
+
+    @field_validator("audio_url")
+    @classmethod
+    def validate_audio_url(cls, v: str) -> str:
+        v = v.strip()
+        # Empty is allowed so the tool can be created first and configured after.
+        if v and not v.lower().startswith(("http://", "https://")):
+            raise ValueError("audio_url must start with http:// or https://")
+        return v
 
 
 class HttpTransferResolverConfig(BaseModel):
@@ -435,6 +456,14 @@ class CalculatorToolDefinition(BaseModel):
     type: Literal["calculator"] = Field(description="Tool type.")
 
 
+class PlayAudioToolDefinition(BaseModel):
+    """Tool definition for Play Audio tools."""
+
+    schema_version: int = Field(default=1, description="Schema version.")
+    type: Literal["play_audio"] = Field(description="Tool type.")
+    config: PlayAudioConfig = Field(description="Play Audio configuration.")
+
+
 class McpToolDefinition(BaseModel):
     """Persisted MCP tool definition."""
 
@@ -450,6 +479,7 @@ ToolDefinition = Annotated[
         TransferCallToolDefinition,
         CalculatorToolDefinition,
         McpToolDefinition,
+        PlayAudioToolDefinition,
     ],
     Field(discriminator="type"),
 ]

@@ -774,6 +774,44 @@ export type CalculatorToolDefinition = {
 };
 
 /**
+ * PlayAudioConfig
+ *
+ * Configuration for Play Audio tools.
+ */
+export type PlayAudioConfig = {
+    /**
+     * Audio Url
+     *
+     * Public http(s) URL of the audio file (mp3, wav, ...) to play to the caller. It is fetched and converted to the call's sample rate.
+     */
+    audio_url: string;
+};
+
+/**
+ * PlayAudioToolDefinition
+ *
+ * Tool definition for Play Audio tools.
+ */
+export type PlayAudioToolDefinition = {
+    /**
+     * Schema Version
+     *
+     * Schema version.
+     */
+    schema_version?: number;
+    /**
+     * Type
+     *
+     * Tool type.
+     */
+    type: 'play_audio';
+    /**
+     * Play Audio configuration.
+     */
+    config: PlayAudioConfig;
+};
+
+/**
  * CallDispositionCodes
  */
 export type CallDispositionCodes = {
@@ -1567,7 +1605,7 @@ export type CreateToolRequest = {
      *
      * Tool category. Must match definition.type.
      */
-    category?: 'http_api' | 'end_call' | 'transfer_call' | 'calculator' | 'native' | 'integration' | 'mcp';
+    category?: 'http_api' | 'end_call' | 'transfer_call' | 'calculator' | 'native' | 'integration' | 'mcp' | 'play_audio';
     /**
      * Icon
      *
@@ -1595,7 +1633,9 @@ export type CreateToolRequest = {
         type: 'calculator';
     } & CalculatorToolDefinition) | ({
         type: 'mcp';
-    } & McpToolDefinition);
+    } & McpToolDefinition) | ({
+        type: 'play_audio';
+    } & PlayAudioToolDefinition);
 };
 
 /**
@@ -6523,7 +6563,9 @@ export type UpdateToolRequest = {
         type: 'calculator';
     } & CalculatorToolDefinition) | ({
         type: 'mcp';
-    } & McpToolDefinition) | null;
+    } & McpToolDefinition) | ({
+        type: 'play_audio';
+    } & PlayAudioToolDefinition) | null;
     /**
      * Status
      */
