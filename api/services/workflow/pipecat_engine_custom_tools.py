@@ -22,6 +22,7 @@ from pipecat.utils.enums import EndTaskReason
 
 from api.db import db_client
 from api.enums import ToolCategory, WorkflowRunMode
+from api.services.pipecat.audio_file_cache import convert_audio_file
 from api.services.pipecat.audio_playback import play_audio, play_audio_loop
 from api.services.telephony.call_transfer_manager import get_call_transfer_manager
 from api.services.telephony.external_pbx import resolve_external_pbx_field_mappings
@@ -37,6 +38,7 @@ from api.services.workflow.tools.transfer_resolver import (
     resolve_transfer_config,
 )
 from api.utils.template_renderer import render_template
+from api.utils.url_security import validate_user_configured_service_url
 
 if TYPE_CHECKING:
     from api.services.workflow.mcp_tool_session import McpToolSession
@@ -335,6 +337,10 @@ class CustomToolManager:
         elif tool.category == ToolCategory.TRANSFER_CALL.value:
             timeout_secs = self._transfer_handler_timeout_secs(tool)
             handler = self._create_transfer_call_handler(tool, function_name)
+        elif tool.category == ToolCategory.PLAY_AUDIO.value:
+            # Covers downloading + transcoding the file; playback itself is queued.
+            timeout_secs = 60.0
+            handler = self._create_play_audio_handler(tool, function_name)
         else:
             timeout_ms = ((tool.definition or {}).get("config", {}) or {}).get(
                 "timeout_ms", 5000
@@ -488,6 +494,49 @@ class CustomToolManager:
                 )
 
         return mcp_tool_handler
+
+    def _create_play_audio_handler(self, tool: Any, function_name: str):
+        """Create a handler that plays the tool's audio file (e.g. a song) to
+        the caller. The bot stays silent and the caller can't barge in until
+        the audio finishes; the LLM resumes on the caller's next turn."""
+        properties = FunctionCallResultProperties(run_llm=False)
+
+        async def play_audio_handler(
+            function_call_params: FunctionCallParams,
+        ) -> None:
+            logger.info(f"Play Audio Tool EXECUTED: {function_name}")
+            try:
+                config = (tool.definition or {}).get("config", {}) or {}
+                audio_url = config.get("audio_url", "")
+                validate_user_configured_service_url(audio_url, field_name="audio_url")
+                sample_rate = (
+                    self._engine._audio_config.pipeline_sample_rate
+                    if self._engine._audio_config
+                    else 16000
+                )
+                # ponytail: fetched + transcoded per invocation; cache by URL if
+                # the download delay before playback becomes noticeable.
+                audio = await convert_audio_file(audio_url, sample_rate, "pcm")
+                if not audio:
+                    raise RuntimeError(f"could not load audio from {audio_url}")
+
+                self._engine._queued_speech_mute_state = "waiting"
+                await play_audio(
+                    audio,
+                    sample_rate=sample_rate,
+                    queue_frame=self._engine._transport_output.queue_frame,
+                )
+                await function_call_params.result_callback(
+                    {"status": "success", "action": "playing_audio"},
+                    properties=properties,
+                )
+            except Exception as e:
+                logger.error(f"Play audio tool '{function_name}' failed: {e}")
+                await function_call_params.result_callback(
+                    {"status": "error", "error": str(e)}
+                )
+
+        return play_audio_handler
 
     def _create_end_call_handler(self, tool: Any, function_name: str):
         """Create a handler function for an end call tool.

@@ -48,6 +48,7 @@ import { createUuid } from "@/lib/uuid";
 import {
     type ContextDestinationRouteRow,
     createMcpDefinition,
+    createPlayAudioDefinition,
     DEFAULT_END_CALL_REASON_DESCRIPTION,
     type EndCallMessageType,
     type ExtendedTransferCallConfig,
@@ -155,6 +156,9 @@ export default function ToolDetailPage() {
     const [mcpUrl, setMcpUrl] = useState("");
     const [mcpCredentialUuid, setMcpCredentialUuid] = useState("");
     const [mcpToolsFilter, setMcpToolsFilter] = useState("");
+
+    // Play Audio form state
+    const [audioUrl, setAudioUrl] = useState("");
 
     // Org-level recordings for audio dropdowns
     const [recordings, setRecordings] = useState<RecordingResponseSchema[]>([]);
@@ -273,6 +277,9 @@ export default function ToolDetailPage() {
                 setTransferContextDestinationRoutes([]);
                 setTransferFallbackDestination("");
             }
+        } else if (tool.category === "play_audio") {
+            const config = tool.definition?.config as { audio_url?: string } | undefined;
+            setAudioUrl(config?.audio_url || "");
         } else if (tool.category === "mcp") {
             // Populate MCP specific fields
             const config = tool.definition?.config as
@@ -466,6 +473,11 @@ export default function ToolDetailPage() {
                 setError("MCP server URL must start with http:// or https://");
                 return;
             }
+        } else if (tool.category === "play_audio") {
+            if (!MCP_URL_PATTERN.test(audioUrl.trim())) {
+                setError("Audio URL must start with http:// or https://");
+                return;
+            }
         } else if (tool.category !== "end_call") {
             // Validate URL for HTTP API tools
             const urlValidation = validateUrl(url);
@@ -600,6 +612,12 @@ export default function ToolDetailPage() {
                         type: "transfer_call",
                         config: transferConfig,
                     } as UpdateToolRequest["definition"],
+                };
+            } else if (tool.category === "play_audio") {
+                requestBody = {
+                    name,
+                    description: description || undefined,
+                    definition: createPlayAudioDefinition(audioUrl),
                 };
             } else if (tool.category === "mcp") {
                 requestBody = {
@@ -789,6 +807,7 @@ const data = await response.json();`;
     const isTransferCallTool = tool.category === "transfer_call";
     const isBuiltinTool = tool.category === "calculator";
     const isMcpTool = tool.category === "mcp";
+    const isPlayAudioTool = tool.category === "play_audio";
     const isHttpApiTool = tool.category === "http_api";
     const hasUnsavedHttpChanges =
         isHttpApiTool &&
@@ -933,6 +952,53 @@ const data = await response.json();`;
                             fallbackDestination={transferFallbackDestination}
                             onFallbackDestinationChange={setTransferFallbackDestination}
                         />
+                    ) : isPlayAudioTool ? (
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Play Audio Configuration</CardTitle>
+                                <CardDescription>
+                                    Plays an audio file (e.g. a song) to the caller when the agent calls this tool. The agent stays silent while it plays.
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-6">
+                                <div className="space-y-2">
+                                    <Label htmlFor="play-audio-name">Tool Name</Label>
+                                    <Input
+                                        id="play-audio-name"
+                                        value={name}
+                                        onChange={(e) => setName(e.target.value)}
+                                        placeholder="e.g., Play Song"
+                                    />
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label htmlFor="play-audio-description">Description</Label>
+                                    <p className="text-xs text-muted-foreground">
+                                        Tell the agent when to play the audio
+                                    </p>
+                                    <Textarea
+                                        id="play-audio-description"
+                                        value={description}
+                                        onChange={(e) => setDescription(e.target.value)}
+                                        placeholder="Play the song when the caller asks to hear it"
+                                        rows={3}
+                                    />
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label htmlFor="play-audio-url">Audio URL</Label>
+                                    <Input
+                                        id="play-audio-url"
+                                        value={audioUrl}
+                                        onChange={(e) => setAudioUrl(e.target.value)}
+                                        placeholder="https://storage.example.com/song.mp3"
+                                    />
+                                    <p className="text-xs text-muted-foreground">
+                                        Public link to an mp3/wav file. It is converted to phone quality automatically.
+                                    </p>
+                                </div>
+                            </CardContent>
+                        </Card>
                     ) : isMcpTool ? (
                         <Card>
                             <CardHeader>
