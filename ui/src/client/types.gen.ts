@@ -801,6 +801,50 @@ export type PlayAudioToolDefinition = {
 };
 
 /**
+ * SendSmsConfig
+ *
+ * Configuration for Send SMS tools (FracTEL provider).
+ */
+export type SendSmsConfig = {
+    /**
+     * Credential Uuid
+     *
+     * Reference to a Basic Auth credential holding the FracTEL API username and password.
+     */
+    credential_uuid?: string | null;
+    /**
+     * From Numbers
+     *
+     * 10-digit sender DIDs registered with FracTEL (10DLC). With more than one, messages rotate round-robin across them.
+     */
+    from_numbers?: Array<string>;
+};
+
+/**
+ * SendSmsToolDefinition
+ *
+ * Tool definition for Send SMS tools.
+ */
+export type SendSmsToolDefinition = {
+    /**
+     * Schema Version
+     *
+     * Schema version.
+     */
+    schema_version?: number;
+    /**
+     * Type
+     *
+     * Tool type.
+     */
+    type: 'send_sms';
+    /**
+     * Send SMS configuration.
+     */
+    config: SendSmsConfig;
+};
+
+/**
  * CallDispositionCodes
  */
 export type CallDispositionCodes = {
@@ -1554,7 +1598,7 @@ export type CreateToolRequest = {
      *
      * Tool category. Must match definition.type.
      */
-    category?: 'http_api' | 'end_call' | 'transfer_call' | 'calculator' | 'native' | 'integration' | 'mcp' | 'play_audio';
+    category?: 'http_api' | 'end_call' | 'transfer_call' | 'calculator' | 'native' | 'integration' | 'mcp' | 'play_audio' | 'send_sms';
     /**
      * Icon
      *
@@ -1584,7 +1628,9 @@ export type CreateToolRequest = {
         type: 'mcp';
     } & McpToolDefinition) | ({
         type: 'play_audio';
-    } & PlayAudioToolDefinition);
+    } & PlayAudioToolDefinition) | ({
+        type: 'send_sms';
+    } & SendSmsToolDefinition);
 };
 
 /**
@@ -6299,7 +6345,9 @@ export type UpdateToolRequest = {
         type: 'mcp';
     } & McpToolDefinition) | ({
         type: 'play_audio';
-    } & PlayAudioToolDefinition) | null;
+    } & PlayAudioToolDefinition) | ({
+        type: 'send_sms';
+    } & SendSmsToolDefinition) | null;
     /**
      * Status
      */
