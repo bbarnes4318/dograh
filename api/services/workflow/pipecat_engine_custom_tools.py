@@ -24,6 +24,11 @@ from api.db import db_client
 from api.enums import ToolCategory, WorkflowRunMode
 from api.services.pipecat.audio_file_cache import convert_audio_file
 from api.services.pipecat.audio_playback import play_audio, play_audio_loop
+from api.services.sms.fractel import (
+    FracTelConfigError,
+    pick_from_number,
+)
+from api.services.sms.fractel import send_sms as send_fractel_sms
 from api.services.telephony.call_transfer_manager import get_call_transfer_manager
 from api.services.telephony.external_pbx import resolve_external_pbx_field_mappings
 from api.services.telephony.factory import get_telephony_provider_for_run
@@ -341,6 +346,10 @@ class CustomToolManager:
             # Covers downloading + transcoding the file; playback itself is queued.
             timeout_secs = 60.0
             handler = self._create_play_audio_handler(tool, function_name)
+        elif tool.category == ToolCategory.SEND_SMS.value:
+            # 10s per request x (1 + 3 retries) plus backoff, plus token fetch.
+            timeout_secs = 60.0
+            handler = self._create_send_sms_handler(tool, function_name)
         else:
             timeout_ms = ((tool.definition or {}).get("config", {}) or {}).get(
                 "timeout_ms", 5000
@@ -537,6 +546,53 @@ class CustomToolManager:
                 )
 
         return play_audio_handler
+
+    def _create_send_sms_handler(self, tool: Any, function_name: str):
+        """Create a handler that sends a text message through FracTEL."""
+
+        async def send_sms_handler(
+            function_call_params: FunctionCallParams,
+        ) -> None:
+            logger.info(f"Send SMS Tool EXECUTED: {function_name}")
+            try:
+                config = (tool.definition or {}).get("config", {}) or {}
+                args = function_call_params.arguments or {}
+                organization_id = await self.get_organization_id()
+                credential_uuid = config.get("credential_uuid")
+                credential = (
+                    await db_client.get_credential_by_uuid(
+                        credential_uuid, organization_id
+                    )
+                    if credential_uuid and organization_id
+                    else None
+                )
+                if not credential or credential.credential_type != "basic_auth":
+                    raise FracTelConfigError(
+                        "SMS tool has no valid Basic Auth credential configured"
+                    )
+                data = credential.credential_data or {}
+                message_id = await send_fractel_sms(
+                    username=data.get("username", ""),
+                    password=data.get("password", ""),
+                    from_number=pick_from_number(config.get("from_numbers") or []),
+                    to_number=str(args.get("to", "")),
+                    message=str(args.get("message", "")),
+                )
+                await function_call_params.result_callback(
+                    {"status": "success", "message_id": message_id}
+                )
+            except ValueError as e:
+                # Bad recipient number: let the agent correct it with the caller.
+                await function_call_params.result_callback(
+                    {"status": "error", "error": str(e)}
+                )
+            except Exception as e:
+                logger.error(f"Send SMS tool '{function_name}' failed: {e}")
+                await function_call_params.result_callback(
+                    {"status": "error", "error": "Could not send the text message"}
+                )
+
+        return send_sms_handler
 
     def _create_end_call_handler(self, tool: Any, function_name: str):
         """Create a handler function for an end call tool.

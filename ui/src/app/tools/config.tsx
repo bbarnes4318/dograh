@@ -1,6 +1,6 @@
 "use client";
 
-import { Calculator, Cog, Globe, type LucideIcon, Music, PhoneForwarded, PhoneOff, Puzzle } from "lucide-react";
+import { Calculator, Cog, Globe, type LucideIcon, MessageSquare, Music, PhoneForwarded, PhoneOff, Puzzle } from "lucide-react";
 import { type ReactNode } from "react";
 
 import type {
@@ -11,12 +11,13 @@ import type {
     McpToolDefinition,
     PlayAudioToolDefinition,
     PresetToolParameter,
+    SendSmsToolDefinition,
     ToolParameter,
     TransferCallConfig,
     TransferCallToolDefinition,
 } from "@/client/types.gen";
 
-export type ToolCategory = "http_api" | "end_call" | "transfer_call" | "calculator" | "native" | "integration" | "mcp" | "play_audio";
+export type ToolCategory = "http_api" | "end_call" | "transfer_call" | "calculator" | "native" | "integration" | "mcp" | "play_audio" | "send_sms";
 
 export type EndCallMessageType = "none" | "custom" | "audio";
 export type TransferDestinationSource = "static" | "dynamic" | "context_mapping";
@@ -125,6 +126,18 @@ export const TOOL_CATEGORIES: ToolCategoryConfig[] = [
         },
     },
     {
+        value: "send_sms",
+        label: "Send SMS",
+        description: "Send a text message via FracTEL",
+        icon: MessageSquare,
+        iconName: "message-square",
+        iconColor: "#0EA5E9",
+        autoFill: {
+            name: "Send Text",
+            description: "Send a text message to the caller's mobile number. Confirm the number and message with the caller first.",
+        },
+    },
+    {
         value: "mcp",
         label: "MCP Server",
         description: "Connect a customer MCP server; its tools become available to the agent",
@@ -189,6 +202,8 @@ export function getToolTypeLabel(category: string): string {
             return "MCP Server Tool";
         case "play_audio":
             return "Play Audio Tool";
+        case "send_sms":
+            return "Send SMS Tool";
         default:
             return "Tool";
     }
@@ -216,7 +231,8 @@ export type ToolDefinition =
     | TransferCallToolDefinition
     | CalculatorToolDefinition
     | McpToolDefinition
-    | PlayAudioToolDefinition;
+    | PlayAudioToolDefinition
+    | SendSmsToolDefinition;
 
 export function createEndCallDefinition(config: EndCallConfig): EndCallToolDefinition {
     return {
@@ -260,6 +276,20 @@ export function createPlayAudioDefinition(audioUrl: string = ""): PlayAudioToolD
     };
 }
 
+export function createSendSmsDefinition(
+    credentialUuid: string = "",
+    fromNumbers: string[] = [],
+): SendSmsToolDefinition {
+    return {
+        schema_version: 1,
+        type: "send_sms",
+        config: {
+            credential_uuid: credentialUuid || undefined,
+            from_numbers: fromNumbers,
+        },
+    };
+}
+
 export const MCP_URL_PATTERN = /^https?:\/\//i;
 
 export function createMcpDefinition(
@@ -292,6 +322,8 @@ export function createToolDefinition(category: ToolCategory): ToolDefinition {
             return createCalculatorDefinition();
         case "play_audio":
             return createPlayAudioDefinition();
+        case "send_sms":
+            return createSendSmsDefinition();
         case "http_api":
         default:
             return createHttpApiDefinition();

@@ -265,6 +265,8 @@ export default function ToolsPage() {
                 return <Badge variant="outline">MCP</Badge>;
             case "play_audio":
                 return <Badge variant="secondary">Play Audio</Badge>;
+            case "send_sms":
+                return <Badge variant="secondary">Send SMS</Badge>;
             default:
                 return <Badge variant="outline">{category}</Badge>;
         }

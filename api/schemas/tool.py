@@ -29,6 +29,7 @@ ToolCategoryValue = Literal[
     "integration",
     "mcp",
     "play_audio",
+    "send_sms",
 ]
 
 
@@ -199,6 +200,37 @@ class PlayAudioConfig(BaseModel):
         if v and not v.lower().startswith(("http://", "https://")):
             raise ValueError("audio_url must start with http:// or https://")
         return v
+
+
+class SendSmsConfig(BaseModel):
+    """Configuration for Send SMS tools (FracTEL provider)."""
+
+    credential_uuid: Optional[str] = Field(
+        default=None,
+        description=(
+            "Reference to a Basic Auth credential holding the FracTEL API "
+            "username and password."
+        ),
+        json_schema_extra=_llm_hint(
+            "Use a basic_auth credential_uuid returned by list_credentials. The "
+            "MCP flow does not create credential secrets."
+        ),
+    )
+    from_numbers: List[str] = Field(
+        default_factory=list,
+        description=(
+            "10-digit sender DIDs registered with FracTEL (10DLC). With more than "
+            "one, messages rotate round-robin across them."
+        ),
+    )
+
+    @field_validator("from_numbers")
+    @classmethod
+    def validate_from_numbers(cls, v: List[str]) -> List[str]:
+        from api.services.sms.fractel import normalize_number
+
+        # Empty is allowed so the tool can be created first and configured after.
+        return [normalize_number(n) for n in v]
 
 
 class HttpTransferResolverConfig(BaseModel):
@@ -464,6 +496,14 @@ class PlayAudioToolDefinition(BaseModel):
     config: PlayAudioConfig = Field(description="Play Audio configuration.")
 
 
+class SendSmsToolDefinition(BaseModel):
+    """Tool definition for Send SMS tools."""
+
+    schema_version: int = Field(default=1, description="Schema version.")
+    type: Literal["send_sms"] = Field(description="Tool type.")
+    config: SendSmsConfig = Field(description="Send SMS configuration.")
+
+
 class McpToolDefinition(BaseModel):
     """Persisted MCP tool definition."""
 
@@ -480,6 +520,7 @@ ToolDefinition = Annotated[
         CalculatorToolDefinition,
         McpToolDefinition,
         PlayAudioToolDefinition,
+        SendSmsToolDefinition,
     ],
     Field(discriminator="type"),
 ]
