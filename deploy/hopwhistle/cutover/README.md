@@ -180,3 +180,18 @@ Read-only (one `BEGIN READ ONLY ... ROLLBACK`). Prints and saves to
 
 9/25 durations are only non-zero where the call-duration backfill was run, so
 check the baseline's `connected` count before comparing averages.
+
+## Later updates (after the cutover)
+
+Once the box is on a fork-built image, deploy new fork code with one command
+(between campaigns; api restarts, ~30 s):
+
+```bash
+cd /opt/dograh-src/deploy/hopwhistle/cutover   # after: git -C /opt/dograh-src pull
+sudo bash update_api.sh          # fork's main; or: sudo bash update_api.sh <git-sha>
+```
+
+It builds the image, backs up the DB, switches the image in
+`docker-compose.override.yaml`, lets the api apply new migrations on start,
+checks the DB reached the expected head (`EXPECTED_HEAD`, currently
+`a4c8e2f61b93`), and rolls back automatically if anything fails.
