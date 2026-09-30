@@ -72,6 +72,22 @@ def tool_to_function_schema(tool: Any) -> Dict[str, Any]:
     properties = {}
     required = []
 
+    if definition.get("type") == "send_sms":
+        parameters = [
+            {
+                "name": "to",
+                "type": "string",
+                "description": "Recipient's 10-digit US mobile phone number.",
+                "required": True,
+            },
+            {
+                "name": "message",
+                "type": "string",
+                "description": "The text message body to send.",
+                "required": True,
+            },
+        ]
+
     for param in parameters:
         param_name = param.get("name", "")
         param_type = param.get("type", "string")

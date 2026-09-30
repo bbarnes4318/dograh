@@ -184,6 +184,7 @@ class ToolCategory(Enum):
     TRANSFER_CALL = "transfer_call"  # Transfer call to phone number (Twilio only)
     CALCULATOR = "calculator"  # Built-in calculator tool
     PLAY_AUDIO = "play_audio"  # Play an audio file (e.g. a song) to the caller
+    SEND_SMS = "send_sms"  # Send a text message via FracTEL
     NATIVE = "native"  # Built-in integrations (future: dtmf_input)
     INTEGRATION = "integration"  # Third-party integrations (future: Google Calendar, Salesforce, etc.)
     MCP = "mcp"  # Customer-provided MCP server exposing a tool catalog
