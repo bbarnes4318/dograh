@@ -263,6 +263,15 @@ async def test_auth_without_token_fails_fast_and_logs_layout_only():
 
 
 @pytest.mark.asyncio
+async def test_auth_201_error_body_surfaces_provider_message():
+    body = {"status": "error", "message": "Invalid username or password"}
+    with pytest.raises(fractel.FracTelConfigError) as exc:
+        await _send([_Resp(201, body)])
+    assert exc.value.reason == "auth_failed"
+    assert exc.value.provider_message == "Invalid username or password"
+
+
+@pytest.mark.asyncio
 async def test_2xx_with_error_body_is_not_success():
     with pytest.raises(fractel.FracTelConfigError) as exc:
         await _send([AUTH_OK, _Resp(200, {"status": "error", "message": "No 10DLC"})])

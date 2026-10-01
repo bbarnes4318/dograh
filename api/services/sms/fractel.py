@@ -243,9 +243,12 @@ async def _get_token(
     token = _find_token(body) or _header_token(resp)
     if not token:
         # Retrying cannot help: the same login returns the same body. Log the
-        # body's layout (key names and value types only, never values).
+        # body's layout (key names and value types only, never values) and
+        # any error code/message FracTEL put in it.
+        code, detail = _provider_error_details(resp)
         logger.error(
             f"FracTEL auth returned {resp.status_code} with no token; "
+            f"provider_code={code} provider_message={detail!r} "
             f"response layout={_layout(body)}, "
             f"headers={sorted(getattr(resp, 'headers', {}) or {})}"
         )
@@ -253,6 +256,8 @@ async def _get_token(
             "FracTEL auth response contained no token",
             reason="auth_failed",
             status_code=resp.status_code,
+            provider_code=code,
+            provider_message=detail,
         )
     _token_cache[username] = (token, time.monotonic() + TOKEN_TTL_SECS)
     return token
