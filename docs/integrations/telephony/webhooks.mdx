@@ -47,7 +47,9 @@ Telnyx and Asterisk ARI have no answer webhook. Telnyx is call-control style —
         "endpoint": [{
           "type": "websocket",
           "uri": "wss://your-domain/api/v1/telephony/ws/123/11/789",
-          "content-type": "audio/l16;rate=16000"
+          "content-type": "audio/l16;rate=16000",
+          "authorization": { "type": "vonage" },
+          "headers": { "dograh_ws_token": "v1.<per-run HMAC>", "workflow_run_id": "789" }
         }]
       }
     ]
@@ -66,7 +68,7 @@ Receive call lifecycle events. Each is keyed on the workflow run:
 | Twilio | `/twilio/status-callback/{workflow_run_id}` |
 | Plivo | `/plivo/hangup-callback/{workflow_run_id}`, `/plivo/ring-callback/{workflow_run_id}` |
 | Vobiz | `/vobiz/hangup-callback/{workflow_run_id}`, `/vobiz/ring-callback/{workflow_run_id}` |
-| Vonage | `/vonage/events/{workflow_run_id}` |
+| Vonage | `/vonage/events/{workflow_run_id}`, `/vonage/transfer-events/{transfer_id}` |
 | Telnyx | `/telnyx/events/{workflow_run_id}` |
 | Cloudonix | `/cloudonix/status-callback/{workflow_run_id}`, `/cloudonix/cdr` |
 
@@ -108,7 +110,7 @@ Dograh AI automatically:
 3. Verifies webhook signatures for security:
    - **Twilio**: HMAC-SHA1 signature validation
    - **Plivo / Vobiz**: HMAC-SHA256 signature validation
-   - **Vonage**: JWT token verification
+   - **Vonage**: HS256 signed-callback JWT (signature secret, `api_key`/`application_id` claims, payload hash, 5-minute freshness). The media WebSocket is also authenticated: a Vonage-signed handshake plus a per-run token
 4. Processes status updates to track call lifecycle
 5. Manages WebSocket connections for audio streaming
 6. Handles provider-specific audio formats and protocols

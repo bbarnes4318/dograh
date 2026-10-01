@@ -16,16 +16,28 @@ export function detailFromError(err: unknown, fallback = "Request failed"): stri
             .map((item) => {
                 if (typeof item === "string") return item;
                 if (!item || typeof item !== "object") return null;
-                const detail = item as { message?: unknown; msg?: unknown; model?: unknown };
-                const message = typeof detail.message === "string"
+                const detail = item as {
+                    message?: unknown;
+                    msg?: unknown;
+                    model?: unknown;
+                    loc?: unknown;
+                };
+                const rawMessage = typeof detail.message === "string"
                     ? detail.message
                     : typeof detail.msg === "string"
                         ? detail.msg
                         : null;
-                if (!message) return null;
-                return typeof detail.model === "string" && detail.model
-                    ? `${detail.model}: ${message}`
-                    : message;
+                if (!rawMessage) return null;
+                // Pydantic prefixes custom validator messages with "Value error, ".
+                const message = rawMessage.replace(/^Value error, /, "");
+                if (typeof detail.model === "string" && detail.model) {
+                    return `${detail.model}: ${message}`;
+                }
+                // FastAPI request validation: name the offending field.
+                const field = Array.isArray(detail.loc)
+                    ? [...detail.loc].reverse().find((part) => typeof part === "string")
+                    : undefined;
+                return field && field !== "body" ? `${field}: ${message}` : message;
             })
             .filter((message): message is string => Boolean(message));
         if (messages.length > 0) return messages.join("\n");
