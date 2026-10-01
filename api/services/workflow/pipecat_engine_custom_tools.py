@@ -26,9 +26,15 @@ from api.services.pipecat.audio_file_cache import convert_audio_file
 from api.services.pipecat.audio_playback import play_audio, play_audio_loop
 from api.services.sms.fractel import (
     FracTelConfigError,
+    FracTelError,
+    mask_number,
     pick_from_number,
 )
 from api.services.sms.fractel import send_sms as send_fractel_sms
+from api.services.sms.recipient import (
+    RecipientResolutionError,
+    resolve_call_recipient,
+)
 from api.services.telephony.call_transfer_manager import get_call_transfer_manager
 from api.services.telephony.external_pbx import resolve_external_pbx_field_mappings
 from api.services.telephony.factory import get_telephony_provider_for_run
@@ -48,6 +54,21 @@ from api.utils.url_security import validate_user_configured_service_url
 if TYPE_CHECKING:
     from api.services.workflow.mcp_tool_session import McpToolSession
     from api.services.workflow.pipecat_engine import PipecatEngine
+
+
+# Safe, agent-facing explanations per FracTelError.reason. Provider detail
+# (HTTP status, error code/message) goes to the server log only.
+_SMS_ERROR_MESSAGES = {
+    "credentials_missing": "The text message tool is not configured (no FracTEL credential)",
+    "credentials_invalid": "The text message provider rejected the account credentials",
+    "auth_failed": "The text message provider rejected the account credentials",
+    "sender_not_configured": "The text message tool has no sender number configured",
+    "sender_invalid": "The text message tool's sender number is invalid",
+    "recipient_invalid": "The customer's number on this call cannot receive texts",
+    "empty_message": "The text message was empty",
+    "provider_rejected": "The text message provider rejected the message",
+    "provider_unavailable": "The text message service is temporarily unavailable",
+}
 
 
 def _render_transfer_destination(
@@ -548,15 +569,33 @@ class CustomToolManager:
         return play_audio_handler
 
     def _create_send_sms_handler(self, tool: Any, function_name: str):
-        """Create a handler that sends a text message through FracTEL."""
+        """Create a handler that texts the customer on the current call through
+        FracTEL. The LLM supplies only the message; the recipient comes from
+        the call's own setup context (``engine._call_parties``)."""
 
         async def send_sms_handler(
             function_call_params: FunctionCallParams,
         ) -> None:
-            logger.info(f"Send SMS Tool EXECUTED: {function_name}")
+            workflow_run_id = self._engine._workflow_run_id
+            args = function_call_params.arguments or {}
+            log_ctx = (
+                f"tool='{function_name}' workflow_run_id={workflow_run_id} "
+                f"provider=fractel"
+            )
+            logger.info(f"Send SMS Tool EXECUTED: {log_ctx}")
+            if args.get("to"):
+                # Older prompts/contexts may still pass a number; it is never used.
+                logger.warning(
+                    f"Send SMS ignoring LLM-supplied recipient "
+                    f"{mask_number(str(args['to']))}: {log_ctx}"
+                )
+
+            recipient = from_number = None
             try:
+                recipient, source_key = resolve_call_recipient(
+                    self._engine._call_parties
+                )
                 config = (tool.definition or {}).get("config", {}) or {}
-                args = function_call_params.arguments or {}
                 organization_id = await self.get_organization_id()
                 credential_uuid = config.get("credential_uuid")
                 credential = (
@@ -568,28 +607,66 @@ class CustomToolManager:
                 )
                 if not credential or credential.credential_type != "basic_auth":
                     raise FracTelConfigError(
-                        "SMS tool has no valid Basic Auth credential configured"
+                        "SMS tool has no valid Basic Auth credential configured",
+                        reason="credentials_missing",
                     )
                 data = credential.credential_data or {}
+                from_number = pick_from_number(config.get("from_numbers") or [])
+                logger.info(
+                    f"Send SMS resolved recipient={mask_number(recipient)} "
+                    f"(from {source_key}) sender={from_number}: {log_ctx}"
+                )
                 message_id = await send_fractel_sms(
                     username=data.get("username", ""),
                     password=data.get("password", ""),
-                    from_number=pick_from_number(config.get("from_numbers") or []),
-                    to_number=str(args.get("to", "")),
+                    from_number=from_number,
+                    to_number=recipient,
                     message=str(args.get("message", "")),
                 )
                 await function_call_params.result_callback(
                     {"status": "success", "message_id": message_id}
                 )
-            except ValueError as e:
-                # Bad recipient number: let the agent correct it with the caller.
+            except RecipientResolutionError as e:
+                logger.error(
+                    f"Send SMS failed: recipient resolution failed "
+                    f"(source={e.source_key}, call_parties="
+                    f"{sorted(self._engine._call_parties)}): {e}: {log_ctx}"
+                )
                 await function_call_params.result_callback(
-                    {"status": "error", "error": str(e)}
+                    {
+                        "status": "error",
+                        "reason": "recipient_unavailable",
+                        "error": f"{e}. The text was not sent.",
+                    }
+                )
+            except FracTelError as e:
+                logger.error(
+                    f"Send SMS failed: reason={e.reason} "
+                    f"recipient={mask_number(recipient)} sender={from_number} "
+                    f"http_status={e.status_code} provider_code={e.provider_code} "
+                    f"provider_message={e.provider_message!r} error={e}: {log_ctx}"
+                )
+                await function_call_params.result_callback(
+                    {
+                        "status": "error",
+                        "reason": e.reason,
+                        "error": _SMS_ERROR_MESSAGES.get(
+                            e.reason, "Could not send the text message"
+                        ),
+                    }
                 )
             except Exception as e:
-                logger.error(f"Send SMS tool '{function_name}' failed: {e}")
+                logger.exception(
+                    f"Send SMS failed unexpectedly "
+                    f"({type(e).__name__}: {e}) recipient={mask_number(recipient)} "
+                    f"sender={from_number}: {log_ctx}"
+                )
                 await function_call_params.result_callback(
-                    {"status": "error", "error": "Could not send the text message"}
+                    {
+                        "status": "error",
+                        "reason": "internal_error",
+                        "error": "Could not send the text message",
+                    }
                 )
 
         return send_sms_handler

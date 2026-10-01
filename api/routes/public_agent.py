@@ -255,6 +255,8 @@ async def _execute_resolved_target(
     if api_key_created_by is not None:
         initial_context["api_key_created_by"] = api_key_created_by
     initial_context.update(request.initial_context or {})
+    # The number actually dialed; set last so request context can't override it.
+    initial_context["called_number"] = request.phone_number
 
     try:
         concurrency_slot = await call_concurrency.acquire_org_slot(
