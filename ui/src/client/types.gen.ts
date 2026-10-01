@@ -7055,7 +7055,7 @@ export type VonageConfigurationRequest = {
     /**
      * Private Key
      *
-     * Private key for JWT generation
+     * RSA private key (PEM) for JWT generation
      */
     private_key: string;
     /**
@@ -7063,11 +7063,17 @@ export type VonageConfigurationRequest = {
      *
      * Vonage signature secret used to verify signed webhooks
      */
-    signature_secret?: string | null;
+    signature_secret: string;
+    /**
+     * Amd Enabled
+     *
+     * Request Vonage answering machine detection on outbound calls
+     */
+    amd_enabled?: boolean;
     /**
      * From Numbers
      *
-     * List of Vonage phone numbers (without + prefix)
+     * List of Vonage phone numbers (E.164)
      */
     from_numbers?: Array<string>;
 };
@@ -7102,6 +7108,10 @@ export type VonageConfigurationResponse = {
      * Signature Secret
      */
     signature_secret?: string | null;
+    /**
+     * Amd Enabled
+     */
+    amd_enabled?: boolean;
     /**
      * From Numbers
      */

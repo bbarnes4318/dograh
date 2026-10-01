@@ -1052,6 +1052,15 @@ class CustomToolManager:
                     logger.error(
                         f"Transfer call timed out or failed after {timeout_seconds} seconds"
                     )
+                    # Don't leave a destination that answers late alone in
+                    # the transfer conference.
+                    try:
+                        await provider.cancel_transfer_call(call_sid)
+                        await call_transfer_manager.remove_transfer_context(transfer_id)
+                    except Exception as cancel_error:
+                        logger.error(
+                            f"Failed to clean up transfer leg {call_sid}: {cancel_error}"
+                        )
                     timeout_result = {
                         "status": "failed",
                         "message": "I'm sorry, but the call is taking longer than expected to connect. The person might not be available right now. Please try calling back later.",

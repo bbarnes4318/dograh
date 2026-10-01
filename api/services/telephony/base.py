@@ -219,6 +219,27 @@ class TelephonyProvider(ABC):
         """Parse provider-specific callback data into a normalized AMD result."""
         return None
 
+    async def authenticate_websocket(
+        self,
+        websocket: "WebSocket",
+        *,
+        workflow_run: Any,
+        workflow_id: int,
+        organization_id: int,
+    ) -> bool:
+        """Authenticate the provider's media WebSocket before the run starts.
+
+        Called by the shared telephony WebSocket route after the run/workflow
+        lookups and *before* the run is moved to ``running``, so a rejected
+        connection cannot consume the run. Providers whose platform can
+        authenticate the media connection (e.g. Vonage's signed handshake)
+        override this; returning False closes the socket with 4401.
+
+        The default accepts, preserving behavior for providers that have no
+        media-connection authentication.
+        """
+        return True
+
     @abstractmethod
     async def handle_websocket(
         self,
@@ -436,6 +457,16 @@ class TelephonyProvider(ABC):
             ValueError: If provider configuration is invalid
         """
         pass
+
+    async def cancel_transfer_call(self, transfer_call_id: str) -> None:
+        """Tear down a transfer destination leg Dograh has given up on.
+
+        Called by the generic transfer flow when it stops waiting (timeout)
+        without a terminal transfer event, so a destination that answers late
+        is not left alone in the transfer conference. Default no-op for
+        providers whose dial timeout already guarantees the leg is gone.
+        """
+        return None
 
     @abstractmethod
     def supports_transfers(self) -> bool:

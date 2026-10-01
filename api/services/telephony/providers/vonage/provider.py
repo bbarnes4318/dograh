@@ -1,20 +1,30 @@
 """
 Vonage (Nexmo) implementation of the TelephonyProvider interface.
+
+Call flow (outbound)::
+
+    Dograh --POST /v1/calls (RS256 JWT)--> Vonage --PSTN--> callee
+    Vonage --GET answer_url (signed)--> /api/v1/telephony/ncco
+    Dograh --NCCO connect/websocket--> Vonage
+    Vonage --WSS (signed handshake + per-run token)--> /api/v1/telephony/ws/...
+    Vonage --POST event_url (signed)--> /api/v1/telephony/vonage/events/{run}
+
+Media is bidirectional raw 16-bit little-endian linear PCM at 16 kHz
+(``audio/l16;rate=16000``), sent in 20 ms (640 byte) binary frames.
 """
 
-import hashlib
+import asyncio
 import json
 import random
-import time
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional
 
 import aiohttp
-import jwt
-from fastapi import HTTPException, Response
+from fastapi import Response
 from loguru import logger
 
 from api.enums import TelephonyCallStatus, WorkflowRunMode
 from api.services.telephony.base import (
+    AnsweringMachineDetectionResult,
     CallInitiationResult,
     NormalizedInboundData,
     ProviderSyncResult,
@@ -22,8 +32,79 @@ from api.services.telephony.base import (
 )
 from api.utils.common import get_backend_endpoints
 
+from .auth import (
+    WS_TOKEN_HEADER,
+    bearer_token,
+    decode_unverified_claims,
+    generate_api_jwt,
+    make_ws_token,
+    verify_signed_jwt,
+    verify_ws_token,
+)
+from .client import REQUEST_TIMEOUT, VONAGE_API_BASE_URL, VonageVoiceClient
+from .errors import VonageAPIError, VonageErrorCategory
+from .numbers import (
+    VonagePhoneNumberError,
+    from_vonage_number,
+    to_e164,
+    to_vonage_number,
+)
+
 if TYPE_CHECKING:
     from fastapi import WebSocket
+
+AUDIO_CONTENT_TYPE = "audio/l16;rate=16000"
+# How long an authenticated socket may take to send ``websocket:connected``.
+WS_CONNECTED_TIMEOUT_SECONDS = 10.0
+# Vonage accepts a ringing_timer of 1-120 seconds.
+_MIN_RINGING_TIMER = 1
+_MAX_RINGING_TIMER = 120
+
+# Vonage lifecycle states -> Dograh lifecycle. ``rejected``/``failed`` are
+# refined by the event ``detail`` in ``normalize_vonage_status``.
+VONAGE_STATUS_MAP: Dict[str, TelephonyCallStatus] = {
+    "started": TelephonyCallStatus.INITIATED,
+    "ringing": TelephonyCallStatus.RINGING,
+    "answered": TelephonyCallStatus.ANSWERED,
+    "complete": TelephonyCallStatus.COMPLETED,
+    "completed": TelephonyCallStatus.COMPLETED,
+    "disconnected": TelephonyCallStatus.COMPLETED,
+    "busy": TelephonyCallStatus.BUSY,
+    "timeout": TelephonyCallStatus.NO_ANSWER,
+    "unanswered": TelephonyCallStatus.NO_ANSWER,
+    "cancelled": TelephonyCallStatus.CANCELED,
+    "rejected": TelephonyCallStatus.FAILED,
+    "failed": TelephonyCallStatus.FAILED,
+}
+# Event ``detail`` values that mean "the callee didn't pick up" rather than a
+# hard failure, so campaign retry semantics stay right.
+_NO_ANSWER_DETAILS = frozenset({"unavailable", "ring_timeout", "carrier_timeout"})
+_DECLINED_DETAILS = frozenset({"declined", "busy"})
+# Vonage events that are not call lifecycle transitions.
+NON_LIFECYCLE_STATUSES = frozenset({"human", "machine", "transfer", "input", "record"})
+
+
+def normalize_vonage_status(
+    status: Optional[str], detail: Optional[str] = None
+) -> Optional[TelephonyCallStatus]:
+    """Map a Vonage event ``status`` (+ ``detail``) to Dograh's lifecycle."""
+    if not status:
+        return None
+    status = str(status).lower()
+    normalized = VONAGE_STATUS_MAP.get(status)
+    if normalized in (TelephonyCallStatus.FAILED,) and detail:
+        detail = str(detail).lower()
+        if detail in _NO_ANSWER_DETAILS:
+            return TelephonyCallStatus.NO_ANSWER
+        if detail in _DECLINED_DETAILS:
+            return TelephonyCallStatus.BUSY
+    return normalized
+
+
+def _log_ctx(**fields: Any) -> str:
+    parts = ["provider=vonage"]
+    parts.extend(f"{k}={v}" for k, v in fields.items() if v is not None)
+    return " ".join(parts)
 
 
 class VonageProvider(TelephonyProvider):
@@ -34,6 +115,11 @@ class VonageProvider(TelephonyProvider):
 
     PROVIDER_NAME = WorkflowRunMode.VONAGE.value
     WEBHOOK_ENDPOINT = "ncco"
+
+    # Request kwargs the shared call sites pass for providers that build the
+    # media URL at dial time. They are Dograh routing metadata, never part of
+    # the Vonage request body.
+    _ROUTING_KWARGS = frozenset({"workflow_id", "organization_id", "campaign_id"})
 
     def __init__(self, config: Dict[str, Any]):
         """
@@ -46,6 +132,7 @@ class VonageProvider(TelephonyProvider):
                 - application_id: Vonage Application ID
                 - private_key: Private key for JWT generation
                 - signature_secret: Signature secret for signed webhooks
+                - amd_enabled: Request answering machine detection
                 - from_numbers: List of phone numbers to use
         """
         self.api_key = config.get("api_key")
@@ -53,29 +140,40 @@ class VonageProvider(TelephonyProvider):
         self.application_id = config.get("application_id")
         self.private_key = config.get("private_key")
         self.signature_secret = config.get("signature_secret")
+        self.amd_enabled: bool = bool(config.get("amd_enabled", False))
         self.from_numbers = config.get("from_numbers", [])
 
         # Handle both single number (string) and multiple numbers (list)
         if isinstance(self.from_numbers, str):
             self.from_numbers = [self.from_numbers]
 
-        self.base_url = "https://api.nexmo.com"
+        self.base_url = VONAGE_API_BASE_URL
+        # First ``websocket:connected`` message, consumed during
+        # ``authenticate_websocket`` and handed to ``handle_websocket``.
+        self._ws_connected_message: Optional[Dict[str, Any]] = None
+
+    @property
+    def client(self) -> VonageVoiceClient:
+        return VonageVoiceClient(
+            self.application_id, self.private_key, base_url=self.base_url
+        )
 
     def _generate_jwt(self) -> str:
         """Generate JWT token for Vonage API authentication."""
-        if not self.application_id or not self.private_key:
-            raise ValueError(
-                "Application ID and private key required for JWT generation"
-            )
+        return generate_api_jwt(self.application_id, self.private_key)
 
-        claims = {
-            "application_id": self.application_id,
-            "iat": int(time.time()),
-            "exp": int(time.time()) + 3600,
-            "jti": str(time.time()),
-        }
+    def _select_caller_number(self, from_number: Optional[str]) -> str:
+        if from_number is None:
+            if not self.from_numbers:
+                raise VonageAPIError(
+                    VonageErrorCategory.NOT_CONFIGURED,
+                    provider_detail="no Vonage phone numbers are configured",
+                    operation="call creation",
+                )
+            from_number = random.choice(self.from_numbers)
+        return from_number
 
-        return jwt.encode(claims, self.private_key, algorithm="RS256")
+    # ======== OUTBOUND ========
 
     async def initiate_call(
         self,
@@ -89,28 +187,35 @@ class VonageProvider(TelephonyProvider):
         Initiate an outbound call via Vonage Voice API.
         """
         if not self.validate_config():
-            raise ValueError("Vonage provider not properly configured")
+            raise VonageAPIError(
+                VonageErrorCategory.NOT_CONFIGURED,
+                provider_detail=(
+                    "Application ID, private key and at least one phone number "
+                    "are required"
+                ),
+                operation="call creation",
+            )
 
-        endpoint = f"{self.base_url}/v1/calls"
+        routing = {k: kwargs.pop(k) for k in list(kwargs) if k in self._ROUTING_KWARGS}
 
-        # Use provided from_number or select a random one
-        if from_number is None:
-            from_number = random.choice(self.from_numbers)
-        # Remove '+' prefix for Vonage
-        from_number = from_number.replace("+", "")
-        to_number = to_number.replace("+", "")
+        caller = self._select_caller_number(from_number)
+        try:
+            vonage_to = to_vonage_number(to_number, field="destination number")
+            vonage_from = to_vonage_number(caller, field="caller ID")
+        except VonagePhoneNumberError as exc:
+            raise VonageAPIError(
+                VonageErrorCategory.INVALID_NUMBER,
+                provider_detail=str(exc),
+                operation="call creation",
+            ) from None
 
-        logger.info(f"Selected phone number {from_number} for outbound call")
-
-        # Prepare call data
-        data = {
-            "to": [{"type": "phone", "number": to_number}],
-            "from": {"type": "phone", "number": from_number},
+        data: Dict[str, Any] = {
+            "to": [{"type": "phone", "number": vonage_to}],
+            "from": {"type": "phone", "number": vonage_from},
             "answer_url": [webhook_url],
             "answer_method": "GET",
         }
 
-        # Add event webhook if workflow_run_id provided
         if workflow_run_id:
             backend_endpoint, _ = await get_backend_endpoints()
             event_url = (
@@ -118,57 +223,50 @@ class VonageProvider(TelephonyProvider):
             )
             data.update({"event_url": [event_url], "event_method": "POST"})
 
+        data = self.apply_answering_machine_detection_call_params(data)
+        # Remaining kwargs are explicit Vonage request overrides.
         data.update(kwargs)
 
-        # Generate JWT token
-        token = self._generate_jwt()
-        headers = {
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json",
-        }
+        ctx = _log_ctx(
+            org=routing.get("organization_id"),
+            workflow=routing.get("workflow_id"),
+            run=workflow_run_id,
+            campaign=routing.get("campaign_id"),
+            direction="outbound",
+        )
+        logger.info(f"{ctx} creating call from={vonage_from} to=***{vonage_to[-4:]}")
+        try:
+            response_data = await self.client.create_call(data)
+        except VonageAPIError as exc:
+            logger.error(
+                f"{ctx} call creation failed category={exc.category.value} "
+                f"vonage_status={exc.vonage_status}"
+            )
+            raise
 
-        # Make the API request
-        async with aiohttp.ClientSession() as session:
-            async with session.post(endpoint, json=data, headers=headers) as response:
-                response_data = await response.json()
-
-                if response.status != 201:
-                    raise HTTPException(
-                        status_code=response.status,
-                        detail=f"Failed to initiate Vonage call: {response_data}",
-                    )
-
-                return CallInitiationResult(
-                    call_id=response_data["uuid"],
-                    status=response_data.get("status", "started"),
-                    caller_number=from_number,
-                    provider_metadata={
-                        "call_id": response_data["uuid"],
-                        "call_uuid": response_data["uuid"],
-                    },  # Vonage needs UUID persisted for WebSocket
-                    raw_response=response_data,
-                )
+        call_uuid = response_data["uuid"]
+        logger.info(
+            f"{ctx} call_uuid={call_uuid} state={response_data.get('status', 'started')}"
+        )
+        return CallInitiationResult(
+            call_id=call_uuid,
+            status=response_data.get("status", "started"),
+            caller_number=to_e164(caller, field="caller ID"),
+            provider_metadata={
+                "call_id": call_uuid,
+                "call_uuid": call_uuid,
+                "conversation_uuid": response_data.get("conversation_uuid"),
+            },
+            raw_response=response_data,
+        )
 
     async def get_call_status(self, call_id: str) -> Dict[str, Any]:
         """
         Get the current status of a Vonage call.
         """
-        if not self.validate_config():
+        if not (self.application_id and self.private_key):
             raise ValueError("Vonage provider not properly configured")
-
-        endpoint = f"{self.base_url}/v1/calls/{call_id}"
-
-        # Generate JWT token
-        token = self._generate_jwt()
-        headers = {"Authorization": f"Bearer {token}"}
-
-        async with aiohttp.ClientSession() as session:
-            async with session.get(endpoint, headers=headers) as response:
-                if response.status != 200:
-                    error_data = await response.json()
-                    raise Exception(f"Failed to get call status: {error_data}")
-
-                return await response.json()
+        return await self.client.get_call(call_id)
 
     async def get_available_phone_numbers(self) -> List[str]:
         """
@@ -189,43 +287,95 @@ class VonageProvider(TelephonyProvider):
         Verify Vonage webhook signature for security.
         Vonage uses JWT for webhook signatures.
         """
-        if not self.signature_secret:
-            logger.error(
-                "No signature secret available for Vonage webhook verification"
-            )
-            return False
+        claims = verify_signed_jwt(
+            {"authorization": f"Bearer {signature}"},
+            signature_secret=self.signature_secret,
+            api_key=self.api_key,
+            application_id=self.application_id,
+            check_payload_hash=False,
+        )
+        return claims is not None
 
-        try:
-            jwt.decode(
-                signature,
+    # ======== NCCO / MEDIA ========
+
+    def build_websocket_endpoint(
+        self,
+        *,
+        websocket_url: str,
+        organization_id: int,
+        workflow_id: int,
+        workflow_run_id: int,
+        telephony_configuration_id: Optional[int],
+        call_uuid: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """NCCO websocket endpoint with Vonage-signed handshake + run token.
+
+        ``authorization: {"type": "vonage"}`` makes Vonage send
+        ``Authorization: Bearer <JWT signed with the signature secret>`` on the
+        WebSocket upgrade. The ``headers`` are echoed back in the first
+        ``websocket:connected`` message, carrying the per-run token.
+        """
+        headers = {
+            WS_TOKEN_HEADER: make_ws_token(
                 self.signature_secret,
-                algorithms=["HS256"],
-                options={"verify_signature": True, "verify_aud": False},
-            )
-            return True
-        except jwt.InvalidTokenError:
-            return False
+                organization_id=organization_id,
+                workflow_id=workflow_id,
+                workflow_run_id=workflow_run_id,
+                telephony_configuration_id=telephony_configuration_id,
+            ),
+            "workflow_run_id": str(workflow_run_id),
+        }
+        if call_uuid:
+            headers["call_uuid"] = call_uuid
+        return {
+            "type": "websocket",
+            "uri": websocket_url,
+            "content-type": AUDIO_CONTENT_TYPE,
+            "headers": headers,
+            "authorization": {"type": "vonage"},
+        }
 
     async def get_webhook_response(
-        self, workflow_id: int, organization_id: int, workflow_run_id: int
+        self,
+        workflow_id: int,
+        organization_id: int,
+        workflow_run_id: int,
+        *,
+        telephony_configuration_id: Optional[int] = None,
+        call_uuid: Optional[str] = None,
     ) -> str:
         """
         Generate NCCO response for starting a call session.
         NCCO (Nexmo Call Control Objects) is JSON-based, unlike TwiML which is XML.
         """
         _, wss_backend_endpoint = await get_backend_endpoints()
+        if telephony_configuration_id is None:
+            from api.db import db_client
 
-        # NCCO for WebSocket connection
+            run = await db_client.get_workflow_run(
+                workflow_run_id, organization_id=organization_id
+            )
+            telephony_configuration_id = (
+                (run.initial_context or {}).get("telephony_configuration_id")
+                if run
+                else None
+            )
+
         ncco = [
             {
                 "action": "connect",
                 "endpoint": [
-                    {
-                        "type": "websocket",
-                        "uri": f"{wss_backend_endpoint}/api/v1/telephony/ws/{workflow_id}/{organization_id}/{workflow_run_id}",
-                        "content-type": "audio/l16;rate=16000",  # 16kHz Linear PCM
-                        "headers": {},
-                    }
+                    self.build_websocket_endpoint(
+                        websocket_url=(
+                            f"{wss_backend_endpoint}/api/v1/telephony/ws/"
+                            f"{workflow_id}/{organization_id}/{workflow_run_id}"
+                        ),
+                        organization_id=organization_id,
+                        workflow_id=workflow_id,
+                        workflow_run_id=workflow_run_id,
+                        telephony_configuration_id=telephony_configuration_id,
+                        call_uuid=call_uuid,
+                    )
                 ],
             }
         ]
@@ -241,83 +391,193 @@ class VonageProvider(TelephonyProvider):
         """
         Get cost information for a completed Vonage call.
 
+        Vonage reports ``price`` in the account's billing currency (which is
+        not necessarily USD) and does not return the currency on the call
+        object. ``cost_usd`` therefore assumes a USD-billed account.
+
         Args:
             call_id: The Vonage Call UUID
 
         Returns:
             Dict containing cost information
         """
-        headers = self._get_auth_headers()
-        endpoint = f"https://api.nexmo.com/v1/calls/{call_id}"
+        try:
+            call_data = await self.client.get_call(call_id)
+        except Exception as e:
+            logger.error(f"{_log_ctx(call_uuid=call_id)} cost lookup failed: {e}")
+            return {"cost_usd": 0.0, "duration": 0, "status": "error", "error": str(e)}
 
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(endpoint, headers=headers) as response:
-                    if response.status != 200:
-                        error_data = await response.json()
-                        logger.error(f"Failed to get Vonage call cost: {error_data}")
-                        return {
-                            "cost_usd": 0.0,
-                            "duration": 0,
-                            "status": "error",
-                            "error": str(error_data),
-                        }
+            price = float(call_data.get("price") or 0)
+        except (TypeError, ValueError):
+            price = 0.0
+        try:
+            duration = int(float(call_data.get("duration") or 0))
+        except (TypeError, ValueError):
+            duration = 0
 
-                    call_data = await response.json()
-
-                    # Vonage returns price and rate
-                    # Price is the total cost, rate is the per-minute rate
-                    price = float(call_data.get("price", 0))
-                    cost_usd = price  # Vonage returns positive values
-
-                    # Duration is in seconds
-                    duration = int(call_data.get("duration", 0))
-
-                    # Get the call status
-                    status = call_data.get("status", "unknown")
-
-                    return {
-                        "cost_usd": cost_usd,
-                        "duration": duration,
-                        "status": status,
-                        "price_unit": "USD",  # Vonage uses USD by default
-                        "rate": call_data.get("rate", 0),  # Per-minute rate
-                        "raw_response": call_data,
-                    }
-
-        except Exception as e:
-            logger.error(f"Exception fetching Vonage call cost: {e}")
-            return {"cost_usd": 0.0, "duration": 0, "status": "error", "error": str(e)}
+        return {
+            "cost_usd": price,
+            "duration": duration,
+            "status": call_data.get("status", "unknown"),
+            "price_unit": "USD",
+            "rate": call_data.get("rate", 0),
+            "raw_response": call_data,
+        }
 
     def parse_status_callback(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """
         Parse Vonage event callback data into generic format.
-        """
-        # Map Vonage status to common format
-        status_map = {
-            "started": TelephonyCallStatus.INITIATED,
-            "ringing": TelephonyCallStatus.RINGING,
-            "answered": TelephonyCallStatus.ANSWERED,
-            "complete": TelephonyCallStatus.COMPLETED,
-            "completed": TelephonyCallStatus.COMPLETED,
-            "disconnected": TelephonyCallStatus.COMPLETED,
-            "failed": TelephonyCallStatus.FAILED,
-            "busy": TelephonyCallStatus.BUSY,
-            "timeout": TelephonyCallStatus.NO_ANSWER,
-            "unanswered": TelephonyCallStatus.NO_ANSWER,
-            "cancelled": TelephonyCallStatus.NO_ANSWER,
-            "rejected": TelephonyCallStatus.BUSY,
-        }
 
+        ``status`` is ``None`` for events that are not lifecycle transitions
+        (AMD ``human``/``machine``, ``transfer``, ``input``...).
+        """
+        raw_status = data.get("status")
+        normalized = normalize_vonage_status(raw_status, data.get("detail"))
+        if (
+            normalized is None
+            and raw_status
+            and (str(raw_status).lower() not in NON_LIFECYCLE_STATUSES)
+        ):
+            # Unknown state: pass the raw value through so it's logged as
+            # unexpected rather than silently mapped.
+            status: Any = raw_status
+        else:
+            status = normalized
+
+        duration = data.get("duration")
         return {
             "call_id": data.get("uuid", ""),
-            "status": status_map.get(data.get("status", ""), data.get("status", "")),
-            "from_number": data.get("from"),
-            "to_number": data.get("to"),
+            "status": status,
+            "from_number": from_vonage_number(data.get("from")) or None,
+            "to_number": from_vonage_number(data.get("to")) or None,
             "direction": data.get("direction"),
-            "duration": data.get("duration"),
+            "duration": str(duration) if duration is not None else None,
             "extra": data,  # Include all original data
         }
+
+    # ======== ANSWERING MACHINE DETECTION ========
+
+    def supports_answering_machine_detection(self) -> bool:
+        """Vonage supports AMD via ``machine_detection`` on ``POST /v1/calls``."""
+        return True
+
+    def apply_answering_machine_detection_call_params(
+        self, data: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        if self.amd_enabled:
+            # "continue": keep the call up and report human/machine on the
+            # event webhook; Dograh's own call hygiene decides what to do.
+            data["machine_detection"] = "continue"
+        return data
+
+    def parse_answering_machine_detection_result(
+        self, data: Dict[str, Any]
+    ) -> Optional[AnsweringMachineDetectionResult]:
+        status = str(data.get("status") or "").lower()
+        if status not in ("human", "machine"):
+            return None
+        sub_state = data.get("sub_state")
+        answered_by = status if not sub_state else f"{status}_{sub_state}"
+        return AnsweringMachineDetectionResult(
+            call_id=data.get("uuid", ""),
+            answered_by=answered_by,
+            raw_data=data,
+        )
+
+    # ======== WEBSOCKET ========
+
+    async def authenticate_websocket(
+        self,
+        websocket: "WebSocket",
+        *,
+        workflow_run: Any,
+        workflow_id: int,
+        organization_id: int,
+    ) -> bool:
+        """Authenticate a media WebSocket before the run is marked running.
+
+        1. The upgrade request must carry a Vonage-signed JWT (signature
+           secret of *this run's* configuration, matching api_key and
+           application_id).
+        2. The first message must be ``websocket:connected`` carrying the
+           per-run HMAC token bound to org/workflow/run/configuration.
+        """
+        telephony_configuration_id = (workflow_run.initial_context or {}).get(
+            "telephony_configuration_id"
+        )
+        ctx = _log_ctx(
+            org=organization_id,
+            workflow=workflow_id,
+            run=workflow_run.id,
+            cfg=telephony_configuration_id,
+        )
+
+        claims = verify_signed_jwt(
+            dict(websocket.headers),
+            signature_secret=self.signature_secret,
+            api_key=self.api_key,
+            application_id=self.application_id,
+            check_payload_hash=False,
+        )
+        if claims is None:
+            logger.warning(
+                f"{ctx} media websocket rejected: handshake not signed by Vonage"
+            )
+            return False
+
+        try:
+            first_msg = await asyncio.wait_for(
+                websocket.receive(), timeout=WS_CONNECTED_TIMEOUT_SECONDS
+            )
+        except asyncio.TimeoutError:
+            logger.warning(f"{ctx} media websocket rejected: no websocket:connected")
+            return False
+
+        text = first_msg.get("text")
+        if text is None:
+            logger.warning(
+                f"{ctx} media websocket rejected: first frame was not "
+                "websocket:connected"
+            )
+            return False
+        try:
+            message = json.loads(text)
+        except (TypeError, ValueError):
+            logger.warning(f"{ctx} media websocket rejected: malformed first event")
+            return False
+        if (
+            not isinstance(message, dict)
+            or message.get("event") != "websocket:connected"
+        ):
+            logger.warning(f"{ctx} media websocket rejected: unexpected first event")
+            return False
+
+        nested = (
+            message.get("headers") if isinstance(message.get("headers"), dict) else {}
+        )
+        token = message.get(WS_TOKEN_HEADER) or nested.get(WS_TOKEN_HEADER)
+        if not verify_ws_token(
+            token,
+            self.signature_secret,
+            organization_id=organization_id,
+            workflow_id=workflow_id,
+            workflow_run_id=workflow_run.id,
+            telephony_configuration_id=telephony_configuration_id,
+        ):
+            logger.warning(f"{ctx} media websocket rejected: run token mismatch")
+            return False
+
+        content_type = str(message.get("content-type") or "")
+        if content_type and content_type.replace(" ", "").lower() != AUDIO_CONTENT_TYPE:
+            logger.warning(
+                f"{ctx} unexpected media content-type {content_type!r}; "
+                f"expected {AUDIO_CONTENT_TYPE}"
+            )
+
+        self._ws_connected_message = message
+        logger.info(f"{ctx} media websocket authenticated")
+        return True
 
     async def handle_websocket(
         self,
@@ -329,67 +589,47 @@ class VonageProvider(TelephonyProvider):
         """
         Handle Vonage-specific WebSocket connection.
 
-        Vonage can send:
-        1. JSON metadata first (websocket:connected event)
-        2. Or directly start with binary audio
+        The socket has already been authenticated by ``authenticate_websocket``
+        (which consumed the ``websocket:connected`` message).
         """
         from api.db import db_client
         from api.services.pipecat.run_pipeline import run_pipeline_telephony
 
+        if self._ws_connected_message is None:
+            # Defensive: never run a pipeline on an unauthenticated socket.
+            logger.error(
+                f"{_log_ctx(org=organization_id, run=workflow_run_id)} "
+                "handle_websocket called without authentication"
+            )
+            await websocket.close(code=4401, reason="Unauthorized")
+            return
+
+        workflow_run = await db_client.get_workflow_run(
+            workflow_run_id, organization_id=organization_id
+        )
+        if not workflow_run:
+            await websocket.close(code=4404, reason="Workflow run not found")
+            return
+
+        gathered = workflow_run.gathered_context or {}
+        message = self._ws_connected_message
+        nested = (
+            message.get("headers") if isinstance(message.get("headers"), dict) else {}
+        )
+        call_uuid = (
+            gathered.get("call_uuid")
+            or gathered.get("call_id")
+            or message.get("call_uuid")
+            or nested.get("call_uuid")
+        )
+        ctx = _log_ctx(org=organization_id, workflow=workflow_id, run=workflow_run_id)
+        if not call_uuid:
+            logger.error(f"{ctx} no call UUID for media websocket")
+            await websocket.close(code=4400, reason="Missing call UUID")
+            return
+
+        logger.info(f"{ctx} call_uuid={call_uuid} starting pipeline")
         try:
-            # Get workflow run to extract call UUID
-            workflow_run = await db_client.get_workflow_run(
-                workflow_run_id, organization_id=organization_id
-            )
-            if not workflow_run:
-                logger.error(f"Workflow run {workflow_run_id} not found")
-                await websocket.close(code=4404, reason="Workflow run not found")
-                return
-
-            workflow = await db_client.get_workflow(
-                workflow_id, organization_id=organization_id
-            )
-            if not workflow:
-                logger.error(f"Workflow {workflow_id} not found")
-                await websocket.close(code=4404, reason="Workflow not found")
-                return
-
-            # Extract call UUID from workflow run context
-            call_uuid = (
-                workflow_run.gathered_context.get("call_uuid")
-                if workflow_run.gathered_context
-                else None
-            )
-            if not call_uuid and workflow_run.gathered_context:
-                call_uuid = workflow_run.gathered_context.get("call_id")
-
-            if not call_uuid:
-                logger.error(
-                    f"No call UUID found for Vonage connection in workflow run {workflow_run_id}"
-                )
-                await websocket.close(code=4400, reason="Missing call UUID")
-                return
-
-            logger.info(
-                f"Vonage WebSocket connected for workflow_run {workflow_run_id}, call_uuid: {call_uuid}"
-            )
-
-            # Peek at first message to see if it's metadata or audio
-            first_msg = await websocket.receive()
-
-            if "text" in first_msg:
-                # JSON metadata - check if it's the connection event
-                msg = json.loads(first_msg["text"])
-                if msg.get("event") == "websocket:connected":
-                    logger.debug(
-                        f"Received Vonage connection confirmation for {workflow_run_id}"
-                    )
-                # Continue to pipeline regardless of message type
-            elif "bytes" in first_msg:
-                # Binary audio - Vonage started with audio immediately
-                logger.debug(f"Vonage started with binary audio for {workflow_run_id}")
-                # The pipeline will handle this first audio chunk
-
             await run_pipeline_telephony(
                 websocket,
                 provider_name=self.PROVIDER_NAME,
@@ -399,9 +639,8 @@ class VonageProvider(TelephonyProvider):
                 call_id=call_uuid,
                 transport_kwargs={"call_uuid": call_uuid},
             )
-
         except Exception as e:
-            logger.error(f"Error in Vonage WebSocket handler: {e}")
+            logger.error(f"{ctx} call_uuid={call_uuid} pipeline failure: {e}")
             raise
 
     # ======== INBOUND CALL METHODS ========
@@ -413,8 +652,10 @@ class VonageProvider(TelephonyProvider):
         """
         Determine if this provider can handle the incoming webhook.
         """
-        claims = cls._decode_unverified_signed_claims(headers)
-        if claims.get("api_key") or claims.get("application_id"):
+        claims = decode_unverified_claims(headers)
+        if claims.get("iss") == "Vonage" and (
+            claims.get("api_key") or claims.get("application_id")
+        ):
             return True
 
         return bool(
@@ -430,16 +671,20 @@ class VonageProvider(TelephonyProvider):
     ) -> NormalizedInboundData:
         """
         Parse Vonage-specific inbound webhook data into normalized format.
+
+        ``account_id`` comes from the (not yet verified) signed JWT claims; it
+        only selects the candidate configuration, whose signature secret then
+        verifies the request.
         """
-        claims = VonageProvider._decode_unverified_signed_claims(headers or {})
+        claims = decode_unverified_claims(headers or {})
         direction = webhook_data.get("direction") or "inbound"
         status = webhook_data.get("status") or "started"
 
         return NormalizedInboundData(
             provider=VonageProvider.PROVIDER_NAME,
             call_id=webhook_data.get("uuid", ""),
-            from_number=webhook_data.get("from", ""),
-            to_number=webhook_data.get("to", ""),
+            from_number=from_vonage_number(webhook_data.get("from")),
+            to_number=from_vonage_number(webhook_data.get("to")),
             direction=direction,
             call_status=status,
             account_id=claims.get("api_key") or webhook_data.get("account_id"),
@@ -448,90 +693,33 @@ class VonageProvider(TelephonyProvider):
             raw_data=webhook_data,
         )
 
+    # Kept for callers/tests that used the old private helpers.
     @staticmethod
-    def _header(headers: Dict[str, str], name: str) -> Optional[str]:
-        for key, value in headers.items():
-            if key.lower() == name.lower():
-                return value
-        return None
+    def _header(headers: Mapping[str, str], name: str) -> Optional[str]:
+        from .auth import header
+
+        return header(headers, name)
 
     @classmethod
-    def _bearer_token(cls, headers: Dict[str, str]) -> Optional[str]:
-        auth_header = cls._header(headers, "authorization")
-        if not auth_header:
-            return None
-        parts = auth_header.split(None, 1)
-        if len(parts) != 2 or parts[0].lower() != "bearer":
-            return None
-        return parts[1].strip()
+    def _bearer_token(cls, headers: Mapping[str, str]) -> Optional[str]:
+        return bearer_token(headers)
 
     @classmethod
     def _decode_unverified_signed_claims(
-        cls, headers: Dict[str, str]
+        cls, headers: Mapping[str, str]
     ) -> Dict[str, Any]:
-        token = cls._bearer_token(headers)
-        if not token:
-            return {}
-        try:
-            claims = jwt.decode(
-                token,
-                options={
-                    "verify_signature": False,
-                    "verify_aud": False,
-                    "verify_exp": False,
-                },
-            )
-        except jwt.InvalidTokenError:
-            return {}
-        return claims if isinstance(claims, dict) else {}
+        return decode_unverified_claims(headers)
 
     def _verify_signed_claims(
-        self, headers: Dict[str, str], body: str = ""
+        self, headers: Mapping[str, str], body: str = ""
     ) -> Optional[Dict[str, Any]]:
-        token = self._bearer_token(headers)
-        if not token:
-            logger.warning("Missing Vonage Authorization bearer token")
-            return None
-        if not self.signature_secret:
-            logger.error("Missing Vonage signature_secret for signed webhook")
-            return None
-
-        try:
-            claims = jwt.decode(
-                token,
-                self.signature_secret,
-                algorithms=["HS256"],
-                options={"verify_signature": True, "verify_aud": False},
-            )
-        except jwt.InvalidTokenError as exc:
-            logger.warning(f"Invalid Vonage signed webhook JWT: {exc}")
-            return None
-
-        if claims.get("iss") != "Vonage":
-            logger.warning("Vonage signed webhook JWT has unexpected issuer")
-            return None
-
-        if self.api_key and claims.get("api_key") != self.api_key:
-            logger.warning("Vonage signed webhook api_key does not match config")
-            return None
-
-        claim_application_id = claims.get("application_id")
-        if (
-            self.application_id
-            and claim_application_id
-            and claim_application_id != self.application_id
-        ):
-            logger.warning("Vonage signed webhook application_id does not match config")
-            return None
-
-        payload_hash = claims.get("payload_hash")
-        if payload_hash:
-            actual_hash = hashlib.sha256(body.encode("utf-8")).hexdigest()
-            if actual_hash != payload_hash:
-                logger.warning("Vonage signed webhook payload hash mismatch")
-                return None
-
-        return claims
+        return verify_signed_jwt(
+            headers,
+            signature_secret=self.signature_secret,
+            api_key=self.api_key,
+            application_id=self.application_id,
+            body=body,
+        )
 
     @staticmethod
     def validate_account_id(config_data: dict, webhook_account_id: str) -> bool:
@@ -550,7 +738,7 @@ class VonageProvider(TelephonyProvider):
         body: str = "",
     ) -> bool:
         """
-        Verify Vonage signed webhook JWT and optional payload hash.
+        Verify Vonage signed webhook JWT and payload hash. Fails closed.
         """
         claims = self._verify_signed_claims(headers, body)
         return claims is not None
@@ -558,35 +746,36 @@ class VonageProvider(TelephonyProvider):
     async def configure_inbound(
         self, address: str, webhook_url: Optional[str]
     ) -> ProviderSyncResult:
-        """Update the answer_url on Vonage's Application for ``address``.
+        """Point the Vonage Application's answer_url at Dograh's dispatcher.
 
         Vonage routes inbound calls per-application: a single ``answer_url`` on
-        ``self.application_id`` applies to every number attached to it. The
-        ``address`` argument is informational — every call to this method
-        rewrites (or leaves alone) the application's webhook, regardless of
-        which number triggered the sync.
+        ``self.application_id`` applies to every number linked to it, and the
+        same application may back several Dograh configurations. The
+        ``address`` argument is informational.
+
+        * Setting is idempotent: when the application already points at
+          ``webhook_url`` with signed callbacks on, nothing is written, so
+          several configurations sharing an application never fight over it.
+        * Clearing (``webhook_url=None``) is a no-op on the Vonage side:
+          unsetting the shared URL for one number would silently break inbound
+          for every other number on the application. The DB-level disconnect
+          is sufficient — calls to numbers without an inbound workflow are
+          rejected by the dispatcher.
 
         Vonage's PUT /v2/applications/{id} is full-replacement, so we GET the
-        current application, mutate ``capabilities.voice.webhooks.answer_url``,
-        and PUT the result back. ``api_key`` and ``api_secret`` are used for
-        Basic auth on the application API (the JWT auth used elsewhere is for
-        the Voice API, not the Application API).
-
-        Clearing (``webhook_url=None``) is a no-op on the Vonage side: the URL
-        is shared across all numbers on this application, so unsetting it for
-        one number would silently break inbound for every other number still
-        attached. The DB-level disconnect is sufficient — inbound calls
-        without a matching workflow are rejected by the backend.
+        current application, mutate the voice webhooks, and PUT it back using
+        ``api_key``/``api_secret`` Basic auth (the Application API does not
+        accept the Voice API JWT).
         """
+        ctx = _log_ctx(application_id=self.application_id, address=address)
         if webhook_url is None:
             logger.info(
-                f"Vonage configure_inbound clear for {address}: skipping "
-                f"application update (answer_url is shared across all numbers "
-                f"on application {self.application_id})"
+                f"{ctx} configure_inbound clear: skipping application update "
+                "(answer_url is shared across all numbers on the application)"
             )
             return ProviderSyncResult(ok=True)
 
-        if not self.validate_config():
+        if not (self.application_id and self.private_key):
             return ProviderSyncResult(
                 ok=False, message="Vonage provider not properly configured"
             )
@@ -613,36 +802,49 @@ class VonageProvider(TelephonyProvider):
         auth = aiohttp.BasicAuth(self.api_key, self.api_secret)
 
         try:
-            async with aiohttp.ClientSession() as session:
+            async with aiohttp.ClientSession(timeout=REQUEST_TIMEOUT) as session:
                 async with session.get(app_endpoint, auth=auth) as response:
                     if response.status != 200:
-                        body = await response.text()
+                        body = (await response.text())[:300]
                         logger.error(
-                            f"Failed to fetch Vonage application "
-                            f"{self.application_id}: {response.status} {body}"
+                            f"{ctx} application lookup failed: {response.status}"
                         )
                         return ProviderSyncResult(
                             ok=False,
-                            message=f"Vonage API {response.status}: {body}",
+                            message=self._application_api_error(response.status, body),
                         )
                     app_data = await response.json()
-        except Exception as e:
-            logger.error(f"Exception fetching Vonage application: {e}")
-            return ProviderSyncResult(ok=False, message=f"Vonage lookup failed: {e}")
+        except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+            logger.error(f"{ctx} application lookup error: {type(e).__name__}")
+            return ProviderSyncResult(
+                ok=False, message=f"Vonage lookup failed: {type(e).__name__}"
+            )
 
         capabilities = app_data.get("capabilities") or {}
         voice = capabilities.get("voice") or {}
         webhooks = voice.get("webhooks") or {}
         backend_endpoint, _ = await get_backend_endpoints()
+        event_url = f"{backend_endpoint}/api/v1/telephony/vonage/events"
 
-        webhooks["answer_url"] = {
-            "address": webhook_url,
-            "http_method": "POST",
-        }
-        webhooks["event_url"] = {
-            "address": f"{backend_endpoint}/api/v1/telephony/vonage/events",
-            "http_method": "POST",
-        }
+        current_answer = (webhooks.get("answer_url") or {}).get("address")
+        current_event = (webhooks.get("event_url") or {}).get("address")
+        if (
+            current_answer == webhook_url
+            and current_event == event_url
+            and voice.get("signed_callbacks") is True
+        ):
+            logger.info(f"{ctx} application already routed to Dograh; no update")
+            return ProviderSyncResult(ok=True)
+
+        if current_answer and current_answer != webhook_url:
+            logger.warning(
+                f"{ctx} replacing existing application answer_url "
+                f"{current_answer!r}; every number linked to this application "
+                "will now route to Dograh"
+            )
+
+        webhooks["answer_url"] = {"address": webhook_url, "http_method": "POST"}
+        webhooks["event_url"] = {"address": event_url, "http_method": "POST"}
         voice["webhooks"] = webhooks
         voice["signed_callbacks"] = True
         capabilities["voice"] = voice
@@ -655,29 +857,41 @@ class VonageProvider(TelephonyProvider):
             update_body["privacy"] = app_data["privacy"]
 
         try:
-            async with aiohttp.ClientSession() as session:
+            async with aiohttp.ClientSession(timeout=REQUEST_TIMEOUT) as session:
                 async with session.put(
                     app_endpoint, json=update_body, auth=auth
                 ) as response:
                     if response.status not in (200, 201):
-                        body = await response.text()
+                        body = (await response.text())[:300]
                         logger.error(
-                            f"Vonage application update failed for "
-                            f"{self.application_id}: {response.status} {body}"
+                            f"{ctx} application update failed: {response.status}"
                         )
                         return ProviderSyncResult(
                             ok=False,
-                            message=f"Vonage API {response.status}: {body}",
+                            message=self._application_api_error(response.status, body),
                         )
-        except Exception as e:
-            logger.error(f"Exception updating Vonage application: {e}")
-            return ProviderSyncResult(ok=False, message=f"Vonage update failed: {e}")
+        except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+            logger.error(f"{ctx} application update error: {type(e).__name__}")
+            return ProviderSyncResult(
+                ok=False, message=f"Vonage update failed: {type(e).__name__}"
+            )
 
-        logger.info(
-            f"Vonage answer_url set on application {self.application_id} "
-            f"(triggered by address {address})"
-        )
+        logger.info(f"{ctx} answer_url set on application")
         return ProviderSyncResult(ok=True)
+
+    @staticmethod
+    def _application_api_error(status: int, body: str) -> str:
+        if status == 401:
+            return (
+                "Vonage API 401: the API key/secret were rejected by the "
+                "Application API"
+            )
+        if status == 404:
+            return (
+                "Vonage API 404: application not found for this API key. Check "
+                "the Application ID belongs to the same account as the API key"
+            )
+        return f"Vonage API {status}: {body}"
 
     async def start_inbound_stream(
         self,
@@ -690,48 +904,82 @@ class VonageProvider(TelephonyProvider):
         """
         Generate NCCO response for inbound Vonage webhook.
         """
+        from api.db import db_client
+
+        workflow_run = await db_client.get_workflow_run_by_id(workflow_run_id)
+        if not workflow_run or not workflow_run.workflow:
+            raise ValueError(f"Workflow run {workflow_run_id} not found")
+
         ncco_response = [
             {
                 "action": "connect",
                 "eventUrl": [
                     f"{backend_endpoint}/api/v1/telephony/vonage/events/{workflow_run_id}"
                 ],
+                "eventMethod": "POST",
                 "endpoint": [
-                    {
-                        "type": "websocket",
-                        "uri": websocket_url,
-                        "content-type": "audio/l16;rate=16000",
-                        "headers": {
-                            "workflow_run_id": str(workflow_run_id),
-                            "call_uuid": normalized_data.call_id,
-                        },
-                    }
+                    self.build_websocket_endpoint(
+                        websocket_url=websocket_url,
+                        organization_id=workflow_run.workflow.organization_id,
+                        workflow_id=workflow_run.workflow_id,
+                        workflow_run_id=workflow_run_id,
+                        telephony_configuration_id=(
+                            workflow_run.initial_context or {}
+                        ).get("telephony_configuration_id"),
+                        call_uuid=normalized_data.call_id,
+                    )
                 ],
             }
         ]
 
+        logger.info(
+            f"{_log_ctx(org=workflow_run.workflow.organization_id, workflow=workflow_run.workflow_id, run=workflow_run_id, call_uuid=normalized_data.call_id, direction='inbound')} "
+            "returning inbound NCCO"
+        )
         return Response(
             content=json.dumps(ncco_response), media_type="application/json"
         )
+
+    @staticmethod
+    def _hangup_ncco(message: str) -> Response:
+        ncco = [{"action": "talk", "text": message}, {"action": "hangup"}]
+        return Response(content=json.dumps(ncco), media_type="application/json")
 
     @staticmethod
     def generate_error_response(error_type: str, message: str) -> tuple:
         """
         Generate a Vonage-specific error response.
         """
-        from fastapi import Response
+        return VonageProvider._hangup_ncco(
+            f"Sorry, there was an error processing your call. {message}"
+        )
 
-        error_ncco = [
-            {
-                "action": "talk",
-                "text": f"Sorry, there was an error processing your call. {message}",
-            },
-            {"action": "hangup"},
-        ]
+    @staticmethod
+    def generate_validation_error_response(error_type) -> tuple:
+        """NCCO (not TwiML) for inbound validation failures."""
+        from api.errors.telephony_errors import TELEPHONY_ERROR_MESSAGES, TelephonyError
 
-        return Response(content=json.dumps(error_ncco), media_type="application/json")
+        message = TELEPHONY_ERROR_MESSAGES.get(
+            error_type, TELEPHONY_ERROR_MESSAGES[TelephonyError.GENERAL_AUTH_FAILED]
+        )
+        return VonageProvider._hangup_ncco(message)
 
     # ======== CALL TRANSFER METHODS ========
+
+    def transfer_ncco(self, conference_name: str) -> List[Dict[str, Any]]:
+        """NCCO that places a leg into the transfer conversation.
+
+        ``endOnExit`` on both legs: when either party hangs up, the
+        conversation (and with it the other leg) ends — no orphaned legs.
+        """
+        return [
+            {
+                "action": "conversation",
+                "name": conference_name,
+                "startOnEnter": True,
+                "endOnExit": True,
+            }
+        ]
 
     async def transfer_call(
         self,
@@ -741,19 +989,88 @@ class VonageProvider(TelephonyProvider):
         timeout: int = 30,
         **kwargs: Any,
     ) -> Dict[str, Any]:
-        """
-        Vonage provider does not support call transfers.
+        """Dial the transfer destination into a named Vonage conversation.
 
-        Raises:
-            NotImplementedError: call transfers are yet to be implemented
+        Mirrors Dograh's conference transfer model (see Twilio): the
+        destination leg is created with an inline NCCO that joins
+        ``conference_name`` when answered. Its lifecycle events go to
+        ``/vonage/transfer-events/{transfer_id}``, which publishes
+        DESTINATION_ANSWERED / TRANSFER_FAILED. On DESTINATION_ANSWERED the
+        pipeline ends with ``TRANSFER_CALL`` and the serializer's transfer
+        strategy moves the caller leg into the same conversation.
+        ``ringing_timer`` makes Vonage itself stop ringing at ``timeout``.
         """
-        raise NotImplementedError("Vonage provider does not support call transfers")
+        if not self.validate_config():
+            raise VonageAPIError(
+                VonageErrorCategory.NOT_CONFIGURED,
+                provider_detail="Application ID, private key and a caller ID are required",
+                operation="transfer",
+            )
+
+        caller = self._select_caller_number(kwargs.pop("from_number", None))
+        try:
+            vonage_to = to_vonage_number(destination, field="transfer destination")
+            vonage_from = to_vonage_number(caller, field="caller ID")
+        except VonagePhoneNumberError as exc:
+            raise VonageAPIError(
+                VonageErrorCategory.INVALID_NUMBER,
+                provider_detail=str(exc),
+                operation="transfer",
+            ) from None
+
+        backend_endpoint, _ = await get_backend_endpoints()
+        ringing_timer = max(_MIN_RINGING_TIMER, min(int(timeout), _MAX_RINGING_TIMER))
+        data = {
+            "to": [{"type": "phone", "number": vonage_to}],
+            "from": {"type": "phone", "number": vonage_from},
+            "ncco": [
+                {
+                    "action": "talk",
+                    "text": "You have answered a transfer call. Connecting you now.",
+                },
+                *self.transfer_ncco(conference_name),
+            ],
+            "event_url": [
+                f"{backend_endpoint}/api/v1/telephony/vonage/transfer-events/{transfer_id}"
+            ],
+            "event_method": "POST",
+            "ringing_timer": ringing_timer,
+        }
+
+        ctx = _log_ctx(transfer_id=transfer_id, conference=conference_name)
+        logger.info(
+            f"{ctx} dialing transfer destination to=***{vonage_to[-4:]} "
+            f"ringing_timer={ringing_timer}"
+        )
+        response_data = await self.client.create_call(data)
+        call_uuid = response_data["uuid"]
+        logger.info(f"{ctx} transfer leg call_uuid={call_uuid}")
+        return {
+            "call_sid": call_uuid,
+            "status": response_data.get("status", "started"),
+            "provider": self.PROVIDER_NAME,
+            "from_number": to_e164(caller, field="caller ID"),
+            "to_number": f"+{vonage_to}",
+            "raw_response": response_data,
+        }
+
+    async def cancel_transfer_call(self, transfer_call_id: str) -> None:
+        """Hang up a transfer destination leg that is no longer wanted."""
+        if not transfer_call_id:
+            return
+        try:
+            await self.client.hangup(transfer_call_id)
+            logger.info(
+                f"{_log_ctx(call_uuid=transfer_call_id)} transfer leg cancelled"
+            )
+        except Exception as e:
+            logger.error(
+                f"{_log_ctx(call_uuid=transfer_call_id)} failed to cancel transfer "
+                f"leg: {e}"
+            )
 
     def supports_transfers(self) -> bool:
         """
-        Vonage does not support call transfers.
-
-        Returns:
-            False - Vonage provider does not support call transfers
+        Vonage supports call transfers via named conversations.
         """
-        return False
+        return True

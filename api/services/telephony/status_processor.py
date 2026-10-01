@@ -59,6 +59,22 @@ def _status_value(value: object) -> str:
     return str(value or "").lower()
 
 
+TERMINAL_STATUSES = TERMINAL_NOT_CONNECTED_STATUSES | {TelephonyCallStatus.COMPLETED}
+
+
+def _prior_terminal_status(callback_logs: object) -> TelephonyCallStatus | None:
+    """The first terminal status already processed for this run, if any."""
+    if not isinstance(callback_logs, list):
+        return None
+    for entry in callback_logs:
+        if not isinstance(entry, dict):
+            continue
+        status = TelephonyCallStatus.from_raw(entry.get("status"))
+        if status in TERMINAL_STATUSES:
+            return status
+    return None
+
+
 def _duration_seconds(duration: str | None) -> int | float:
     return parse_duration_seconds(duration)
 
@@ -145,6 +161,12 @@ async def _process_status_update(workflow_run_id: int, status: StatusCallbackReq
         return
 
     telephony_callback_logs = workflow_run.logs.get("telephony_status_callbacks", [])
+    # A run's call can only end once. Providers may deliver a terminal status
+    # twice (webhook + CDR, retries) or deliver events out of order (e.g. a
+    # late "busy" after "completed"); the side effects below (slot release,
+    # circuit breaker, caller-ID reputation, retries, disposition) must run
+    # for the first terminal status only.
+    prior_terminal = _prior_terminal_status(telephony_callback_logs)
     telephony_callback_log = {
         "status": status_value,
         "timestamp": datetime.now(UTC).isoformat(),
@@ -180,6 +202,13 @@ async def _process_status_update(workflow_run_id: int, status: StatusCallbackReq
                     f"[run {workflow_run_id}] Could not record carrier duration: {e}"
                 )
 
+        if prior_terminal is not None:
+            logger.info(
+                f"[run {workflow_run_id}] Ignoring repeated terminal status "
+                f"{normalized_status.value} (already {prior_terminal.value})"
+            )
+            return
+
         # A completed call with any talk time was picked up. Answer rate per
         # caller ID is the only signal that a number has been spam-labelled —
         # it still dials fine, it just stops getting answered.
@@ -200,6 +229,13 @@ async def _process_status_update(workflow_run_id: int, status: StatusCallbackReq
             )
 
     elif normalized_status in TERMINAL_NOT_CONNECTED_STATUSES:
+        if prior_terminal is not None:
+            logger.info(
+                f"[run {workflow_run_id}] Ignoring late terminal status "
+                f"{normalized_status.value} (already {prior_terminal.value})"
+            )
+            return
+
         logger.warning(
             f"[run {workflow_run_id}] Call failed with status: {normalized_status.value}"
         )
