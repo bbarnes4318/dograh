@@ -128,13 +128,13 @@ export const TOOL_CATEGORIES: ToolCategoryConfig[] = [
     {
         value: "send_sms",
         label: "Send SMS",
-        description: "Send a text message via FracTEL",
+        description: "Text the customer on the current call via FracTEL",
         icon: MessageSquare,
         iconName: "message-square",
         iconColor: "#0EA5E9",
         autoFill: {
             name: "Send Text",
-            description: "Send a text message to the caller's mobile number. Confirm the number and message with the caller first.",
+            description: "Send a text message to the customer on this call once they agree to receive one. Their number is already known from the call, so never ask for it.",
         },
     },
     {

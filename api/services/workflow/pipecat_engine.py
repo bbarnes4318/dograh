@@ -23,6 +23,7 @@ from api.services.pipecat.audio_playback import play_audio
 from api.services.pipecat.call_hygiene import CallHygieneState
 from api.services.pipecat.dtmf import send_dtmf_digits
 from api.services.pipecat.thinking_cue import ThinkingCue
+from api.services.sms.recipient import snapshot_call_parties
 from api.services.workflow.workflow_graph import Node, WorkflowGraph
 
 if TYPE_CHECKING:
@@ -126,6 +127,10 @@ class PipecatEngine:
         self.context = context
         self.workflow = workflow
         self._call_context_vars = call_context_vars
+        # Who is on this call, captured from call setup before a pre-call
+        # fetch can merge external data into _call_context_vars. Send SMS
+        # texts the customer from here, never from LLM arguments.
+        self._call_parties = snapshot_call_parties(call_context_vars)
         self._workflow_run_id = workflow_run_id
         self._node_transition_callback = node_transition_callback
         self._initialized = False

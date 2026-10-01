@@ -1041,7 +1041,7 @@ const data = await response.json();`;
                             <CardHeader>
                                 <CardTitle>Send SMS Configuration</CardTitle>
                                 <CardDescription>
-                                    Sends a text message through FracTEL when the agent calls this tool. The agent supplies the recipient number and message.
+                                    Sends a text message through FracTEL to the customer on the current call. The recipient number is automatically taken from the active call; the agent supplies only the message.
                                 </CardDescription>
                             </CardHeader>
                             <CardContent className="space-y-6">
@@ -1085,7 +1085,7 @@ const data = await response.json();`;
                                         placeholder="e.g., 8653456051, 3215777735"
                                     />
                                     <p className="text-xs text-muted-foreground">
-                                        Comma-separated 10-digit numbers registered on your FracTEL 10DLC campaign. With several, messages rotate round-robin.
+                                        Comma-separated 10-digit numbers registered on your FracTEL 10DLC campaign. Texts are sent from these numbers; with several, messages rotate round-robin.
                                     </p>
                                 </div>
                             </CardContent>
