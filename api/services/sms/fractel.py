@@ -167,6 +167,53 @@ def _message_id(body: Any) -> Optional[str]:
     return str(body["id"]) if body.get("id") else None
 
 
+_TOKEN_KEYS = ("token", "auth_token", "access_token", "api_token")
+
+
+def _find_token(body: Any, depth: int = 0) -> Optional[str]:
+    """Find the auth token in a FracTEL auth response, wherever it is nested.
+
+    The documented layout is ``data.auth.token``, but the live API has been
+    seen returning 201 without it there, so search breadth-first for a
+    token-named string key instead of relying on one path.
+    """
+    if depth > 5:
+        return None
+    if isinstance(body, dict):
+        for key, value in body.items():
+            if key.lower() in _TOKEN_KEYS and isinstance(value, str) and value:
+                return value
+        children = list(body.values())
+    elif isinstance(body, list):
+        children = body
+    else:
+        return None
+    for child in children:
+        found = _find_token(child, depth + 1)
+        if found:
+            return found
+    return None
+
+
+def _header_token(resp: Any) -> Optional[str]:
+    headers = getattr(resp, "headers", None) or {}
+    try:
+        return headers.get("token") or headers.get("x-auth-token")
+    except AttributeError:
+        return None
+
+
+def _layout(body: Any, depth: int = 0) -> Any:
+    """Describe a JSON value's structure without any of its values."""
+    if depth > 4:
+        return "..."
+    if isinstance(body, dict):
+        return {k: _layout(v, depth + 1) for k, v in body.items()}
+    if isinstance(body, list):
+        return [_layout(body[0], depth + 1)] if body else []
+    return type(body).__name__
+
+
 async def _get_token(
     client: httpx.AsyncClient, username: str, password: str, *, force: bool = False
 ) -> str:
@@ -192,11 +239,17 @@ async def _get_token(
             provider_message=message,
         )
     resp.raise_for_status()
-    token = (((_json_body(resp) or {}).get("data") or {}).get("auth") or {}).get(
-        "token"
-    )
+    body = _json_body(resp)
+    token = _find_token(body) or _header_token(resp)
     if not token:
-        raise FracTelError(
+        # Retrying cannot help: the same login returns the same body. Log the
+        # body's layout (key names and value types only, never values).
+        logger.error(
+            f"FracTEL auth returned {resp.status_code} with no token; "
+            f"response layout={_layout(body)}, "
+            f"headers={sorted(getattr(resp, 'headers', {}) or {})}"
+        )
+        raise FracTelConfigError(
             "FracTEL auth response contained no token",
             reason="auth_failed",
             status_code=resp.status_code,

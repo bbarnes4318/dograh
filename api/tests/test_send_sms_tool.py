@@ -230,6 +230,38 @@ async def test_bad_credentials_are_reported_without_secrets():
     assert "s3cret" not in str(exc.value)
 
 
+@pytest.mark.parametrize(
+    "auth_body",
+    [
+        {"data": {"auth": {"token": "tok"}}},
+        {"data": {"token": "tok"}},
+        {"token": "tok"},
+        {"auth": {"token": "tok", "expires": 86400}},
+        {"data": [{"authorization": {"Token": "tok"}}]},
+    ],
+)
+@pytest.mark.asyncio
+async def test_auth_token_found_in_any_layout(auth_body):
+    mid, calls = await _send([_Resp(201, auth_body), SEND_OK])
+    assert mid == "m1"
+    assert calls[1][1]["headers"] == {"token": "tok"}
+
+
+@pytest.mark.asyncio
+async def test_auth_without_token_fails_fast_and_logs_layout_only():
+    body = {"data": {"auth": {"jwt_value": "SECRET-JWT"}}}
+    messages = []
+    sink = fractel.logger.add(lambda m: messages.append(str(m)))
+    try:
+        with pytest.raises(fractel.FracTelConfigError) as exc:
+            await _send([_Resp(201, body)])
+    finally:
+        fractel.logger.remove(sink)
+    assert exc.value.reason == "auth_failed"
+    logged = "".join(messages)
+    assert "jwt_value" in logged and "SECRET-JWT" not in logged
+
+
 @pytest.mark.asyncio
 async def test_2xx_with_error_body_is_not_success():
     with pytest.raises(fractel.FracTelConfigError) as exc:
