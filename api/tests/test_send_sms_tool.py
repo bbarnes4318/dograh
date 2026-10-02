@@ -498,3 +498,17 @@ async def test_concurrent_calls_do_not_cross_recipients():
     for message, to_number in sent:
         i = int(message.split("-")[1])
         assert to_number == numbers[i][2:]
+
+
+def test_append_links_adds_both_and_skips_duplicates():
+    a, b = "https://a.example/x", "https://dialbrowser.com/distribution"
+    assert fractel.append_links("hi", [a, b]) == f"hi\n{a}\n{b}"
+    assert fractel.append_links(f"hi {a}", [a, b]) == f"hi {a}\n{b}"
+    assert fractel.append_links("hi", []) == "hi"
+
+
+def test_config_validates_append_links():
+    cfg = SendSmsConfig(append_links=[" https://dialbrowser.com/distribution ", ""])
+    assert cfg.append_links == ["https://dialbrowser.com/distribution"]
+    with pytest.raises(ValueError):
+        SendSmsConfig(append_links=["javascript:alert(1)"])

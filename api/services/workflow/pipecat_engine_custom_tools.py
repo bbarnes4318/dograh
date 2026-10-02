@@ -26,6 +26,7 @@ from api.services.pipecat.audio_file_cache import convert_audio_file
 from api.services.pipecat.audio_playback import play_audio, play_audio_loop
 from api.services.sms.fractel import (
     FracTelConfigError,
+    append_links as append_sms_links,
     FracTelError,
     mask_number,
     pick_from_number,
@@ -621,7 +622,10 @@ class CustomToolManager:
                     password=data.get("password", ""),
                     from_number=from_number,
                     to_number=recipient,
-                    message=str(args.get("message", "")),
+                    message=append_sms_links(
+                        str(args.get("message", "")),
+                        config.get("append_links") or [],
+                    ),
                 )
                 await function_call_params.result_callback(
                     {"status": "success", "message_id": message_id}

@@ -224,6 +224,23 @@ class SendSmsConfig(BaseModel):
         ),
     )
 
+    append_links: List[str] = Field(
+        default_factory=list,
+        description=(
+            "http(s) links added to the end of every text, one per line. A link "
+            "already present in the message is not added again."
+        ),
+    )
+
+    @field_validator("append_links")
+    @classmethod
+    def validate_append_links(cls, v: List[str]) -> List[str]:
+        links = [link.strip() for link in v if link and link.strip()]
+        for link in links:
+            if not link.lower().startswith(("http://", "https://")) or " " in link:
+                raise ValueError("append_links must be http:// or https:// URLs")
+        return links
+
     @field_validator("from_numbers")
     @classmethod
     def validate_from_numbers(cls, v: List[str]) -> List[str]:
