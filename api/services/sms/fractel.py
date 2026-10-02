@@ -74,6 +74,15 @@ def mask_number(value: Optional[str]) -> str:
     return f"***{digits[-4:]}" if len(digits) > 4 else "***"
 
 
+def append_links(message: str, links: list[str]) -> str:
+    """Add each link to the end of the message on its own line, skipping any
+    link the message already contains."""
+    missing = [link for link in links if link and link not in message]
+    if not missing:
+        return message
+    return message.rstrip() + "\n" + "\n".join(missing)
+
+
 def pick_from_number(from_numbers: list[str]) -> str:
     """Round-robin over the configured sender pool."""
     if not from_numbers:
