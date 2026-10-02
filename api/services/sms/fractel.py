@@ -14,7 +14,9 @@ from __future__ import annotations
 
 import asyncio
 import itertools
+import html
 import re
+from urllib.parse import unquote
 import time
 from typing import Any, Optional
 
@@ -74,8 +76,25 @@ def mask_number(value: Optional[str]) -> str:
     return f"***{digits[-4:]}" if len(digits) > 4 else "***"
 
 
-# Added to the end of every text, on top of any links configured on the tool.
-DEFAULT_APPEND_LINKS = ["https://dialbrowser.com/distribution"]
+# Added to the end of every text, after a short line saying what it is.
+DEFAULT_LINK_LABEL = "Distribute your own music here:"
+DEFAULT_LINK_URL = "https://dialbrowser.com/distribution"
+
+_URL_RE = re.compile(r"https?://\S+")
+
+
+def clean_message_text(message: str) -> str:
+    """Decode web-address codes and HTML entities in the readable text, e.g.
+    ``Yink%27s`` -> ``Yink's``. URLs are left untouched, since %XX is valid
+    there."""
+    parts = []
+    last = 0
+    for m in _URL_RE.finditer(message):
+        parts.append(html.unescape(unquote(message[last : m.start()])))
+        parts.append(m.group(0))
+        last = m.end()
+    parts.append(html.unescape(unquote(message[last:])))
+    return "".join(parts)
 
 
 def append_links(message: str, links: list[str]) -> str:
@@ -85,6 +104,20 @@ def append_links(message: str, links: list[str]) -> str:
     if not missing:
         return message
     return message.rstrip() + "\n" + "\n".join(missing)
+
+
+def append_labeled_link(message: str, label: str, url: str) -> str:
+    """Add ``label url`` as its own paragraph unless the URL is already there."""
+    if url in message:
+        return message
+    return f"{message.rstrip()}\n\n{label} {url}"
+
+
+def prepare_message(message: str, configured_links: list[str]) -> str:
+    """Final text to send: cleaned message, any tool-configured links, then the
+    labeled default link."""
+    text = append_links(clean_message_text(message), configured_links)
+    return append_labeled_link(text, DEFAULT_LINK_LABEL, DEFAULT_LINK_URL)
 
 
 def pick_from_number(from_numbers: list[str]) -> str:

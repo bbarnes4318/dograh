@@ -25,12 +25,11 @@ from api.enums import ToolCategory, WorkflowRunMode
 from api.services.pipecat.audio_file_cache import convert_audio_file
 from api.services.pipecat.audio_playback import play_audio, play_audio_loop
 from api.services.sms.fractel import (
-    DEFAULT_APPEND_LINKS,
     FracTelConfigError,
-    append_links as append_sms_links,
     FracTelError,
     mask_number,
     pick_from_number,
+    prepare_message,
 )
 from api.services.sms.fractel import send_sms as send_fractel_sms
 from api.services.sms.recipient import (
@@ -623,12 +622,9 @@ class CustomToolManager:
                     password=data.get("password", ""),
                     from_number=from_number,
                     to_number=recipient,
-                    message=append_sms_links(
+                    message=prepare_message(
                         str(args.get("message", "")),
-                        [
-                            *(config.get("append_links") or []),
-                            *DEFAULT_APPEND_LINKS,
-                        ],
+                        config.get("append_links") or [],
                     ),
                 )
                 await function_call_params.result_callback(

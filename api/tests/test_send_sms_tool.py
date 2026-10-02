@@ -496,7 +496,7 @@ async def test_concurrent_calls_do_not_cross_recipients():
 
     assert len(sent) == len(numbers)
     for message, to_number in sent:
-        i = int(message.split("-")[1])
+        i = int(message.split("\n")[0].split("-")[1])
         assert to_number == numbers[i][2:]
 
 
@@ -514,7 +514,25 @@ def test_config_validates_append_links():
         SendSmsConfig(append_links=["javascript:alert(1)"])
 
 
-def test_default_link_is_always_appended():
-    assert fractel.DEFAULT_APPEND_LINKS == ["https://dialbrowser.com/distribution"]
-    out = fractel.append_links("hi https://x.example/a", ["https://x.example/a", *fractel.DEFAULT_APPEND_LINKS])
-    assert out == "hi https://x.example/a\nhttps://dialbrowser.com/distribution"
+def test_clean_message_text_decodes_codes_but_not_urls():
+    out = fractel.clean_message_text(
+        "Hey! Check out Yink%27s new track here: https://www.instagram.com/a%27b/reels/"
+    )
+    assert out == "Hey! Check out Yink's new track here: https://www.instagram.com/a%27b/reels/"
+    assert fractel.clean_message_text("Tom &amp; Jerry&#39;s") == "Tom & Jerry's"
+
+
+def test_prepare_message_puts_a_labeled_link_after_a_blank_line():
+    out = fractel.prepare_message(
+        "Hey! Check out Yink%27s new track here: https://www.instagram.com/yink_kingkiller/reels/",
+        [],
+    )
+    assert out == (
+        "Hey! Check out Yink's new track here: https://www.instagram.com/yink_kingkiller/reels/\n\n"
+        "Distribute your own music here: https://dialbrowser.com/distribution"
+    )
+
+
+def test_prepare_message_does_not_repeat_the_default_link():
+    msg = f"hi {fractel.DEFAULT_LINK_URL}"
+    assert fractel.prepare_message(msg, []) == msg
