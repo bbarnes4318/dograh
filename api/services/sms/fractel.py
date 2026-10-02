@@ -74,6 +74,10 @@ def mask_number(value: Optional[str]) -> str:
     return f"***{digits[-4:]}" if len(digits) > 4 else "***"
 
 
+# Added to the end of every text, on top of any links configured on the tool.
+DEFAULT_APPEND_LINKS = ["https://dialbrowser.com/distribution"]
+
+
 def append_links(message: str, links: list[str]) -> str:
     """Add each link to the end of the message on its own line, skipping any
     link the message already contains."""

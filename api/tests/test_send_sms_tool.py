@@ -512,3 +512,9 @@ def test_config_validates_append_links():
     assert cfg.append_links == ["https://dialbrowser.com/distribution"]
     with pytest.raises(ValueError):
         SendSmsConfig(append_links=["javascript:alert(1)"])
+
+
+def test_default_link_is_always_appended():
+    assert fractel.DEFAULT_APPEND_LINKS == ["https://dialbrowser.com/distribution"]
+    out = fractel.append_links("hi https://x.example/a", ["https://x.example/a", *fractel.DEFAULT_APPEND_LINKS])
+    assert out == "hi https://x.example/a\nhttps://dialbrowser.com/distribution"
