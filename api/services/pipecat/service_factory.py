@@ -10,6 +10,10 @@ from api.services.configuration.options import (
     DEEPGRAM_FLUX_MODELS,
     DEEPGRAM_FLUX_MULTILINGUAL_LANGUAGE_OPTIONS,
 )
+from api.services.configuration.options.openai import (
+    OPENAI_LIVE_DEFAULT_VOICE,
+    OPENAI_REALTIME_DEFAULT_VOICE,
+)
 from api.services.configuration.registry import (
     INCEPTION_DEFAULT_BASE_URL,
     INCEPTION_DEFAULT_REASONING_EFFORT,
@@ -20,6 +24,7 @@ from api.services.pipecat.gemini_json_schema_adapter import (
     DograhGeminiJSONSchemaAdapter,
 )
 from api.services.pipecat.minimax_tts import MiniMaxOwnedSessionTTSService
+from api.services.pipecat.openai_tts import DograhOpenAITTSService
 from api.utils.url_security import validate_user_configured_service_url
 from pipecat.services.assemblyai.stt import AssemblyAISTTService, AssemblyAISTTSettings
 from pipecat.services.aws.llm import AWSBedrockLLMService, AWSBedrockLLMSettings
@@ -78,7 +83,7 @@ from pipecat.services.openai.stt import (
     OpenAISTTService,
     OpenAISTTSettings,
 )
-from pipecat.services.openai.tts import OpenAITTSService, OpenAITTSSettings
+from pipecat.services.openai.tts import OpenAITTSSettings
 from pipecat.services.openrouter.llm import OpenRouterLLMService, OpenRouterLLMSettings
 from pipecat.services.rime.tts import RimeTTSService, RimeTTSSettings
 from pipecat.services.sarvam.llm import SarvamLLMService, SarvamLLMSettings
@@ -565,10 +570,20 @@ def create_tts_service(
         if base_url:
             _validate_runtime_service_url(base_url, "base_url")
             kwargs["base_url"] = base_url
-        return OpenAITTSService(
+        # voice/voice_type/instructions were previously dropped here, leaving
+        # every OpenAI TTS call on pipecat's default voice.
+        voice_type = getattr(user_config.tts, "voice_type", "builtin")
+        instructions = getattr(user_config.tts, "voice_instructions", None)
+        return DograhOpenAITTSService(
             api_key=user_config.tts.api_key,
             sample_rate=OPENAI_SAMPLE_RATE,
-            settings=OpenAITTSSettings(model=user_config.tts.model),
+            voice_type=voice_type,
+            custom_voice_id=getattr(user_config.tts, "custom_voice_id", None),
+            settings=OpenAITTSSettings(
+                model=user_config.tts.model,
+                voice=user_config.tts.voice,
+                instructions=instructions or None,
+            ),
             text_filters=[xml_function_tag_filter],
             skip_aggregator_types=["recording_router", "recording"],
             silence_time_s=1.0,
@@ -1125,7 +1140,9 @@ def create_llm_service_from_provider(
         raise HTTPException(status_code=400, detail=f"Invalid LLM provider {provider}")
 
 
-def create_realtime_llm_service(user_config, audio_config: "AudioConfig"):
+def create_realtime_llm_service(
+    user_config, audio_config: "AudioConfig", output_gate=None
+):
     """Create a realtime (speech-to-speech) LLM service that handles STT+LLM+TTS.
 
     These services bypass separate STT/TTS and handle audio directly via
@@ -1163,6 +1180,10 @@ def create_realtime_llm_service(user_config, audio_config: "AudioConfig"):
 
         return DograhOpenAIRealtimeLLMService(
             api_key=api_key,
+            output_gate=output_gate,
+            voice_type=getattr(realtime_config, "voice_type", "builtin"),
+            custom_voice_id=getattr(realtime_config, "custom_voice_id", None),
+            voice_instructions=getattr(realtime_config, "voice_instructions", None),
             settings=DograhOpenAIRealtimeLLMService.Settings(
                 model=model,
                 session_properties=SessionProperties(
@@ -1173,11 +1194,34 @@ def create_realtime_llm_service(user_config, audio_config: "AudioConfig"):
                             ),
                         ),
                         output=AudioOutput(
-                            voice=voice or "alloy",
+                            # For a custom voice the {"id": ...} object is
+                            # injected at serialization time; this string only
+                            # satisfies the library's str-typed field.
+                            voice=voice or OPENAI_REALTIME_DEFAULT_VOICE,
                         ),
                     ),
                 ),
             ),
+        )
+    elif provider == ServiceProviders.OPENAI_LIVE.value:
+        import os
+
+        from api.services.pipecat.realtime.openai_live import (
+            DograhOpenAILiveLLMService,
+        )
+
+        return DograhOpenAILiveLLMService(
+            api_key=api_key,
+            model=model,
+            voice=voice or OPENAI_LIVE_DEFAULT_VOICE,
+            voice_type=getattr(realtime_config, "voice_type", "builtin"),
+            custom_voice_id=getattr(realtime_config, "custom_voice_id", None),
+            voice_instructions=getattr(realtime_config, "voice_instructions", None),
+            backend_model=getattr(realtime_config, "backend_model", None) or "gpt-4.1",
+            # Escape hatch: OPENAI_LIVE_AUDIO_FORMAT=pcm forces 24 kHz PCM16
+            # instead of μ-law on 8 kHz telephony transports.
+            audio_format=os.getenv("OPENAI_LIVE_AUDIO_FORMAT", "auto"),
+            output_gate=output_gate,
         )
     elif provider == ServiceProviders.GROK_REALTIME.value:
         from api.services.pipecat.realtime.grok_realtime import (

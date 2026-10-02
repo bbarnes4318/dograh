@@ -45,6 +45,7 @@ from api.services.pipecat.event_handlers import (
 )
 from api.services.pipecat.in_memory_buffers import InMemoryLogsBuffer
 from api.services.pipecat.muted_speech_buffer import MutedSpeechBufferProcessor
+from api.services.pipecat.output_gate import ConversationOutputGate
 from api.services.pipecat.pipeline_builder import (
     build_pipeline,
     build_realtime_pipeline,
@@ -247,6 +248,7 @@ def _create_realtime_user_turn_config(provider: str):
 
     if provider in {
         ServiceProviders.OPENAI_REALTIME.value,
+        ServiceProviders.OPENAI_LIVE.value,
         ServiceProviders.AZURE_REALTIME.value,
     }:
         # OpenAI-compatible Realtime services already emit speaking-state frames
@@ -666,12 +668,18 @@ async def _run_pipeline_impl(
     if mps_correlation_id:
         merged_call_context_vars[MPS_CORRELATION_ID_CONTEXT_KEY] = mps_correlation_id
 
+    # Application-owned gate for AI conversational output (media playback and
+    # terminal tool chains suppress it; see output_gate.py).
+    output_gate = ConversationOutputGate()
+
     # Detect realtime mode (speech-to-speech services like OpenAI Realtime, Gemini Live)
     is_realtime = user_config.is_realtime and user_config.realtime is not None
 
     # Create services based on user configuration
     if is_realtime:
-        llm = create_realtime_llm_service(user_config, audio_config)
+        llm = create_realtime_llm_service(
+            user_config, audio_config, output_gate=output_gate
+        )
         stt = None
         tts = None
         # Realtime services don't implement run_inference, so create a
@@ -846,6 +854,7 @@ async def _run_pipeline_impl(
     )
 
     engine = PipecatEngine(
+        output_gate=output_gate,
         llm=llm,
         inference_llm=inference_llm,
         workflow=workflow_graph,
@@ -1196,6 +1205,7 @@ async def _run_pipeline_impl(
             dtmf_capture=dtmf_capture,
             machine_answer_guard=machine_answer_guard,
             assistant_turn_guard=assistant_turn_guard,
+            output_gate=output_gate,
         )
 
     # Create pipeline task with audio configuration

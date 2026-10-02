@@ -1,0 +1,100 @@
+---
+title: "OpenAI voice (GPT-Live, Realtime, TTS)"
+description: "Use OpenAI GPT-Live, OpenAI Realtime, or OpenAI TTS (built-in or custom voices) for real phone calls, with Dograh's workflow engine staying in control."
+---
+
+Dograh supports four OpenAI voice modes. All of them live in the existing AI model configuration — no separate settings screen.
+
+| Mode | Where to select it | What runs where |
+| --- | --- | --- |
+| **GPT-Live** (`gpt-live-1`) | Speech to Speech → provider *OpenAI GPT-Live* | GPT-Live listens/speaks/handles interruptions. A backend model reasons over your node prompt; its tool calls **run in Dograh**. |
+| **Realtime** (`gpt-realtime-2`) | Speech to Speech → provider *OpenAI Realtime* | OpenAI speech-to-speech; Dograh runs tools and transitions. |
+| **OpenAI TTS** | Pipeline → Voice → provider *OpenAI* | Your STT and LLM, then OpenAI TTS. |
+| **Custom voice** | `Voice type: Custom OpenAI Voice` on any of the above | Sent as `{"id": "voice_..."}`. |
+
+## Call and audio path
+
+Outbound/inbound PSTN calls placed by Dograh go through the Dograh telephony provider (for the Hopwhistle deployment: **Asterisk ARI → carrier trunk**, see `deploy/dograh/ari-trunk` in the Hopwhistle repo). Dograh owns the AI session; the carrier/PBX owns SIP and RTP.
+
+```
+PSTN (G.711 μ-law 8 kHz)
+  → Asterisk (ARI external media, slin 8 kHz)
+  → Dograh / Pipecat transport (8 kHz PCM16)
+  → GPT-Live:  μ-law encode only (audio/pcmu @ 8 kHz) ──► OpenAI Live WebSocket
+               ◄── audio/pcmu @ 8 kHz, μ-law decode only
+  → Dograh transport (8 kHz PCM16) → Asterisk → PSTN
+```
+
+- **GPT-Live on 8 kHz telephony: zero resampling.** μ-law is companded/expanded only, which is lossless for audio that already came from G.711.
+- Other transport rates (e.g. WebRTC at 16 kHz) use 24 kHz PCM16 (one resample each way). Set `OPENAI_LIVE_AUDIO_FORMAT=pcm` to force this on telephony too (escape hatch).
+- **Realtime / TTS** use OpenAI's 24 kHz PCM16; the transport resamples once to 8 kHz.
+- Frames are forwarded as they arrive (20 ms input chunks, no accumulation buffer).
+
+## Environment variables
+
+| Variable | Purpose |
+| --- | --- |
+| `OPENAI_API_KEY` | Optional environment-level key. Organization keys are configured in the UI (BYOK) and stay encrypted/masked — they are never sent to the browser in plaintext. |
+| `OPENAI_LIVE_AUDIO_FORMAT` | `auto` (default) or `pcm`. |
+
+## Models and voices
+
+Defined once in `api/services/configuration/options/openai.py` and consumed by validation, the API schema and the UI.
+
+- **GPT-Live** model `gpt-live-1`. Default voice `meridian`. Voices: *North American* `gleam`, `meridian`, `marin`; *Southern U.S.* `delta`, `cinder`; *British / Irish / Australian* `vesper`, `willow`, `stone`, `quartz`, `ripple`; *Other* `beacon`, `bossa`, `tempo`. (`marin` is OpenAI's documented GPT-Live default voice.)
+- **Realtime** model `gpt-realtime-2`. Voices `marin` (default), `cedar`, `alloy`, `ash`, `ballad`, `coral`, `echo`, `sage`, `shimmer`, `verse`.
+- **TTS** model `gpt-4o-mini-tts`. Voices: the Realtime set plus `fable`, `nova`, `onyx`.
+
+The voice is fixed for a call. Workflows can override the voice through the existing model override mechanism; overrides are re-validated.
+
+### Voice delivery instructions
+
+Optional free text (accent, pace, tone). For GPT-Live it is placed in the frontend's *Voice delivery* block only — never in the backend/workflow prompt. For Realtime it is appended to the session instructions under a *Voice delivery* heading; for TTS it is sent as the `instructions` field.
+
+### Custom OpenAI voices
+
+Set **Voice type** to *Custom OpenAI Voice* and enter the **Voice ID** (`voice_...`). Requires a project with Custom Voice access. If OpenAI rejects the voice (not found / not permitted), the call fails with *"OpenAI custom voice is unavailable to this project or the configured voice ID is invalid."* — Dograh never substitutes another voice. Creating voices (consent audio) is not part of call configuration.
+
+## Silent terminal chains (play audio → send SMS → hang up)
+
+Enable **Silent after playback (terminal chain)** on a *Play Audio* tool. The application then:
+
+1. suppresses all AI conversational output **before** playback starts (`conversation_output_enabled = false`, `ConversationOutputGate`);
+2. plays the file through the transport (media is never owned by the model) and waits until the transport reports the audio finished;
+3. returns control to the model **only for follow-up tool calls** (send SMS, end call). Model audio and transcripts are dropped, new Realtime responses are text-only, GPT-Live output is discarded, chained-pipeline LLM text never reaches TTS, and user-idle nudges are disabled;
+4. resumes speech only when the workflow moves to another node.
+
+This is enforced in code, not in the prompt. Explicit speech actions (e.g. an End Call tool's goodbye message in chained-pipeline mode) are not model output and are unaffected; in Realtime/GPT-Live modes explicit speak requests are dropped while suppressed — transition to a conversational node to speak again.
+
+## Observability
+
+One structured line per assistant turn (`voice_latency ...`) with: session connect, speech-end → first audio byte, speech-end → first frame sent, transcript, backend (delegation) and response durations, interruption detection (Realtime). Only timings/ids are logged — never audio, transcripts or keys.
+
+## Limitations
+
+- GPT-Live uses **Responses delegation with Dograh-executed function calls**. Pure client delegation (Dograh's own text LLM as the backend) needs the pinned Pipecat fork upgraded past the version that ships `workers/llm/backend_llm_worker`; the GPT-Live service is vendored (`api/services/pipecat/realtime/openai_live/`) until then.
+- Mid-session backend prompt/tool updates (`session.update`) follow OpenAI's documented sparse-update behaviour and should be verified against your project on first rollout.
+- No voice preview: there is no preview endpoint and previews are not faked.
+- GPT-Live has no explicit interruption event; barge-in is handled by the model and measured only indirectly.
+
+## Rollout and rollback
+
+Nothing is removed or migrated: new providers are additive, existing configurations keep working, and no database migration is needed.
+
+```bash
+# Deploy (self-hosted compose; run from the deployment directory)
+git pull && docker compose build api ui && docker compose up -d --no-deps api ui
+docker compose logs -f api | grep -E "voice_latency|GPT-Live|audio path"
+```
+
+1. Select **Speech to Speech → OpenAI GPT-Live → Meridian** (or any voice) on a **test workflow only**, save, and place a call to a test number.
+2. In the API log confirm `audio path transport_in=8000Hz ... wire=audio/pcmu@8000` and `session ... ready`.
+3. Confirm audio both ways, then run the silent-chain workflow (play song → send SMS → hang up) and confirm no speech after the song.
+
+**Rollback** (any step): switch the workflow/organization AI configuration back to the previous provider in the UI (immediate for new calls), or redeploy the previous image:
+
+```bash
+git checkout <previous-tag-or-sha> && docker compose build api ui && docker compose up -d --no-deps api ui
+```
+
+If GPT-Live audio sounds wrong on a telephony trunk, set `OPENAI_LIVE_AUDIO_FORMAT=pcm` and restart `api` before rolling back — this switches to 24 kHz PCM without changing anything else.

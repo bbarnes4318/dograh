@@ -268,11 +268,14 @@ export function createCalculatorDefinition(): CalculatorToolDefinition {
     };
 }
 
-export function createPlayAudioDefinition(audioUrl: string = ""): PlayAudioToolDefinition {
+export function createPlayAudioDefinition(
+    audioUrl: string = "",
+    terminalChain: boolean = false,
+): PlayAudioToolDefinition {
     return {
         schema_version: 1,
         type: "play_audio",
-        config: { audio_url: audioUrl.trim() },
+        config: { audio_url: audioUrl.trim(), terminal_chain: terminalChain },
     };
 }
 

@@ -3,6 +3,7 @@ import os
 from loguru import logger
 
 from api.services.pipecat.audio_config import AudioConfig
+from api.services.pipecat.output_gate import ConversationOutputGateProcessor
 from pipecat.pipeline.pipeline import Pipeline
 from pipecat.pipeline.worker import PipelineParams, PipelineWorker
 from pipecat.processors.aggregators.llm_context import LLMContext
@@ -41,6 +42,7 @@ def build_pipeline(
     dtmf_capture=None,
     machine_answer_guard=None,
     assistant_turn_guard=None,
+    output_gate=None,
 ):
     """Build the main pipeline with all components.
 
@@ -114,6 +116,7 @@ def build_pipeline(
     processors.extend(
         [
             llm,  # LLM
+            *([ConversationOutputGateProcessor(output_gate)] if output_gate else []),
             *post_llm,
             tts,  # TTS
             transport.output(),  # Transport bot output

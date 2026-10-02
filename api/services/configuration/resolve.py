@@ -122,6 +122,11 @@ def resolve_effective_config(
         else:
             # Same provider — merge fields onto existing config
             merged = base.model_copy(update=override)
+            # model_copy skips validators; re-check OpenAI voice selections so
+            # an override can't smuggle in an unsupported voice / custom id.
+            validate_voice = getattr(merged, "validate_voice_selection", None)
+            if callable(validate_voice):
+                validate_voice()
             setattr(effective, section_key, merged)
 
     return effective

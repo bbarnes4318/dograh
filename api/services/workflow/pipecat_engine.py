@@ -22,6 +22,10 @@ from api.schemas.workflow_configurations import ToolFillerConfiguration
 from api.services.pipecat.audio_playback import play_audio
 from api.services.pipecat.call_hygiene import CallHygieneState
 from api.services.pipecat.dtmf import send_dtmf_digits
+from api.services.pipecat.output_gate import (
+    REASON_TERMINAL_CHAIN,
+    ConversationOutputGate,
+)
 from api.services.pipecat.thinking_cue import ThinkingCue
 from api.services.sms.recipient import snapshot_call_parties
 from api.services.workflow.workflow_graph import Node, WorkflowGraph
@@ -115,8 +119,16 @@ class PipecatEngine:
         send_dtmf_enabled: bool = False,
         llm_provider: Optional[str] = None,
         prompt_cache_namespace: Optional[str] = None,
+        output_gate: Optional[ConversationOutputGate] = None,
     ):
         self.task = task
+        # Application-owned switch for AI conversational output. Media
+        # playback and terminal tool chains suppress it; a node change resumes
+        # it. See api/services/pipecat/output_gate.py.
+        self.output_gate = output_gate or ConversationOutputGate()
+        self._playback_started = asyncio.Event()
+        self._playback_complete = asyncio.Event()
+        self._playback_complete.set()
         self.llm = llm
         # LLM used for out-of-band inference (variable extraction, context
         # summarization). Falls back to the pipeline LLM when not provided.
@@ -743,6 +755,11 @@ class PipecatEngine:
         # Set current node for all nodes (including static ones) so STT mute filter works
         self._current_node = node
 
+        # Moving to another node is an explicit workflow decision: any terminal
+        # tool chain is over and conversational output may resume.
+        if previous_node_id is not None and previous_node_id != node_id:
+            self.resume_conversation_output()
+
         # Track visited nodes in gathered context for call tags
         nodes_visited = self._gathered_context.setdefault("nodes_visited", [])
         if node.name not in nodes_visited:
@@ -986,6 +1003,40 @@ class PipecatEngine:
         )
         await self.end_call_with_reason(reason, abort_immediately=abort_immediately)
 
+    # ------------------------------------------------------------------
+    # Conversation output gate / deterministic playback
+    # ------------------------------------------------------------------
+
+    @property
+    def conversation_output_enabled(self) -> bool:
+        return self.output_gate.enabled
+
+    def suppress_conversation_output(self, reason: str = REASON_TERMINAL_CHAIN) -> None:
+        """Stop the voice model/TTS from speaking until a node resumes it."""
+        self.output_gate.suppress(reason)
+
+    def resume_conversation_output(self) -> None:
+        self.output_gate.resume()
+
+    def begin_playback_wait(self) -> None:
+        """Arm playback-complete tracking; call right before queueing audio."""
+        self._playback_started.clear()
+        self._playback_complete.clear()
+
+    async def wait_for_playback_complete(self, timeout: float) -> bool:
+        """Wait until the bot finishes the audio queued after ``begin_playback_wait``.
+
+        Returns False on timeout (playback state is then released so the
+        chain can still proceed deterministically).
+        """
+        try:
+            await asyncio.wait_for(self._playback_complete.wait(), timeout=timeout)
+            return True
+        except asyncio.TimeoutError:
+            logger.warning(f"Playback did not signal completion within {timeout:.1f}s")
+            self._playback_complete.set()
+            return False
+
     async def should_mute_user(self, frame: "Frame") -> bool:
         """
         Callback for CallbackUserMuteStrategy to determine if the user should be muted.
@@ -1007,9 +1058,13 @@ class PipecatEngine:
             self._bot_is_speaking = True
             if self._queued_speech_mute_state == "waiting":
                 self._queued_speech_mute_state = "playing"
+            if not self._playback_complete.is_set():
+                self._playback_started.set()
         elif isinstance(frame, BotStoppedSpeakingFrame):
             self._bot_is_speaking = False
             self._queued_speech_mute_state = "idle"
+            if not self._playback_complete.is_set() and self._playback_started.is_set():
+                self._playback_complete.set()
 
         # Always mute if pipeline is shutting down
         if self._mute_pipeline:
