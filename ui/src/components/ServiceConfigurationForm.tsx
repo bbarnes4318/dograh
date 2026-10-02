@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 
 import { getDefaultConfigurationsApiV1UserConfigurationsDefaultsGet } from '@/client/sdk.gen';
+import { OpenAIVoiceSelect, type VoiceCatalogEntry } from "@/components/OpenAIVoiceSelect";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -33,6 +34,11 @@ interface SchemaProperty {
     format?: string;
     multiline?: boolean;
     docs_url?: string;
+    title?: string;
+    /** Grouped voice catalog (OpenAI voices); rendered by OpenAIVoiceSelect. */
+    voice_catalog?: VoiceCatalogEntry[];
+    /** Only show this field when every listed sibling field has the given value. */
+    show_when?: Record<string, string>;
 }
 
 export interface ProviderSchema {
@@ -524,9 +530,24 @@ export function ServiceConfigurationForm({
         const providerSchema = schemas?.[service]?.[currentProvider];
         if (!providerSchema) return [];
         return Object.keys(providerSchema.properties).filter(
-            field => field !== "provider" && field !== "api_key"
+            field => field !== "provider" && field !== "api_key" && isFieldVisible(service, field, providerSchema)
         );
     };
+
+    const isFieldVisible = (service: ServiceSegment, field: string, providerSchema: ProviderSchema) => {
+        const showWhen = providerSchema.properties[field]?.show_when;
+        if (!showWhen) return true;
+        return Object.entries(showWhen).every(([other, expected]) => {
+            const otherSchema = providerSchema.properties[other];
+            const current = (watch(`${service}_${other}`) as string | undefined) ?? (otherSchema?.default as string | undefined);
+            return current === expected;
+        });
+    };
+
+    const fieldLabel = (providerSchema: ProviderSchema, field: string) =>
+        providerSchema.properties[field]?.title && field !== "model"
+            ? (providerSchema.properties[field].title as string)
+            : field.replace(/_/g, ' ');
 
     const renderServiceFields = (service: ServiceSegment) => {
         const currentProvider = serviceProviders[service];
@@ -575,7 +596,7 @@ export function ServiceConfigurationForm({
 
                     {currentProvider && providerSchema && configFields[0] && (
                         <div className="space-y-2">
-                            <Label className="capitalize">{configFields[0].replace(/_/g, ' ')}</Label>
+                            <Label className="capitalize">{fieldLabel(providerSchema, configFields[0])}</Label>
                             {renderField(service, configFields[0], providerSchema)}
                         </div>
                     )}
@@ -591,7 +612,7 @@ export function ServiceConfigurationForm({
                             const fullWidth = actualFieldSchema?.multiline;
                             return (
                                 <div key={field} className={`space-y-2 ${fullWidth ? "col-span-2" : ""}`}>
-                                    <Label className="capitalize">{field.replace(/_/g, ' ')}</Label>
+                                    <Label className="capitalize">{fieldLabel(providerSchema, field)}</Label>
                                     {renderField(service, field, providerSchema)}
                                 </div>
                             );
@@ -697,6 +718,16 @@ export function ServiceConfigurationForm({
             watch(`${service}_model`) as string | undefined,
         );
 
+        if (actualSchema?.voice_catalog && field === "voice") {
+            return (
+                <OpenAIVoiceSelect
+                    catalog={actualSchema.voice_catalog}
+                    value={(watch(`${service}_${field}`) as string) || (actualSchema.default as string) || ""}
+                    onChange={(voice) => setValue(`${service}_${field}`, voice, { shouldDirty: true })}
+                />
+            );
+        }
+
         if (service === "tts" && field === "voice" && !actualSchema?.allow_custom_input) {
             if (!dropdownOptions) {
                 return (
@@ -787,6 +818,9 @@ export function ServiceConfigurationForm({
             const getDisplayName = (value: string) => {
                 if (field === "language") {
                     return LANGUAGE_DISPLAY_NAMES[value] || value;
+                }
+                if (field === "voice_type") {
+                    return value === "custom" ? "Custom OpenAI Voice" : "Built-in voice";
                 }
                 if (field === "voice") {
                     return VOICE_DISPLAY_NAMES[value] || value.charAt(0).toUpperCase() + value.slice(1);

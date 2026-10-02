@@ -174,6 +174,7 @@ export default function ToolDetailPage() {
 
     // Play Audio form state
     const [audioUrl, setAudioUrl] = useState("");
+    const [audioTerminalChain, setAudioTerminalChain] = useState(false);
 
     // Send SMS form state
     const [smsCredentialUuid, setSmsCredentialUuid] = useState("");
@@ -298,8 +299,9 @@ export default function ToolDetailPage() {
                 setTransferFallbackDestination("");
             }
         } else if (tool.category === "play_audio") {
-            const config = tool.definition?.config as { audio_url?: string } | undefined;
+            const config = tool.definition?.config as { audio_url?: string; terminal_chain?: boolean } | undefined;
             setAudioUrl(config?.audio_url || "");
+            setAudioTerminalChain(Boolean(config?.terminal_chain));
         } else if (tool.category === "send_sms") {
             const config = tool.definition?.config as
                 | { credential_uuid?: string | null; from_numbers?: string[]; append_links?: string[] }
@@ -657,7 +659,7 @@ export default function ToolDetailPage() {
                 requestBody = {
                     name,
                     description: description || undefined,
-                    definition: createPlayAudioDefinition(audioUrl),
+                    definition: createPlayAudioDefinition(audioUrl, audioTerminalChain),
                 };
             } else if (tool.category === "send_sms") {
                 requestBody = {
@@ -1047,6 +1049,22 @@ const data = await response.json();`;
                                     <p className="text-xs text-muted-foreground">
                                         Public link to an mp3/wav file. It is converted to phone quality automatically.
                                     </p>
+                                </div>
+
+                                <div className="flex items-start space-x-2">
+                                    <input
+                                        id="play-audio-terminal"
+                                        type="checkbox"
+                                        className="mt-1"
+                                        checked={audioTerminalChain}
+                                        onChange={(e) => setAudioTerminalChain(e.target.checked)}
+                                    />
+                                    <div>
+                                        <Label htmlFor="play-audio-terminal">Silent after playback (terminal chain)</Label>
+                                        <p className="text-xs text-muted-foreground">
+                                            The AI voice is blocked by the application from playback start until the workflow moves to another node. Follow-up tools such as Send SMS and End Call still run, but the AI never speaks.
+                                        </p>
+                                    </div>
                                 </div>
                             </CardContent>
                         </Card>

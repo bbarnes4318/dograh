@@ -2,7 +2,14 @@ import random
 from enum import Enum, auto
 from typing import Annotated, Dict, Literal, Type, TypeVar, Union
 
-from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    computed_field,
+    field_validator,
+    model_validator,
+)
 
 from api.services.configuration.options import (
     AZURE_EMBEDDING_MODELS,
@@ -53,6 +60,27 @@ from api.services.configuration.options import (
     SPEECHMATICS_STT_LANGUAGES,
 )
 from api.services.configuration.options.google import GOOGLE_VERTEX_MODELS
+from api.services.configuration.options.openai import (
+    OPENAI_LIVE_DEFAULT_MODEL,
+    OPENAI_LIVE_DEFAULT_VOICE,
+    OPENAI_LIVE_MODELS,
+    OPENAI_LIVE_VOICE_CATALOG,
+    OPENAI_LIVE_VOICES,
+    OPENAI_REALTIME_DEFAULT_MODEL,
+    OPENAI_REALTIME_DEFAULT_VOICE,
+    OPENAI_REALTIME_MODELS,
+    OPENAI_REALTIME_VOICE_CATALOG,
+    OPENAI_REALTIME_VOICES,
+    OPENAI_TTS_DEFAULT_MODEL,
+    OPENAI_TTS_DEFAULT_VOICE,
+    OPENAI_TTS_MODELS,
+    OPENAI_TTS_VOICE_CATALOG,
+    OPENAI_TTS_VOICES,
+    VOICE_INSTRUCTIONS_DESCRIPTION,
+    VOICE_TYPE_BUILTIN,
+    VOICE_TYPE_CUSTOM,
+    validate_openai_voice,
+)
 
 
 class ServiceType(Enum):
@@ -89,6 +117,7 @@ class ServiceProviders(str, Enum):
     MINIMAX = "minimax"
     GOOGLE_VERTEX = "google_vertex"
     OPENAI_REALTIME = "openai_realtime"
+    OPENAI_LIVE = "openai_live"
     GROK_REALTIME = "grok_realtime"
     ULTRAVOX_REALTIME = "ultravox_realtime"
     GOOGLE_REALTIME = "google_realtime"
@@ -122,6 +151,7 @@ class BaseServiceConfiguration(BaseModel):
         ServiceProviders.MINIMAX,
         ServiceProviders.GOOGLE_VERTEX,
         ServiceProviders.OPENAI_REALTIME,
+        ServiceProviders.OPENAI_LIVE,
         ServiceProviders.GROK_REALTIME,
         ServiceProviders.ULTRAVOX_REALTIME,
         ServiceProviders.GOOGLE_REALTIME,
@@ -266,6 +296,15 @@ DOGRAH_PROVIDER_MODEL_CONFIG = provider_model_config("Dograh")
 AWS_BEDROCK_PROVIDER_MODEL_CONFIG = provider_model_config("AWS Bedrock")
 GOOGLE_VERTEX_PROVIDER_MODEL_CONFIG = provider_model_config("Google Vertex")
 OPENAI_REALTIME_PROVIDER_MODEL_CONFIG = provider_model_config("OpenAI Realtime")
+OPENAI_LIVE_PROVIDER_MODEL_CONFIG = provider_model_config(
+    "OpenAI GPT-Live",
+    description=(
+        "OpenAI GPT-Live — full-duplex conversational voice. GPT-Live handles "
+        "listening, speaking and interruptions; your workflow engine stays "
+        "authoritative for tools and business logic via client delegation."
+    ),
+    provider_docs_url="https://platform.openai.com/docs/guides/realtime",
+)
 GROK_REALTIME_PROVIDER_MODEL_CONFIG = provider_model_config("Grok Realtime")
 ULTRAVOX_REALTIME_PROVIDER_MODEL_CONFIG = provider_model_config("Ultravox Realtime")
 GOOGLE_REALTIME_PROVIDER_MODEL_CONFIG = provider_model_config("Google Realtime")
@@ -643,7 +682,6 @@ class SarvamLLMConfiguration(BaseLLMConfiguration):
     )
 
 
-OPENAI_REALTIME_MODELS = ["gpt-realtime-2"]
 # ISO 639-1 codes accepted by the Realtime API's input_audio_transcription.
 # Not exhaustive — the field allows custom input.
 OPENAI_REALTIME_LANGUAGES = [
@@ -658,16 +696,17 @@ OPENAI_REALTIME_LANGUAGES = [
     "ko",
     "zh",
 ]
-OPENAI_REALTIME_VOICES = [
-    "alloy",
-    "ash",
-    "ballad",
-    "coral",
-    "echo",
-    "sage",
-    "shimmer",
-    "verse",
-]
+
+
+def _openai_voice_fields_check(config, *, voices: tuple[str, ...], surface: str):
+    validate_openai_voice(
+        voice_type=config.voice_type,
+        voice=config.voice,
+        custom_voice_id=config.custom_voice_id,
+        allowed_voices=voices,
+        surface=surface,
+    )
+    return config
 
 
 @register_service(ServiceType.REALTIME)
@@ -677,20 +716,41 @@ class OpenAIRealtimeLLMConfiguration(BaseLLMConfiguration):
         ServiceProviders.OPENAI_REALTIME
     )
     model: str = Field(
-        default="gpt-realtime-2",
+        default=OPENAI_REALTIME_DEFAULT_MODEL,
         description="OpenAI realtime (speech-to-speech) model.",
         json_schema_extra={
-            "examples": OPENAI_REALTIME_MODELS,
+            "examples": list(OPENAI_REALTIME_MODELS),
             "allow_custom_input": True,
         },
     )
+    voice_type: Literal["builtin", "custom"] = Field(
+        default=VOICE_TYPE_BUILTIN,
+        description="Built-in OpenAI voice, or a Custom OpenAI Voice ID.",
+        json_schema_extra={"examples": [VOICE_TYPE_BUILTIN, VOICE_TYPE_CUSTOM]},
+    )
     voice: str = Field(
-        default="alloy",
-        description="Voice the model speaks in.",
+        default=OPENAI_REALTIME_DEFAULT_VOICE,
+        description="Voice the model speaks in. Marin and Cedar are recommended.",
         json_schema_extra={
-            "examples": OPENAI_REALTIME_VOICES,
-            "allow_custom_input": True,
+            "examples": list(OPENAI_REALTIME_VOICES),
+            "voice_catalog": OPENAI_REALTIME_VOICE_CATALOG,
+            "show_when": {"voice_type": VOICE_TYPE_BUILTIN},
         },
+    )
+    custom_voice_id: str | None = Field(
+        default=None,
+        title="Voice ID",
+        description=(
+            "Custom OpenAI Voice ID (e.g. voice_123abc). Requires a project "
+            "with Custom Voice access."
+        ),
+        json_schema_extra={"show_when": {"voice_type": VOICE_TYPE_CUSTOM}},
+    )
+    voice_instructions: str | None = Field(
+        default=None,
+        title="Voice Delivery Instructions",
+        description=VOICE_INSTRUCTIONS_DESCRIPTION,
+        json_schema_extra={"multiline": True},
     )
     language: str | None = Field(
         default=None,
@@ -703,6 +763,75 @@ class OpenAIRealtimeLLMConfiguration(BaseLLMConfiguration):
             "allow_custom_input": True,
         },
     )
+
+    def validate_voice_selection(self):
+        return _openai_voice_fields_check(
+            self, voices=OPENAI_REALTIME_VOICES, surface="Realtime"
+        )
+
+    @model_validator(mode="after")
+    def _validate_voice(self):
+        return self.validate_voice_selection()
+
+
+@register_service(ServiceType.REALTIME)
+class OpenAILiveLLMConfiguration(BaseLLMConfiguration):
+    model_config = OPENAI_LIVE_PROVIDER_MODEL_CONFIG
+    provider: Literal[ServiceProviders.OPENAI_LIVE] = ServiceProviders.OPENAI_LIVE
+    model: str = Field(
+        default=OPENAI_LIVE_DEFAULT_MODEL,
+        description="OpenAI GPT-Live model.",
+        json_schema_extra={
+            "examples": list(OPENAI_LIVE_MODELS),
+            "allow_custom_input": True,
+        },
+    )
+    voice_type: Literal["builtin", "custom"] = Field(
+        default=VOICE_TYPE_BUILTIN,
+        description="Built-in GPT-Live voice, or a Custom OpenAI Voice ID.",
+        json_schema_extra={"examples": [VOICE_TYPE_BUILTIN, VOICE_TYPE_CUSTOM]},
+    )
+    voice: str = Field(
+        default=OPENAI_LIVE_DEFAULT_VOICE,
+        description="GPT-Live voice. The voice is fixed for the duration of a call.",
+        json_schema_extra={
+            "examples": list(OPENAI_LIVE_VOICES),
+            "voice_catalog": OPENAI_LIVE_VOICE_CATALOG,
+            "show_when": {"voice_type": VOICE_TYPE_BUILTIN},
+        },
+    )
+    custom_voice_id: str | None = Field(
+        default=None,
+        title="Voice ID",
+        description=(
+            "Custom OpenAI Voice ID (e.g. voice_123abc). Requires a project "
+            "with Custom Voice access."
+        ),
+        json_schema_extra={"show_when": {"voice_type": VOICE_TYPE_CUSTOM}},
+    )
+    voice_instructions: str | None = Field(
+        default=None,
+        title="Voice Delivery Instructions",
+        description=VOICE_INSTRUCTIONS_DESCRIPTION,
+        json_schema_extra={"multiline": True},
+    )
+    backend_model: str = Field(
+        default="gpt-4.1",
+        description=(
+            "OpenAI model that reasons for GPT-Live (workflow prompt + tool "
+            "calls). Tool calls run in Dograh — the model never executes them."
+        ),
+        json_schema_extra={"examples": OPENAI_MODELS, "allow_custom_input": True},
+    )
+
+    def validate_voice_selection(self):
+        return _openai_voice_fields_check(
+            self, voices=OPENAI_LIVE_VOICES, surface="GPT-Live"
+        )
+
+    @model_validator(mode="after")
+    def _validate_voice(self):
+        return self.validate_voice_selection()
 
 
 GROK_REALTIME_MODELS = ["grok-voice-think-fast-1.0"]
@@ -873,6 +1002,7 @@ class AzureRealtimeLLMConfiguration(BaseLLMConfiguration):
 
 REALTIME_PROVIDERS = {
     ServiceProviders.OPENAI_REALTIME.value,
+    ServiceProviders.OPENAI_LIVE.value,
     ServiceProviders.GROK_REALTIME.value,
     ServiceProviders.ULTRAVOX_REALTIME.value,
     ServiceProviders.GOOGLE_REALTIME.value,
@@ -903,6 +1033,7 @@ LLMConfig = Annotated[
 RealtimeConfig = Annotated[
     Union[
         OpenAIRealtimeLLMConfiguration,
+        OpenAILiveLLMConfiguration,
         GrokRealtimeLLMConfiguration,
         UltravoxRealtimeLLMConfiguration,
         GoogleRealtimeLLMConfiguration,
@@ -1026,26 +1157,65 @@ class GoogleTTSConfiguration(BaseTTSConfiguration):
     )
 
 
-OPENAI_TTS_MODELS = ["gpt-4o-mini-tts"]
-
-
 @register_tts
 class OpenAITTSService(BaseTTSConfiguration):
     model_config = OPENAI_PROVIDER_MODEL_CONFIG
     provider: Literal[ServiceProviders.OPENAI] = ServiceProviders.OPENAI
     model: str = Field(
-        default="gpt-4o-mini-tts",
+        default=OPENAI_TTS_DEFAULT_MODEL,
         description="OpenAI TTS model.",
-        json_schema_extra={"examples": OPENAI_TTS_MODELS},
+        json_schema_extra={
+            "examples": list(OPENAI_TTS_MODELS),
+            "allow_custom_input": True,
+        },
+    )
+    voice_type: Literal["builtin", "custom"] = Field(
+        default=VOICE_TYPE_BUILTIN,
+        description="Built-in OpenAI voice, or a Custom OpenAI Voice ID.",
+        json_schema_extra={"examples": [VOICE_TYPE_BUILTIN, VOICE_TYPE_CUSTOM]},
     )
     voice: str = Field(
-        default="alloy",
-        description="OpenAI TTS voice name.",
+        default=OPENAI_TTS_DEFAULT_VOICE,
+        description="OpenAI TTS voice. Marin and Cedar are recommended.",
+        json_schema_extra={
+            "examples": list(OPENAI_TTS_VOICES),
+            "voice_catalog": OPENAI_TTS_VOICE_CATALOG,
+            "show_when": {"voice_type": VOICE_TYPE_BUILTIN},
+        },
+    )
+    custom_voice_id: str | None = Field(
+        default=None,
+        title="Voice ID",
+        description=(
+            "Custom OpenAI Voice ID (e.g. voice_123abc). Requires a project "
+            "with Custom Voice access."
+        ),
+        json_schema_extra={"show_when": {"voice_type": VOICE_TYPE_CUSTOM}},
+    )
+    voice_instructions: str | None = Field(
+        default=None,
+        title="Voice Delivery Instructions",
+        description=VOICE_INSTRUCTIONS_DESCRIPTION,
+        json_schema_extra={"multiline": True},
     )
     base_url: str = Field(
         default="https://api.openai.com/v1",
         description="Override only if using an OpenAI-compatible API (e.g. local TTS, proxy).",
     )
+
+    def validate_voice_selection(self):
+        # A base_url override targets OpenAI-compatible servers (Kokoro, etc.)
+        # that have their own voice names, so only validate against the
+        # official catalog for the real OpenAI endpoint.
+        if self.base_url.rstrip("/") != "https://api.openai.com/v1" and (
+            self.voice_type == VOICE_TYPE_BUILTIN
+        ):
+            return self
+        return _openai_voice_fields_check(self, voices=OPENAI_TTS_VOICES, surface="TTS")
+
+    @model_validator(mode="after")
+    def _validate_voice(self):
+        return self.validate_voice_selection()
 
 
 DOGRAH_TTS_MODELS = ["default"]
@@ -1434,6 +1604,8 @@ class LmntTTSConfiguration(BaseTTSConfiguration):
         ),
         json_schema_extra={"allow_custom_input": True},
     )
+
+
 # --- HOPWHISTLE_FISH_TTS_V1 : fish.audio TTS ------------------------------------
 # `voice` is Fish's reference_id: the 32-char hex id of a voice model. Clone one
 # in the Hopwhistle Voice Studio (/voice-studio) and paste the id here, or take

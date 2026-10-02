@@ -18,6 +18,13 @@ Adds:
   immediately.
 - **finalized=True on TranscriptionFrame** because every OpenAI
   transcription via the ``completed`` event is final by construction.
+- **Output gate** (:class:`ConversationOutputGate`): while suppressed (media
+  playback / terminal tool chains) model audio and text are dropped, in-flight
+  speech is cancelled and new responses are text-only, so the model can still
+  call tools but cannot speak.
+- **Custom voice objects** (``{"id": "voice_..."}``) and separate **voice
+  delivery instructions**, both applied when the session update is serialized.
+- **Latency marks** per turn (see :mod:`api.services.pipecat.voice_latency`).
 """
 
 import json
@@ -25,6 +32,12 @@ from typing import Any
 
 from loguru import logger
 
+from api.services.configuration.options.openai import (
+    VOICE_TYPE_BUILTIN,
+    VOICE_TYPE_CUSTOM,
+)
+from api.services.pipecat import voice_latency as vl
+from api.services.pipecat.output_gate import ConversationOutputGate
 from api.services.pipecat.realtime.static_greeting import format_static_greeting_prompt
 from pipecat.frames.frames import (
     BotStartedSpeakingFrame,
@@ -49,8 +62,28 @@ from pipecat.utils.time import time_now_iso8601
 class DograhOpenAIRealtimeLLMService(OpenAIRealtimeLLMService):
     """OpenAI Realtime with Dograh engine integration quirks. See module docstring."""
 
-    def __init__(self, **kwargs):
+    def __init__(
+        self,
+        *,
+        output_gate: ConversationOutputGate | None = None,
+        voice_type: str = VOICE_TYPE_BUILTIN,
+        custom_voice_id: str | None = None,
+        voice_instructions: str | None = None,
+        latency_tracker: vl.VoiceLatencyTracker | None = None,
+        **kwargs,
+    ):
         super().__init__(**kwargs)
+        if voice_type == VOICE_TYPE_CUSTOM and not custom_voice_id:
+            raise ValueError("custom_voice_id is required for a custom OpenAI voice")
+        self._voice_type = voice_type
+        self._custom_voice_id = custom_voice_id
+        self._voice_instructions = (voice_instructions or "").strip() or None
+        self._output_gate = output_gate or ConversationOutputGate()
+        self._output_gate.add_listener(self._on_output_gate_changed)
+        self._latency = latency_tracker or vl.VoiceLatencyTracker(
+            component="openai_realtime"
+        )
+        self._first_audio_marked = False
         self._user_is_muted: bool = False
         # Dograh pre-populates self._context via the engine before the first
         # LLMContextFrame arrives, so upstream's "first arrival means
@@ -61,6 +94,98 @@ class DograhOpenAIRealtimeLLMService(OpenAIRealtimeLLMService):
         self._bot_is_speaking: bool = False
         self._deferred_node_transition_function_calls: list[FunctionCallFromLLM] = []
         self._pending_initial_greeting_text: str | None = None
+
+    # ------------------------------------------------------------------
+    # Session serialization: custom voice object + voice delivery block
+    # ------------------------------------------------------------------
+
+    def build_client_payload(self, event: events.ClientEvent) -> dict[str, Any]:
+        """Serialize an event, applying custom-voice and delivery instructions."""
+        payload = event.model_dump(exclude_none=True)
+        session = payload.get("session") if isinstance(payload, dict) else None
+        if isinstance(session, dict):
+            if self._voice_type == VOICE_TYPE_CUSTOM and self._custom_voice_id:
+                audio = session.setdefault("audio", {})
+                output = audio.setdefault("output", {})
+                output["voice"] = {"id": self._custom_voice_id}
+            if self._voice_instructions and session.get("instructions"):
+                session["instructions"] = (
+                    f"{session['instructions']}\n\n## Voice delivery\n"
+                    f"{self._voice_instructions}"
+                )
+        return payload
+
+    async def send_client_event(self, event: events.ClientEvent):
+        await self._ws_send(self.build_client_payload(event))
+
+    # ------------------------------------------------------------------
+    # Output gate: model output is never forwarded while suppressed
+    # ------------------------------------------------------------------
+
+    def _get_enabled_modalities(self) -> list[str]:
+        if not self._output_gate.enabled:
+            # Tool-calling turns during a terminal chain: no audio at all.
+            return ["text"]
+        return super()._get_enabled_modalities()
+
+    def _on_output_gate_changed(self, enabled: bool) -> None:
+        if enabled or self._disconnecting:
+            return
+        # Silence whatever is already being generated or spoken.
+        coro = self._cancel_active_output()
+        try:
+            self.create_task(coro, "gate-cancel-output")
+        except Exception as e:  # noqa: BLE001
+            coro.close()
+            logger.warning(f"{self}: could not schedule output cancel: {e}")
+
+    async def _cancel_active_output(self):
+        if self._disconnecting:
+            return
+        await self.send_client_event(events.ResponseCancelEvent())
+        await self._truncate_current_audio_response()
+        self._current_audio_response = None
+
+    async def _handle_evt_audio_delta(self, evt):
+        if not self._output_gate.enabled:
+            self._output_gate.record_suppressed()
+            return
+        if not self._first_audio_marked:
+            self._first_audio_marked = True
+            self._latency.mark(vl.FIRST_AUDIO_BYTE)
+        await super()._handle_evt_audio_delta(evt)
+        if self._first_audio_marked:
+            self._latency.mark(vl.FIRST_AUDIO_FRAME_SENT)
+
+    async def _handle_evt_audio_transcript_delta(self, evt):
+        if not self._output_gate.enabled:
+            self._output_gate.record_suppressed()
+            return
+        await super()._handle_evt_audio_transcript_delta(evt)
+
+    async def _handle_evt_text_delta(self, evt):
+        if not self._output_gate.enabled:
+            self._output_gate.record_suppressed()
+            return
+        await super()._handle_evt_text_delta(evt)
+
+    async def _handle_evt_response_done(self, evt):
+        await super()._handle_evt_response_done(evt)
+        if self._first_audio_marked:
+            self._latency.mark(vl.RESPONSE_COMPLETE)
+            self._latency.finish_turn()
+        self._first_audio_marked = False
+
+    async def _handle_evt_speech_started(self, evt):
+        self._latency.mark(vl.USER_SPEECH_STARTED)
+        await super()._handle_evt_speech_started(evt)
+        # Barge-in: stale assistant audio was truncated/interrupted upstream.
+        self._latency.mark(vl.INTERRUPTION_DETECTED)
+        self._first_audio_marked = False
+
+    async def _handle_evt_speech_stopped(self, evt):
+        self._latency.mark(vl.USER_SPEECH_STOPPED)
+        await super()._handle_evt_speech_stopped(evt)
 
     # ------------------------------------------------------------------
     # Frame handling: mute, TTSSpeakFrame as greeting trigger

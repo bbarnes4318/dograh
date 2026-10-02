@@ -53,6 +53,7 @@
               "configurations/inference-providers",
               "configurations/llm",
               "configurations/voice",
+              "configurations/openai-voice",
               "configurations/transcriber",
               "configurations/api-keys",
               "configurations/agent-uuid",

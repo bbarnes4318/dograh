@@ -117,6 +117,20 @@ class UserIdleHandler:
         if not self._enabled:
             return
 
+        # Terminal tool chain: output is suppressed by the application, so no
+        # nudge or canned prompt may be spoken. If nothing is still playing,
+        # the chain has nothing left to do — end the call silently.
+        if getattr(self._engine, "conversation_output_enabled", True) is False:
+            if not (
+                getattr(self._engine, "_bot_is_speaking", False)
+                or getattr(self._engine, "_queued_speech_mute_state", "idle") != "idle"
+            ):
+                logger.info("User idle during suppressed output; ending call silently")
+                await self._engine.end_call_with_reason(
+                    EndTaskReason.USER_IDLE_MAX_DURATION_EXCEEDED.value
+                )
+            return
+
         # A call screener is holding the line for the person to pick up:
         # silence is expected, and the screener timer owns ending the call.
         hygiene_state = getattr(self._engine, "call_hygiene", None)

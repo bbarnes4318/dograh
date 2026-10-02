@@ -55,6 +55,7 @@ class UserConfigurationValidator:
             ServiceProviders.HUGGINGFACE.value: self._check_huggingface_api_key,
             ServiceProviders.GOOGLE_VERTEX.value: self._check_google_vertex_llm_api_key,
             ServiceProviders.OPENAI_REALTIME.value: self._check_openai_api_key,
+            ServiceProviders.OPENAI_LIVE.value: self._check_openai_api_key,
             ServiceProviders.GROK_REALTIME.value: self._check_grok_realtime_api_key,
             ServiceProviders.ULTRAVOX_REALTIME.value: self._check_ultravox_realtime_api_key,
             ServiceProviders.GOOGLE_REALTIME.value: self._check_google_api_key,
@@ -232,6 +233,7 @@ class UserConfigurationValidator:
         if provider in (
             ServiceProviders.OPENAI.value,
             ServiceProviders.OPENAI_REALTIME.value,
+            ServiceProviders.OPENAI_LIVE.value,
             ServiceProviders.INCEPTION.value,
         ):
             return validator(provider, api_key, service_config)

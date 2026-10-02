@@ -191,6 +191,15 @@ class PlayAudioConfig(BaseModel):
             "the caller. It is fetched and converted to the call's sample rate."
         )
     )
+    terminal_chain: bool = Field(
+        default=False,
+        description=(
+            "When enabled, the application silences the AI voice from the "
+            "moment playback starts until the workflow moves to another node. "
+            "Follow-up tools (e.g. send SMS, end call) still run, but nothing "
+            "is spoken. Enforced in code, not in the prompt."
+        ),
+    )
 
     @field_validator("audio_url")
     @classmethod

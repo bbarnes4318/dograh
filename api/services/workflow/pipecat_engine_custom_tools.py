@@ -365,8 +365,10 @@ class CustomToolManager:
             timeout_secs = self._transfer_handler_timeout_secs(tool)
             handler = self._create_transfer_call_handler(tool, function_name)
         elif tool.category == ToolCategory.PLAY_AUDIO.value:
-            # Covers downloading + transcoding the file; playback itself is queued.
-            timeout_secs = 60.0
+            # Covers downloading + transcoding the file; playback itself is
+            # queued — except terminal-chain tools, which wait out the audio.
+            cfg = (tool.definition or {}).get("config", {}) or {}
+            timeout_secs = 900.0 if cfg.get("terminal_chain") else 60.0
             handler = self._create_play_audio_handler(tool, function_name)
         elif tool.category == ToolCategory.SEND_SMS.value:
             # 10s per request x (1 + 3 retries) plus backoff, plus token fetch.
@@ -529,15 +531,23 @@ class CustomToolManager:
     def _create_play_audio_handler(self, tool: Any, function_name: str):
         """Create a handler that plays the tool's audio file (e.g. a song) to
         the caller. The bot stays silent and the caller can't barge in until
-        the audio finishes; the LLM resumes on the caller's next turn."""
+        the audio finishes; the LLM resumes on the caller's next turn.
+
+        With ``terminal_chain`` enabled in the tool config the application also
+        suppresses all model speech from the moment playback starts, waits for
+        playback to actually finish, and returns control to the model *only for
+        silent follow-up tool calls* (e.g. send SMS, end call). Output stays
+        suppressed until the workflow moves to another node.
+        """
         properties = FunctionCallResultProperties(run_llm=False)
 
         async def play_audio_handler(
             function_call_params: FunctionCallParams,
         ) -> None:
             logger.info(f"Play Audio Tool EXECUTED: {function_name}")
+            config = (tool.definition or {}).get("config", {}) or {}
+            terminal = bool(config.get("terminal_chain", False))
             try:
-                config = (tool.definition or {}).get("config", {}) or {}
                 audio_url = config.get("audio_url", "")
                 validate_user_configured_service_url(audio_url, field_name="audio_url")
                 sample_rate = (
@@ -551,12 +561,25 @@ class CustomToolManager:
                 if not audio:
                     raise RuntimeError(f"could not load audio from {audio_url}")
 
+                if terminal:
+                    # Application state, not a prompt, keeps the model silent.
+                    self._engine.suppress_conversation_output()
+                    self._engine.begin_playback_wait()
                 self._engine._queued_speech_mute_state = "waiting"
                 await play_audio(
                     audio,
                     sample_rate=sample_rate,
                     queue_frame=self._engine._transport_output.queue_frame,
                 )
+                if terminal:
+                    duration = len(audio) / 2 / sample_rate
+                    await self._engine.wait_for_playback_complete(duration + 5.0)
+                    # Deterministic: the model may now run the next tool call,
+                    # but cannot speak (output gate is suppressed).
+                    await function_call_params.result_callback(
+                        {"status": "success", "action": "playback_complete"}
+                    )
+                    return
                 await function_call_params.result_callback(
                     {"status": "success", "action": "playing_audio"},
                     properties=properties,
