@@ -19,6 +19,10 @@ from api.services.campaign.campaign_event_publisher import (
 )
 from api.services.campaign.circuit_breaker import circuit_breaker
 from api.services.campaign.rate_limiter import rate_limiter
+from api.services.workflow.call_duration import (
+    parse_duration_seconds,
+    telephony_duration_from_callbacks,
+)
 from api.tasks.arq import enqueue_job
 from api.tasks.function_names import FunctionNames
 
@@ -55,16 +59,24 @@ def _status_value(value: object) -> str:
     return str(value or "").lower()
 
 
+TERMINAL_STATUSES = TERMINAL_NOT_CONNECTED_STATUSES | {TelephonyCallStatus.COMPLETED}
+
+
+def _prior_terminal_status(callback_logs: object) -> TelephonyCallStatus | None:
+    """The first terminal status already processed for this run, if any."""
+    if not isinstance(callback_logs, list):
+        return None
+    for entry in callback_logs:
+        if not isinstance(entry, dict):
+            continue
+        status = TelephonyCallStatus.from_raw(entry.get("status"))
+        if status in TERMINAL_STATUSES:
+            return status
+    return None
+
+
 def _duration_seconds(duration: str | None) -> int | float:
-    if duration in (None, ""):
-        return 0
-
-    try:
-        parsed = float(duration)
-    except (TypeError, ValueError):
-        return 0
-
-    return int(parsed) if parsed.is_integer() else parsed
+    return parse_duration_seconds(duration)
 
 
 def _append_unique_tags(existing_tags: object, new_tags: list[str]) -> list[str]:
@@ -149,6 +161,12 @@ async def _process_status_update(workflow_run_id: int, status: StatusCallbackReq
         return
 
     telephony_callback_logs = workflow_run.logs.get("telephony_status_callbacks", [])
+    # A run's call can only end once. Providers may deliver a terminal status
+    # twice (webhook + CDR, retries) or deliver events out of order (e.g. a
+    # late "busy" after "completed"); the side effects below (slot release,
+    # circuit breaker, caller-ID reputation, retries, disposition) must run
+    # for the first terminal status only.
+    prior_terminal = _prior_terminal_status(telephony_callback_logs)
     telephony_callback_log = {
         "status": status_value,
         "timestamp": datetime.now(UTC).isoformat(),
@@ -167,13 +185,34 @@ async def _process_status_update(workflow_run_id: int, status: StatusCallbackReq
         logger.info(
             f"[run {workflow_run_id}] Call completed with duration: {status.duration}s"
         )
+        carrier_duration = _duration_seconds(
+            status.duration
+        ) or telephony_duration_from_callbacks(telephony_callback_logs)
+
+        # The carrier's duration is the real talk time. Store it so a call the
+        # pipeline never measured (media never connected, run not in the
+        # initialized state) does not read as 0 seconds.
+        if carrier_duration > 0:
+            try:
+                await db_client.record_telephony_duration(
+                    workflow_run_id, carrier_duration
+                )
+            except Exception as e:
+                logger.error(
+                    f"[run {workflow_run_id}] Could not record carrier duration: {e}"
+                )
+
+        if prior_terminal is not None:
+            logger.info(
+                f"[run {workflow_run_id}] Ignoring repeated terminal status "
+                f"{normalized_status.value} (already {prior_terminal.value})"
+            )
+            return
 
         # A completed call with any talk time was picked up. Answer rate per
         # caller ID is the only signal that a number has been spam-labelled —
         # it still dials fine, it just stops getting answered.
-        await _record_caller_id_outcome(
-            workflow_run_id, answered=_duration_seconds(status.duration) > 0
-        )
+        await _record_caller_id_outcome(workflow_run_id, answered=carrier_duration > 0)
 
         await campaign_call_dispatcher.release_call_slot(workflow_run_id)
 
@@ -190,6 +229,13 @@ async def _process_status_update(workflow_run_id: int, status: StatusCallbackReq
             )
 
     elif normalized_status in TERMINAL_NOT_CONNECTED_STATUSES:
+        if prior_terminal is not None:
+            logger.info(
+                f"[run {workflow_run_id}] Ignoring late terminal status "
+                f"{normalized_status.value} (already {prior_terminal.value})"
+            )
+            return
+
         logger.warning(
             f"[run {workflow_run_id}] Call failed with status: {normalized_status.value}"
         )

@@ -60,6 +60,36 @@ export const DEFAULT_VOICEMAIL_DETECTION_CONFIGURATION: VoicemailDetectionConfig
     long_speech_timeout: 8.0,
 };
 
+export interface CallHygieneConfiguration {
+    enabled: boolean;
+    machine_keyword_hangup: boolean;
+    screener_handling: boolean;
+    screener_response?: string | null;  // Spoken once when a call screener answers; blank = LLM says one sentence
+    screener_pickup_timeout_seconds: number;
+    answering_bot_detection: boolean;
+    closing_line_hangup: boolean;
+    closing_line_grace_seconds: number;
+    first_response_timeout_seconds?: number | null;  // Silence before nudging a caller who never spoke; null disables
+    first_response_nudge: string;
+    first_response_end_after_seconds: number;
+    strip_llm_markup: boolean;
+}
+
+export const DEFAULT_CALL_HYGIENE_CONFIGURATION: CallHygieneConfiguration = {
+    enabled: true,
+    machine_keyword_hangup: true,
+    screener_handling: true,
+    screener_response: null,
+    screener_pickup_timeout_seconds: 30.0,
+    answering_bot_detection: true,
+    closing_line_hangup: true,
+    closing_line_grace_seconds: 1.5,
+    first_response_timeout_seconds: 5.0,
+    first_response_nudge: "Hello? Can you hear me okay?",
+    first_response_end_after_seconds: 5.0,
+    strip_llm_markup: true,
+};
+
 export interface TranscriptConfiguration {
     include_end_timestamps: boolean;
 }
@@ -116,6 +146,7 @@ type WorkflowConfigurationBase = Omit<
     | "dictionary"
     | "context_compaction_enabled"
     | "external_pbx_field_mappings"
+    | "call_hygiene"
 >;
 
 export type WorkflowConfigurations = WorkflowConfigurationBase & {
@@ -129,6 +160,7 @@ export type WorkflowConfigurations = WorkflowConfigurationBase & {
     turn_stop_strategy: TurnStopStrategy;  // Strategy for detecting end of user turn
     dictionary?: string;  // Comma-separated words for voice agent to listen for
     voicemail_detection?: VoicemailDetectionConfiguration;
+    call_hygiene?: CallHygieneConfiguration;
     transcript_configuration: TranscriptConfiguration;
     context_compaction_enabled: boolean;  // Summarize context on node transitions to remove stale tool calls
     external_pbx_field_mappings: ExternalPBXFieldMapping[];

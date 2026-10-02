@@ -10,7 +10,7 @@ from typing import Awaitable, Callable, Optional
 
 from fastapi import APIRouter, Header, HTTPException
 from loguru import logger
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from api.db import db_client
 from api.enums import TriggerState, WorkflowStatus
@@ -25,6 +25,7 @@ from api.services.telephony.factory import (
 )
 from api.services.workflow.run_creation import prepare_workflow_run_inputs
 from api.utils.common import get_backend_endpoints
+from api.utils.telephony_address import is_dialable_pstn
 
 router = APIRouter(prefix="/public/agent")
 
@@ -35,6 +36,13 @@ class TriggerCallRequest(BaseModel):
     phone_number: str
     initial_context: Optional[dict] = None
     telephony_configuration_id: int | None = None
+
+    @field_validator("phone_number")
+    @classmethod
+    def _phone_number_is_dialable(cls, value: str) -> str:
+        if not is_dialable_pstn(value):
+            raise ValueError("phone_number is not a dialable number")
+        return value
 
 
 class TriggerCallResponse(BaseModel):
@@ -247,6 +255,8 @@ async def _execute_resolved_target(
     if api_key_created_by is not None:
         initial_context["api_key_created_by"] = api_key_created_by
     initial_context.update(request.initial_context or {})
+    # The number actually dialed; set last so request context can't override it.
+    initial_context["called_number"] = request.phone_number
 
     try:
         concurrency_slot = await call_concurrency.acquire_org_slot(

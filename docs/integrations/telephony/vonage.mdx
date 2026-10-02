@@ -1,214 +1,290 @@
 ---
 title: "Vonage Integration"
-description: "Configure Vonage (Nexmo) for voice communication in Dograh AI"
+description: "Configure Vonage (Nexmo) as a native telephony provider in Dograh AI"
 ---
 
 ## Overview
 
-Vonage (formerly Nexmo) is a cloud communications platform that provides global voice, messaging, and video capabilities. Dograh AI's Vonage integration enables high-quality voice interactions with your agents using Vonage's robust infrastructure.
+Vonage (formerly Nexmo) is a native Dograh telephony provider. Dograh talks to the
+Vonage Voice API directly — there is no intermediary platform:
+
+```
+Dograh ──POST /v1/calls (RS256 JWT)──▶ Vonage ──PSTN──▶ callee
+Vonage ──signed Answer URL──▶ Dograh  ──NCCO "connect" websocket──▶ Vonage
+Vonage ══ signed WebSocket, 16 kHz L16 audio ══ Dograh AI pipeline (STT → LLM → TTS)
+Vonage ──signed Event URL──▶ Dograh (call lifecycle)
+```
+
+Supported with Vonage:
+
+| Feature | Supported |
+| --- | --- |
+| Test/single calls, API-triggered calls, campaigns (incl. retries and scheduling) | Yes |
+| Organization-default or explicitly selected configuration | Yes |
+| Inbound calls | Yes |
+| Transfer Call tool | Yes (conversation-based, see [Transfers](#call-transfers)) |
+| Answering machine detection | Yes (`machine_detection=continue`, optional) |
+| Signed webhooks + authenticated media WebSocket | Yes (required) |
+| Audio | 16 kHz 16-bit linear PCM, bidirectional, with barge-in |
 
 ## Prerequisites
 
-Before setting up Vonage integration, you'll need:
-
 - A [Vonage account](https://www.vonage.com/communications-apis/)
-- Vonage Application with Voice capability enabled
-- Application ID and Private Key from your Vonage Dashboard
-- API Key and API Secret from your Vonage Dashboard
-- Signature Secret from your Vonage Dashboard
-- At least one Vonage phone number linked to the application
-- Dograh AI instance running and accessible
+- A Dograh backend reachable from the internet over HTTPS/WSS (Vonage cannot call `localhost`)
+- At least one Vonage virtual number
+
+## Credentials and what they are used for
+
+| Field | Where to find it | Used for |
+| --- | --- | --- |
+| **Application ID** | Dashboard → Applications | Voice API JWT (`application_id` claim); checked on every signed callback |
+| **Private Key** | Downloaded once when you generate keys for the application (`private.key`) | Signing Voice API requests: outbound calls, hangup, transfers |
+| **API Key** | Dashboard → API Settings | Identifies your account on signed webhooks; routes inbound calls to the right configuration |
+| **API Secret** | Dashboard → API Settings | Only used to point the application's Answer/Event URLs at Dograh when you assign an inbound workflow |
+| **Signature Secret** | Dashboard → API Settings → Signed webhooks | Verifying signed webhooks and the media WebSocket handshake (required) |
+
+<Warning>
+  Dograh rejects unsigned or invalidly signed Vonage webhooks and media connections.
+  A configuration without a valid Signature Secret cannot complete calls.
+</Warning>
 
 ## Configuration
 
-### Step 1: Create Vonage Application
+### Step 1: Create a Vonage Voice application
 
-1. Log in to your [Vonage Dashboard](https://dashboard.nexmo.com/)
-2. Navigate to **Applications** → **Create a new application**
-3. Enable **Voice** capability
-4. Generate a private key (save this securely - you'll need it)
-5. Note your **Application ID**
+1. Log in to the [Vonage Dashboard](https://dashboard.nexmo.com/)
+2. Go to **Applications** → **Create a new application** and give it a name
+3. Click **Generate public and private key**. Your browser downloads `private.key` —
+   keep it; Vonage does not show it again
+4. Enable the **Voice** capability. You can enter placeholder Answer/Event URLs for now —
+   Dograh sets them for you (see [Inbound](#inbound-calling-setup)). If you set them by hand:
+   - Answer URL: `https://<your-backend-domain>/api/v1/telephony/inbound/run`, method `POST`
+   - Event URL: `https://<your-backend-domain>/api/v1/telephony/vonage/events`, method `POST`
+5. Save, then copy the **Application ID** (a UUID such as `aaaaaaaa-bbbb-cccc-dddd-0123456789ab`)
 
-### Step 2: Get API Credentials
+### Step 2: Enable signed webhooks and copy API credentials
 
-1. Find your **API Key** and **API Secret** in the dashboard under **API Settings**
-2. Copy your **Signature Secret** from the same Vonage account. Dograh uses it
-   to verify [Vonage signed webhooks](https://developer.vonage.com/en/getting-started/concepts/webhooks).
-3. Navigate to **Numbers** → **Your Numbers**
-4. Copy your phone number(s)
-5. Link each inbound number to your Voice application
+1. Go to **API Settings**
+2. Copy the **API Key** and **API Secret**
+3. Under **Signed webhooks**, make sure the signature method is **HMAC SHA-256 / JWT (HS256)**
+   and copy the **Signature Secret**. Signed callbacks are enabled on the application
+   automatically when Dograh configures it
 
-### Step 3: Configure in Dograh AI
+### Step 3: Link your numbers to the application
 
-1. Navigate to **/telephony-configurations** and click **Add configuration**
-2. Select **Vonage** as your provider
-3. Enter your credentials:
-   - Application ID
-   - Private Key (entire key including BEGIN/END lines)
-   - API Key
-   - API Secret
-   - Signature Secret
-4. Click **Save Configuration**
-5. Open the configuration you just created and add at least one **phone number** (without `+` prefix, e.g. `14155551234`). The default caller ID is used for outbound calls.
+1. Go to **Numbers** → **Your Numbers**
+2. For each number, set **Voice** → application to the application from Step 1
+3. Outbound caller IDs must be numbers owned by the same account (Vonage rejects
+   others with a `403`, which Dograh reports as `number_not_authorized`)
 
-### Step 4: Test Your Configuration
+### Step 4: Create the Vonage configuration in Dograh
 
-1. Create a test workflow
-2. Click "Call" to verify connection
-3. Check call logs for successful connection
+1. Open **Telephony configurations** (`/telephony-configurations`) → **Add configuration**
+2. Choose **Vonage** and give the configuration a name
+3. Fill in Application ID, Private Key, API Key, API Secret and Signature Secret.
+   Paste the whole `private.key` file into **Private Key**, including the
+   `-----BEGIN PRIVATE KEY-----` / `-----END PRIVATE KEY-----` lines. Windows line
+   endings, `\n`-escaped keys and keys whose line breaks were collapsed into spaces are
+   repaired automatically; the key is validated (it must be an unencrypted RSA key)
+   before it is saved
+4. Optionally enable **Answering Machine Detection**
+5. Optionally toggle **Set as default for outbound calls**
+6. Click **Create**
 
-## Inbound Calling Setup
+After saving, secrets are never sent back to the browser — the form shows masked values.
+Leaving a masked value untouched keeps the stored secret; type a new value to replace it.
 
-Vonage routes inbound Voice API calls through a Voice application. The application owns the Answer URL and Event URL, and the phone number must be linked to that application. Dograh routes the call to the right agent based on the called number's inbound workflow assignment inside Dograh.
+### Step 5: Add phone numbers
 
-When you save an inbound workflow on a phone number, Dograh updates the configured Vonage application's Voice webhooks and enables signed callbacks, provided the API Key, API Secret, and Application ID are correct and a Signature Secret is configured.
+1. Open the configuration you just created
+2. In **Phone numbers**, add each Vonage number in E.164 format, e.g. `+14155551234`
+3. Mark one as the **default caller ID** if you want outbound calls to always use it
 
-<Warning>
-  Linking the phone number to the Voice application is required. If the number
-  is not linked, Vonage will not call Dograh's Answer URL, and you may hear a
-  busy or disconnected tone without seeing any Dograh application logs.
-</Warning>
+Dograh stores numbers in E.164 and converts them to Vonage's format (digits without `+`)
+only when talking to Vonage. A bare 10-digit number is treated as US/Canada; anything
+else must include the country code.
 
-### Step 1: Link Phone Numbers to Your Vonage Application
+### Step 6: Test an outbound call
 
-1. Open the [Vonage Dashboard](https://dashboard.nexmo.com/)
-2. Go to **Numbers** → **Your Numbers**
-3. Open each number you want to use for inbound calls
-4. Set the number's Voice application to the same Vonage Application whose ID you configured in Dograh
+1. Open a workflow and click **Call** (or use the API / a campaign)
+2. If the org has several telephony configurations, pick the Vonage one
+3. Answer the phone — the agent should greet you within a second or two
 
-Vonage's Numbers API describes this as the number's `app_id`: the application that handles inbound traffic to that number. See the [Numbers API reference](https://developer.vonage.com/en/api/numbers).
+To make Vonage the organization default, click **Set as default** on the configuration.
+Campaigns use the configuration selected at creation (or the org default at that time)
+for every call **and every retry**.
 
-### Step 2: Assign an Inbound Workflow to the Phone Number in Dograh
+## Inbound calling setup
 
-1. Go to **/telephony-configurations** and open your Vonage configuration
-2. In the **Phone numbers** section, edit the number that should receive inbound calls
-3. Set its **Inbound workflow** to the agent that should answer
-4. Save
+Vonage routes inbound calls per **application**, not per number: one Answer URL serves
+every number linked to the application. Dograh points that Answer URL at its
+workflow-agnostic dispatcher, then picks the agent from the called number's
+**Inbound workflow** assignment.
 
-### Step 3: Verify the Answer URL on the Vonage Application
+1. Make sure the number is linked to the application (Step 3 above)
+2. In Dograh, open the Vonage configuration → **Phone numbers** → edit the number →
+   choose an **Inbound workflow** → Save
 
-1. Open your Vonage Application in the [Vonage Dashboard](https://dashboard.nexmo.com/)
-2. Under **Capabilities** → **Voice**, confirm:
-   - **Answer URL** is set to: `https://<your-backend-domain>/api/v1/telephony/inbound/run`
-   - **HTTP Method** is `POST`
-   - **Event URL** is set to: `https://<your-backend-domain>/api/v1/telephony/vonage/events`
-   - **Event Method** is `POST`
-   - **Signed callbacks** are enabled
+On save, Dograh updates the application with:
 
-   <Note>
-     Dograh pushes these settings automatically when you save the inbound
-     workflow in Step 2. If the fields are empty, show a different URL, or
-     Dograh surfaced a sync warning on save, check the API Key, API Secret,
-     Application ID, and Signature Secret in Dograh, then save the inbound
-     workflow again. On self-hosted Dograh, the backend domain must be publicly
-     reachable by Vonage.
-   </Note>
+- Answer URL `https://<your-backend-domain>/api/v1/telephony/inbound/run` (`POST`)
+- Event URL `https://<your-backend-domain>/api/v1/telephony/vonage/events` (`POST`)
+- Signed callbacks enabled
 
-### Step 4: Verify Setup
+This update is idempotent: if several Dograh configurations (or numbers) share one
+Vonage application, Dograh does not rewrite it once it already points at Dograh.
+Removing an inbound workflow from a number **never clears** the application's Answer
+URL — doing so would break every other number on the application. Calls to numbers
+without an inbound workflow are answered with a short message and hung up.
 
-- Ensure your Dograh AI instance is publicly accessible
-- Verify your public backend URL is reachable from the internet
-- Use the [Vonage logs](https://dashboard.nexmo.com/logs) or Voice Inspector to confirm Vonage is sending the Answer webhook to Dograh
+<Note>
+  If Dograh shows a sync warning when you save the inbound workflow, check the API Key,
+  API Secret and Application ID (they must belong to the same Vonage account), then
+  save again. You can also set the URLs by hand as in Step 1.
+</Note>
 
-### Test Inbound Calling
+**Test an inbound call:** call the number from another phone. The configured agent
+should answer. Each inbound call creates a run tagged with the configuration and
+called number.
 
-1. Call your configured Vonage phone number from another phone
-2. Verify your Dograh AI voice agent answers and responds
-3. Check call logs in both Dograh AI dashboard and Vonage Dashboard
+Inbound requests are matched to a configuration by the `api_key` claim of Vonage's
+signed JWT **and** the called number, then verified with that configuration's
+Signature Secret. One organization's Vonage account can never reach another
+organization's numbers or workflows.
 
-## Audio Quality Optimization
+## Media and audio
 
-Vonage uses higher quality audio (16kHz) which provides:
-- Clearer voice reproduction
-- Better speech recognition accuracy
-- More natural-sounding TTS output
-- Reduced transcription errors
+The NCCO Dograh returns connects the call to a WebSocket:
+
+- `content-type: audio/l16;rate=16000` — 16-bit little-endian linear PCM at 16 kHz in
+  both directions, sent as binary 20 ms (640-byte) frames. The pipeline also runs at
+  16 kHz, so there is no resampling and no μ-law conversion
+- Barge-in: when the caller interrupts, Dograh sends `{"action": "clear"}` to flush
+  Vonage's playback buffer
+- DTMF arrives as `websocket:dtmf` events
+
+### WebSocket authentication
+
+The media WebSocket is authenticated twice before the run starts:
+
+1. The NCCO sets `"authorization": {"type": "vonage"}`, so Vonage signs the WebSocket
+   handshake with your Signature Secret. Dograh verifies the JWT (issuer, `api_key`,
+   `application_id`, freshness) using the run's own configuration
+2. The NCCO `headers` carry a per-run HMAC token bound to the organization, workflow,
+   run and telephony configuration. Vonage echoes it in the first `websocket:connected`
+   message and Dograh checks it
+
+A client that merely knows the WebSocket URL is rejected with close code `4401`, and
+the run stays available for the real Vonage connection.
+
+## Call lifecycle
+
+Vonage events are verified, deduplicated and normalized:
+
+| Vonage `status` | Dograh status |
+| --- | --- |
+| `started` | `initiated` |
+| `ringing` | `ringing` |
+| `answered` | `answered` |
+| `completed`, `complete`, `disconnected` | `completed` |
+| `busy` | `busy` (campaign retry) |
+| `timeout`, `unanswered` | `no-answer` (campaign retry) |
+| `rejected`, `failed` | `failed` (or `busy` / `no-answer` when Vonage's `detail` says `declined` / `unavailable`) |
+| `cancelled` | `canceled` |
+| `human`, `machine` | not a lifecycle state; stored as `answered_by` (AMD) |
+
+Only events for the run's own call leg move its state; events from the media WebSocket
+leg are ignored. Once a terminal status is processed, late or repeated events are
+logged but cannot overwrite it or re-trigger retries. The Vonage call UUID is stored
+on the run (`call_id` / `call_uuid`) and appears in every Vonage log line together with
+the organization, configuration, workflow, run and campaign IDs.
+
+## Call transfers
+
+The agent's standard **Transfer Call** tool works on Vonage calls:
+
+1. Dograh dials the destination (`POST /v1/calls`) with an NCCO that joins a named
+   conversation (`transfer-<caller call UUID>`). Vonage stops ringing after the tool's
+   timeout (`ringing_timer`, 1–120 s) while the caller hears hold music
+2. Destination events arrive at `/api/v1/telephony/vonage/transfer-events/{transfer_id}`:
+   - `answered` → Dograh moves the caller into the same conversation
+     (`PUT /v1/calls/{uuid}` `action: transfer`) and the AI leaves the call
+   - `busy`, `timeout`, `unanswered`, `rejected`, `failed`, `cancelled` → the agent is told
+     the transfer failed (`busy`, `no_answer`, `call_failed`) and the conversation continues
+3. Cleanup: both legs join with `endOnExit`, so when either party hangs up the other
+   leg ends too. If the tool times out, the caller hangs up while the destination is
+   ringing, or the caller can no longer be moved, Dograh hangs up the destination leg.
+
+Transfers are cold (the AI drops off once the destination answers); this matches how
+transfers behave on the other providers.
+
+## Answering machine detection
+
+When **Answering Machine Detection** is on, outbound calls are created with
+`machine_detection: "continue"`. Vonage keeps the call up and reports `human` or
+`machine` on the event webhook; Dograh stores it on the run as `answered_by`
+(`machine_beep_start` etc. when Vonage includes a `sub_state`). Vonage may bill AMD
+separately.
+
+## Error handling
+
+Vonage API failures are classified instead of being reported as a generic failure:
+`invalid_credentials`, `malformed_private_key`, `invalid_application_id`,
+`number_not_authorized`, `invalid_number`, `destination_rejected`,
+`insufficient_balance`, `rate_limited`, `provider_unavailable`, `network_timeout`.
+Rate limits (HTTP 429) and connection errors are retried up to three times. Call creation
+is never retried after a 5xx or timeout, because Vonage may already have placed the call.
+Error messages never contain keys, secrets or tokens.
 
 ## Troubleshooting
 
 <AccordionGroup>
-  <Accordion title="Voice application capabilities error">
-    - Ensure "Voice" is enabled in your Vonage application
-    - Verify the application ID matches your configuration
-    - Check that your phone numbers are linked to the application
-  </Accordion>
-  
-  <Accordion title="JWT authentication failed">
-    - Verify your private key is complete (including BEGIN/END lines)
-    - Check the Application ID is correct
-    - Ensure the private key hasn't been regenerated in Vonage Dashboard
+  <Accordion title="Outbound call fails with invalid_credentials (Vonage 401)">
+    - The private key must belong to the configured Application ID. Regenerating keys in the dashboard invalidates the old `private.key`
+    - Paste the full key including the BEGIN/END lines
   </Accordion>
 
-  <Accordion title="Signed webhook validation failed">
-    - Verify the Signature Secret in Dograh matches the Vonage account's signature secret
-    - Ensure signed callbacks are enabled on the Vonage Voice application
-    - Check that the webhook request includes an `Authorization` header
-    - Confirm the application belongs to the same API Key saved in Dograh
+  <Accordion title="Outbound call fails with number_not_authorized (Vonage 403)">
+    - The caller ID must be a number owned by the same Vonage account
+    - Check the number in Dograh is entered correctly in E.164 format
   </Accordion>
-  
-  <Accordion title="Invalid phone number error">
-    - Remove the '+' prefix for Vonage (use `14155551234` not `+14155551234`)
-    - Ensure numbers are in [E.164](https://en.wikipedia.org/wiki/E.164) format (country code + number, no spaces or dashes) without the '+'
-    - Verify numbers are active in your Vonage account
+
+  <Accordion title="Call connects but there is silence, or it drops right after answering">
+    This is almost always the media WebSocket:
+    - Your backend must be reachable over `wss://` from the internet; check proxies/load balancers allow WebSocket upgrades and don't idle-timeout long calls
+    - Look for `media websocket rejected` in the API logs:
+      - `handshake not signed by Vonage` → the Signature Secret in Dograh doesn't match the account's, or the API Key/Application ID differ from the account that owns the application
+      - `run token mismatch` → the NCCO was produced by a different configuration than the run uses; recreate the call
+      - `no websocket:connected` → something between Vonage and Dograh is stripping the WebSocket's first message
+    - Check the Vonage Voice Inspector for `websocket` leg errors
   </Accordion>
-  
-  <Accordion title="No audio on calls">
-    - Verify WebSocket connection is established
-    - Check audio pipeline is configured for 16kHz PCM
-    - Monitor WebSocket for binary audio frames
-    - Review [VAD (Voice Activity Detection)](/configurations/interruption#what-is-vad) behavior — this is what detects when the caller starts and stops speaking
-  </Accordion>
-  
-  <Accordion title="Calls disconnecting early">
-    - Check WebSocket heartbeat/ping-pong frames
-    - Verify no timeout in load balancer/proxy
-    - Monitor for audio pipeline errors
-    - Review max call duration settings
-  </Accordion>
-  
-  <Accordion title="Inbound calls not reaching voice agent">
-    - Verify the Vonage application's Answer URL is set to `https://<your-backend-domain>/api/v1/telephony/inbound/run`
-    - Ensure the Answer URL is publicly accessible
-    - Confirm the called number is linked to the correct Vonage application
-    - Confirm the called number exists in your Dograh telephony configuration and has an **Inbound workflow** assigned
+
+  <Accordion title="Signed webhook validation failed (401 from Dograh)">
+    - The Signature Secret in Dograh must match Dashboard → API Settings
+    - The signature method must be HS256 (JWT)
+    - The host clock must be accurate: callbacks older than 5 minutes are rejected as replays
+    - The application must belong to the API Key saved in Dograh
   </Accordion>
 
   <Accordion title="Inbound call gives busy tone and Dograh shows no logs">
-    - Confirm the Vonage number is linked to the Voice application configured in Dograh
-    - Confirm the Voice application has the Dograh Answer URL set with method `POST`
-    - Confirm your backend domain is public; Vonage cannot call `localhost`
-    - Check Vonage logs for Answer URL delivery errors before debugging Dograh
+    - Confirm the number is linked to the Vonage application configured in Dograh
+    - Confirm the application's Answer URL is `https://<your-backend-domain>/api/v1/telephony/inbound/run` with method `POST`
+    - Confirm your backend domain is public
   </Accordion>
-  
-  <Accordion title="Voice agent doesn't respond to inbound calls">
-    - Confirm the phone number has an **Inbound workflow** assigned in /telephony-configurations
-    - Verify API Key matches the one stored in your Dograh telephony configuration (used to identify the org from the inbound webhook)
-    - Verify WebSocket connection establishes successfully
-    - Review call logs for error messages
+
+  <Accordion title="Inbound call plays an error message and hangs up">
+    - The called number must exist in the Vonage configuration in Dograh and have an **Inbound workflow** assigned
+    - The webhook's `api_key` must match the configuration's API Key
+  </Accordion>
+
+  <Accordion title="Transfer always fails">
+    - The transfer destination must be a valid E.164 number
+    - Check the transfer leg in the Vonage Voice Inspector; the destination's caller ID is one of the configuration's numbers
   </Accordion>
 </AccordionGroup>
 
-## Best Practices
+## Cost considerations
 
-- **Security**: Private keys are stored securely in the database
-- **Signed callbacks**: Keep Vonage signed callbacks enabled and keep the Signature Secret in Dograh up to date
-- **Testing**: Use Vonage Voice Inspector for debugging call issues
-- **Numbers**: Configure multiple numbers for redundancy
-- **Monitoring**: Set up alerts in Vonage Dashboard for failures
-- **Cost Management**: Monitor usage to control costs
-
-## Cost Considerations
-
-Vonage pricing includes:
-- Per-minute charges for calls
-- Phone number rental fees
-- Optional features (recording, transcription)
-
-Check [Vonage pricing](https://www.vonage.com/communications-apis/voice/pricing/) for current rates.
-
-## Next Steps
-
-- Test your Vonage integration with a simple workflow
-- Review [VAD and interruption behavior](/configurations/interruption) for your workflow's nodes
-- Set up monitoring and alerts
-- Explore advanced features like call recording
+Vonage bills per minute, per number, and for optional features such as AMD. The Voice
+API reports call price in the account's billing currency. See
+[Vonage pricing](https://www.vonage.com/communications-apis/voice/pricing/).

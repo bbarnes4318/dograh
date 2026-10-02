@@ -108,7 +108,7 @@ def test_trigger_route_executes_as_workflow_owner():
         response = client.post(
             "/public/agent/trigger-uuid-123",
             headers={"X-API-Key": "test-api-key"},
-            json={"phone_number": "+15551234567"},
+            json={"phone_number": "+15552345678"},
         )
 
     assert response.status_code == 200
@@ -199,7 +199,7 @@ def test_workflow_uuid_route_uses_scoped_lookup_and_shared_execution():
         response = client.post(
             f"/public/agent/workflow/{workflow.workflow_uuid}",
             headers={"X-API-Key": "test-api-key"},
-            json={"phone_number": "+15551234567"},
+            json={"phone_number": "+15552345678"},
         )
 
     assert response.status_code == 200
@@ -294,7 +294,7 @@ def test_trigger_test_route_uses_draft_and_template_context_with_api_override():
             "/public/agent/test/trigger-uuid-123",
             headers={"X-API-Key": "test-api-key"},
             json={
-                "phone_number": "+15551234567",
+                "phone_number": "+15552345678",
                 "initial_context": {"name": "tom", "age": 10},
             },
         )
@@ -370,7 +370,7 @@ def test_workflow_uuid_test_route_uses_draft_and_template_context():
             f"/public/agent/test/workflow/{workflow.workflow_uuid}",
             headers={"X-API-Key": "test-api-key"},
             json={
-                "phone_number": "+15551234567",
+                "phone_number": "+15552345678",
                 "initial_context": {"name": "tom"},
             },
         )
@@ -445,7 +445,7 @@ def test_trigger_route_still_returns_success_when_metadata_persistence_fails():
         response = client.post(
             "/public/agent/trigger-uuid-123",
             headers={"X-API-Key": "test-api-key"},
-            json={"phone_number": "+15551234567"},
+            json={"phone_number": "+15552345678"},
         )
 
     assert response.status_code == 200
@@ -496,7 +496,7 @@ def test_trigger_route_rejects_when_concurrency_limit_reached():
         response = client.post(
             "/public/agent/trigger-uuid-123",
             headers={"X-API-Key": "test-api-key"},
-            json={"phone_number": "+15551234567"},
+            json={"phone_number": "+15552345678"},
         )
 
     assert response.status_code == 429
@@ -550,7 +550,7 @@ def test_trigger_route_releases_concurrency_slot_when_quota_fails():
         response = client.post(
             "/public/agent/trigger-uuid-123",
             headers={"X-API-Key": "test-api-key"},
-            json={"phone_number": "+15551234567"},
+            json={"phone_number": "+15552345678"},
         )
 
     assert response.status_code == 402
@@ -574,7 +574,7 @@ def test_workflow_uuid_route_rejects_archived_workflows():
         response = client.post(
             f"/public/agent/workflow/{workflow.workflow_uuid}",
             headers={"X-API-Key": "test-api-key"},
-            json={"phone_number": "+15551234567"},
+            json={"phone_number": "+15552345678"},
         )
 
     assert response.status_code == 404

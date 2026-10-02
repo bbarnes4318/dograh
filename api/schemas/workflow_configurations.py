@@ -88,6 +88,35 @@ class DTMFConfiguration(BaseModel):
     max_digits: int = Field(default=32, gt=0, le=64)
 
 
+class CallHygieneConfiguration(BaseModel):
+    """Guards that end calls the agent should not be sitting on.
+
+    Voicemail greetings, post-recording carrier menus, call screeners and
+    answering bots all read as caller speech to the rest of the pipeline, so
+    nothing else ends them early. These guards run alongside the LLM
+    voicemail detector (non-realtime pipelines only).
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    enabled: bool = True
+    machine_keyword_hangup: bool = True
+    screener_handling: bool = True
+    # Spoken once, verbatim, when a call screener answers. None = have the LLM
+    # say one sentence from its greeting instead.
+    screener_response: Optional[str] = None
+    screener_pickup_timeout_seconds: float = Field(default=30.0, gt=0, le=120)
+    answering_bot_detection: bool = True
+    closing_line_hangup: bool = True
+    closing_line_grace_seconds: float = Field(default=1.5, ge=0, le=10)
+    # Caller has never spoken: nudge after this many seconds of silence, then
+    # end. None disables.
+    first_response_timeout_seconds: Optional[float] = Field(default=5.0, gt=0, le=60)
+    first_response_nudge: str = "Hello? Can you hear me okay?"
+    first_response_end_after_seconds: float = Field(default=5.0, gt=0, le=60)
+    strip_llm_markup: bool = True
+
+
 class IdleNudgeConfiguration(BaseModel):
     """One step in the escalating response to a caller going quiet."""
 
@@ -211,6 +240,9 @@ class WorkflowConfigurationDefaults(BaseModel):
     )
     dtmf: DTMFConfiguration = Field(default_factory=DTMFConfiguration)
     dnc: DNCConfiguration = Field(default_factory=DNCConfiguration)
+    call_hygiene: CallHygieneConfiguration = Field(
+        default_factory=CallHygieneConfiguration
+    )
     max_call_duration: int = Field(
         default=DEFAULT_MAX_CALL_DURATION_SECONDS,
         gt=0,

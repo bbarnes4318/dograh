@@ -774,6 +774,94 @@ export type CalculatorToolDefinition = {
 };
 
 /**
+ * PlayAudioConfig
+ *
+ * Configuration for Play Audio tools.
+ */
+export type PlayAudioConfig = {
+    /**
+     * Audio Url
+     *
+     * Public http(s) URL of the audio file (mp3, wav, ...) to play to the caller. It is fetched and converted to the call's sample rate.
+     */
+    audio_url: string;
+};
+
+/**
+ * PlayAudioToolDefinition
+ *
+ * Tool definition for Play Audio tools.
+ */
+export type PlayAudioToolDefinition = {
+    /**
+     * Schema Version
+     *
+     * Schema version.
+     */
+    schema_version?: number;
+    /**
+     * Type
+     *
+     * Tool type.
+     */
+    type: 'play_audio';
+    /**
+     * Play Audio configuration.
+     */
+    config: PlayAudioConfig;
+};
+
+/**
+ * SendSmsConfig
+ *
+ * Configuration for Send SMS tools (FracTEL provider).
+ */
+export type SendSmsConfig = {
+    /**
+     * Credential Uuid
+     *
+     * Reference to a Basic Auth credential holding the FracTEL API username and password.
+     */
+    credential_uuid?: string | null;
+    /**
+     * From Numbers
+     *
+     * 10-digit sender DIDs registered with FracTEL (10DLC). With more than one, messages rotate round-robin across them.
+     */
+    from_numbers?: Array<string>;
+    /**
+     * Append Links
+     *
+     * http(s) links added to the end of every text, one per line. A link already present in the message is not added again.
+     */
+    append_links?: Array<string>;
+};
+
+/**
+ * SendSmsToolDefinition
+ *
+ * Tool definition for Send SMS tools.
+ */
+export type SendSmsToolDefinition = {
+    /**
+     * Schema Version
+     *
+     * Schema version.
+     */
+    schema_version?: number;
+    /**
+     * Type
+     *
+     * Tool type.
+     */
+    type: 'send_sms';
+    /**
+     * Send SMS configuration.
+     */
+    config: SendSmsConfig;
+};
+
+/**
  * CallDispositionCodes
  */
 export type CallDispositionCodes = {
@@ -1567,7 +1655,7 @@ export type CreateToolRequest = {
      *
      * Tool category. Must match definition.type.
      */
-    category?: 'http_api' | 'end_call' | 'transfer_call' | 'calculator' | 'native' | 'integration' | 'mcp';
+    category?: 'http_api' | 'end_call' | 'transfer_call' | 'calculator' | 'native' | 'integration' | 'mcp' | 'play_audio' | 'send_sms';
     /**
      * Icon
      *
@@ -1595,7 +1683,11 @@ export type CreateToolRequest = {
         type: 'calculator';
     } & CalculatorToolDefinition) | ({
         type: 'mcp';
-    } & McpToolDefinition);
+    } & McpToolDefinition) | ({
+        type: 'play_audio';
+    } & PlayAudioToolDefinition) | ({
+        type: 'send_sms';
+    } & SendSmsToolDefinition);
 };
 
 /**
@@ -6523,7 +6615,11 @@ export type UpdateToolRequest = {
         type: 'calculator';
     } & CalculatorToolDefinition) | ({
         type: 'mcp';
-    } & McpToolDefinition) | null;
+    } & McpToolDefinition) | ({
+        type: 'play_audio';
+    } & PlayAudioToolDefinition) | ({
+        type: 'send_sms';
+    } & SendSmsToolDefinition) | null;
     /**
      * Status
      */
@@ -6965,7 +7061,7 @@ export type VonageConfigurationRequest = {
     /**
      * Private Key
      *
-     * Private key for JWT generation
+     * RSA private key (PEM) for JWT generation
      */
     private_key: string;
     /**
@@ -6973,11 +7069,17 @@ export type VonageConfigurationRequest = {
      *
      * Vonage signature secret used to verify signed webhooks
      */
-    signature_secret?: string | null;
+    signature_secret: string;
+    /**
+     * Amd Enabled
+     *
+     * Request Vonage answering machine detection on outbound calls
+     */
+    amd_enabled?: boolean;
     /**
      * From Numbers
      *
-     * List of Vonage phone numbers (without + prefix)
+     * List of Vonage phone numbers (E.164)
      */
     from_numbers?: Array<string>;
 };
@@ -7012,6 +7114,10 @@ export type VonageConfigurationResponse = {
      * Signature Secret
      */
     signature_secret?: string | null;
+    /**
+     * Amd Enabled
+     */
+    amd_enabled?: boolean;
     /**
      * From Numbers
      */

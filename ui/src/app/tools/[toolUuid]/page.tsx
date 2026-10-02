@@ -48,6 +48,8 @@ import { createUuid } from "@/lib/uuid";
 import {
     type ContextDestinationRouteRow,
     createMcpDefinition,
+    createPlayAudioDefinition,
+    createSendSmsDefinition,
     DEFAULT_END_CALL_REASON_DESCRIPTION,
     type EndCallMessageType,
     type ExtendedTransferCallConfig,
@@ -82,6 +84,20 @@ function normalizeParameterType(value: string | null | undefined): ParameterType
 function headersToRows(headers: Record<string, string> | undefined | null): KeyValueItem[] {
     if (!headers) return [];
     return Object.entries(headers).map(([key, value]) => ({ key, value }));
+}
+
+function parseSmsLinks(value: string): string[] {
+    return value
+        .split("\n")
+        .map((l) => l.trim())
+        .filter(Boolean);
+}
+
+function parseSmsNumbers(value: string): string[] {
+    return value
+        .split(/[,\s]+/)
+        .map((n) => n.replace(/\D/g, "").replace(/^1(?=\d{10}$)/, ""))
+        .filter(Boolean);
 }
 
 export default function ToolDetailPage() {
@@ -155,6 +171,14 @@ export default function ToolDetailPage() {
     const [mcpUrl, setMcpUrl] = useState("");
     const [mcpCredentialUuid, setMcpCredentialUuid] = useState("");
     const [mcpToolsFilter, setMcpToolsFilter] = useState("");
+
+    // Play Audio form state
+    const [audioUrl, setAudioUrl] = useState("");
+
+    // Send SMS form state
+    const [smsCredentialUuid, setSmsCredentialUuid] = useState("");
+    const [smsFromNumbers, setSmsFromNumbers] = useState("");
+    const [smsAppendLinks, setSmsAppendLinks] = useState("");
 
     // Org-level recordings for audio dropdowns
     const [recordings, setRecordings] = useState<RecordingResponseSchema[]>([]);
@@ -273,6 +297,16 @@ export default function ToolDetailPage() {
                 setTransferContextDestinationRoutes([]);
                 setTransferFallbackDestination("");
             }
+        } else if (tool.category === "play_audio") {
+            const config = tool.definition?.config as { audio_url?: string } | undefined;
+            setAudioUrl(config?.audio_url || "");
+        } else if (tool.category === "send_sms") {
+            const config = tool.definition?.config as
+                | { credential_uuid?: string | null; from_numbers?: string[]; append_links?: string[] }
+                | undefined;
+            setSmsCredentialUuid(config?.credential_uuid || "");
+            setSmsFromNumbers((config?.from_numbers || []).join(", "));
+            setSmsAppendLinks((config?.append_links || []).join("\n"));
         } else if (tool.category === "mcp") {
             // Populate MCP specific fields
             const config = tool.definition?.config as
@@ -466,6 +500,24 @@ export default function ToolDetailPage() {
                 setError("MCP server URL must start with http:// or https://");
                 return;
             }
+        } else if (tool.category === "play_audio") {
+            if (!MCP_URL_PATTERN.test(audioUrl.trim())) {
+                setError("Audio URL must start with http:// or https://");
+                return;
+            }
+        } else if (tool.category === "send_sms") {
+            if (!smsCredentialUuid) {
+                setError("Select a FracTEL credential (Basic Auth)");
+                return;
+            }
+            if (parseSmsNumbers(smsFromNumbers).length === 0) {
+                setError("Add at least one sender number");
+                return;
+            }
+            if (parseSmsLinks(smsAppendLinks).some((l) => !MCP_URL_PATTERN.test(l))) {
+                setError("Each link must start with http:// or https://");
+                return;
+            }
         } else if (tool.category !== "end_call") {
             // Validate URL for HTTP API tools
             const urlValidation = validateUrl(url);
@@ -600,6 +652,22 @@ export default function ToolDetailPage() {
                         type: "transfer_call",
                         config: transferConfig,
                     } as UpdateToolRequest["definition"],
+                };
+            } else if (tool.category === "play_audio") {
+                requestBody = {
+                    name,
+                    description: description || undefined,
+                    definition: createPlayAudioDefinition(audioUrl),
+                };
+            } else if (tool.category === "send_sms") {
+                requestBody = {
+                    name,
+                    description: description || undefined,
+                    definition: createSendSmsDefinition(
+                        smsCredentialUuid,
+                        parseSmsNumbers(smsFromNumbers),
+                        parseSmsLinks(smsAppendLinks),
+                    ),
                 };
             } else if (tool.category === "mcp") {
                 requestBody = {
@@ -789,6 +857,8 @@ const data = await response.json();`;
     const isTransferCallTool = tool.category === "transfer_call";
     const isBuiltinTool = tool.category === "calculator";
     const isMcpTool = tool.category === "mcp";
+    const isPlayAudioTool = tool.category === "play_audio";
+    const isSendSmsTool = tool.category === "send_sms";
     const isHttpApiTool = tool.category === "http_api";
     const hasUnsavedHttpChanges =
         isHttpApiTool &&
@@ -933,6 +1003,121 @@ const data = await response.json();`;
                             fallbackDestination={transferFallbackDestination}
                             onFallbackDestinationChange={setTransferFallbackDestination}
                         />
+                    ) : isPlayAudioTool ? (
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Play Audio Configuration</CardTitle>
+                                <CardDescription>
+                                    Plays an audio file (e.g. a song) to the caller when the agent calls this tool. The agent stays silent while it plays.
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-6">
+                                <div className="space-y-2">
+                                    <Label htmlFor="play-audio-name">Tool Name</Label>
+                                    <Input
+                                        id="play-audio-name"
+                                        value={name}
+                                        onChange={(e) => setName(e.target.value)}
+                                        placeholder="e.g., Play Song"
+                                    />
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label htmlFor="play-audio-description">Description</Label>
+                                    <p className="text-xs text-muted-foreground">
+                                        Tell the agent when to play the audio
+                                    </p>
+                                    <Textarea
+                                        id="play-audio-description"
+                                        value={description}
+                                        onChange={(e) => setDescription(e.target.value)}
+                                        placeholder="Play the song when the caller asks to hear it"
+                                        rows={3}
+                                    />
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label htmlFor="play-audio-url">Audio URL</Label>
+                                    <Input
+                                        id="play-audio-url"
+                                        value={audioUrl}
+                                        onChange={(e) => setAudioUrl(e.target.value)}
+                                        placeholder="https://storage.example.com/song.mp3"
+                                    />
+                                    <p className="text-xs text-muted-foreground">
+                                        Public link to an mp3/wav file. It is converted to phone quality automatically.
+                                    </p>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    ) : isSendSmsTool ? (
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Send SMS Configuration</CardTitle>
+                                <CardDescription>
+                                    Sends a text message through FracTEL to the customer on the current call. The recipient number is automatically taken from the active call; the agent supplies only the message.
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-6">
+                                <div className="space-y-2">
+                                    <Label htmlFor="send-sms-name">Tool Name</Label>
+                                    <Input
+                                        id="send-sms-name"
+                                        value={name}
+                                        onChange={(e) => setName(e.target.value)}
+                                        placeholder="e.g., Send Text"
+                                    />
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label htmlFor="send-sms-description">Description</Label>
+                                    <p className="text-xs text-muted-foreground">
+                                        Tell the agent when to send a text
+                                    </p>
+                                    <Textarea
+                                        id="send-sms-description"
+                                        value={description}
+                                        onChange={(e) => setDescription(e.target.value)}
+                                        placeholder="Send the caller a text with the booking link when they ask for it"
+                                        rows={3}
+                                    />
+                                </div>
+
+                                <CredentialSelector
+                                    value={smsCredentialUuid}
+                                    onChange={setSmsCredentialUuid}
+                                    label="FracTEL Credential"
+                                    description="A Basic Auth credential with your FracTEL API username and password."
+                                />
+
+                                <div className="space-y-2">
+                                    <Label htmlFor="send-sms-from">Sender Numbers</Label>
+                                    <Input
+                                        id="send-sms-from"
+                                        value={smsFromNumbers}
+                                        onChange={(e) => setSmsFromNumbers(e.target.value)}
+                                        placeholder="e.g., 8653456051, 3215777735"
+                                    />
+                                    <p className="text-xs text-muted-foreground">
+                                        Comma-separated 10-digit numbers registered on your FracTEL 10DLC campaign. Texts are sent from these numbers; with several, messages rotate round-robin.
+                                    </p>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label htmlFor="send-sms-links">Links to append</Label>
+                                    <Textarea
+                                        id="send-sms-links"
+                                        value={smsAppendLinks}
+                                        onChange={(e) => setSmsAppendLinks(e.target.value)}
+                                        placeholder={"https://dialbrowser.com/distribution"}
+                                        rows={3}
+                                    />
+                                    <p className="text-xs text-muted-foreground">
+                                        One link per line. Added to the end of every text automatically (a link already in the message is not repeated).
+                                    </p>
+                                </div>
+                            </CardContent>
+                        </Card>
                     ) : isMcpTool ? (
                         <Card>
                             <CardHeader>

@@ -22,7 +22,20 @@ from pipecat.utils.enums import EndTaskReason
 
 from api.db import db_client
 from api.enums import ToolCategory, WorkflowRunMode
+from api.services.pipecat.audio_file_cache import convert_audio_file
 from api.services.pipecat.audio_playback import play_audio, play_audio_loop
+from api.services.sms.fractel import (
+    FracTelConfigError,
+    append_links as append_sms_links,
+    FracTelError,
+    mask_number,
+    pick_from_number,
+)
+from api.services.sms.fractel import send_sms as send_fractel_sms
+from api.services.sms.recipient import (
+    RecipientResolutionError,
+    resolve_call_recipient,
+)
 from api.services.telephony.call_transfer_manager import get_call_transfer_manager
 from api.services.telephony.external_pbx import resolve_external_pbx_field_mappings
 from api.services.telephony.factory import get_telephony_provider_for_run
@@ -37,10 +50,26 @@ from api.services.workflow.tools.transfer_resolver import (
     resolve_transfer_config,
 )
 from api.utils.template_renderer import render_template
+from api.utils.url_security import validate_user_configured_service_url
 
 if TYPE_CHECKING:
     from api.services.workflow.mcp_tool_session import McpToolSession
     from api.services.workflow.pipecat_engine import PipecatEngine
+
+
+# Safe, agent-facing explanations per FracTelError.reason. Provider detail
+# (HTTP status, error code/message) goes to the server log only.
+_SMS_ERROR_MESSAGES = {
+    "credentials_missing": "The text message tool is not configured (no FracTEL credential)",
+    "credentials_invalid": "The text message provider rejected the account credentials",
+    "auth_failed": "The text message provider rejected the account credentials",
+    "sender_not_configured": "The text message tool has no sender number configured",
+    "sender_invalid": "The text message tool's sender number is invalid",
+    "recipient_invalid": "The customer's number on this call cannot receive texts",
+    "empty_message": "The text message was empty",
+    "provider_rejected": "The text message provider rejected the message",
+    "provider_unavailable": "The text message service is temporarily unavailable",
+}
 
 
 def _render_transfer_destination(
@@ -335,6 +364,14 @@ class CustomToolManager:
         elif tool.category == ToolCategory.TRANSFER_CALL.value:
             timeout_secs = self._transfer_handler_timeout_secs(tool)
             handler = self._create_transfer_call_handler(tool, function_name)
+        elif tool.category == ToolCategory.PLAY_AUDIO.value:
+            # Covers downloading + transcoding the file; playback itself is queued.
+            timeout_secs = 60.0
+            handler = self._create_play_audio_handler(tool, function_name)
+        elif tool.category == ToolCategory.SEND_SMS.value:
+            # 10s per request x (1 + 3 retries) plus backoff, plus token fetch.
+            timeout_secs = 60.0
+            handler = self._create_send_sms_handler(tool, function_name)
         else:
             timeout_ms = ((tool.definition or {}).get("config", {}) or {}).get(
                 "timeout_ms", 5000
@@ -489,6 +526,155 @@ class CustomToolManager:
 
         return mcp_tool_handler
 
+    def _create_play_audio_handler(self, tool: Any, function_name: str):
+        """Create a handler that plays the tool's audio file (e.g. a song) to
+        the caller. The bot stays silent and the caller can't barge in until
+        the audio finishes; the LLM resumes on the caller's next turn."""
+        properties = FunctionCallResultProperties(run_llm=False)
+
+        async def play_audio_handler(
+            function_call_params: FunctionCallParams,
+        ) -> None:
+            logger.info(f"Play Audio Tool EXECUTED: {function_name}")
+            try:
+                config = (tool.definition or {}).get("config", {}) or {}
+                audio_url = config.get("audio_url", "")
+                validate_user_configured_service_url(audio_url, field_name="audio_url")
+                sample_rate = (
+                    self._engine._audio_config.pipeline_sample_rate
+                    if self._engine._audio_config
+                    else 16000
+                )
+                # ponytail: fetched + transcoded per invocation; cache by URL if
+                # the download delay before playback becomes noticeable.
+                audio = await convert_audio_file(audio_url, sample_rate, "pcm")
+                if not audio:
+                    raise RuntimeError(f"could not load audio from {audio_url}")
+
+                self._engine._queued_speech_mute_state = "waiting"
+                await play_audio(
+                    audio,
+                    sample_rate=sample_rate,
+                    queue_frame=self._engine._transport_output.queue_frame,
+                )
+                await function_call_params.result_callback(
+                    {"status": "success", "action": "playing_audio"},
+                    properties=properties,
+                )
+            except Exception as e:
+                logger.error(f"Play audio tool '{function_name}' failed: {e}")
+                await function_call_params.result_callback(
+                    {"status": "error", "error": str(e)}
+                )
+
+        return play_audio_handler
+
+    def _create_send_sms_handler(self, tool: Any, function_name: str):
+        """Create a handler that texts the customer on the current call through
+        FracTEL. The LLM supplies only the message; the recipient comes from
+        the call's own setup context (``engine._call_parties``)."""
+
+        async def send_sms_handler(
+            function_call_params: FunctionCallParams,
+        ) -> None:
+            workflow_run_id = self._engine._workflow_run_id
+            args = function_call_params.arguments or {}
+            log_ctx = (
+                f"tool='{function_name}' workflow_run_id={workflow_run_id} "
+                f"provider=fractel"
+            )
+            logger.info(f"Send SMS Tool EXECUTED: {log_ctx}")
+            if args.get("to"):
+                # Older prompts/contexts may still pass a number; it is never used.
+                logger.warning(
+                    f"Send SMS ignoring LLM-supplied recipient "
+                    f"{mask_number(str(args['to']))}: {log_ctx}"
+                )
+
+            recipient = from_number = None
+            try:
+                recipient, source_key = resolve_call_recipient(
+                    self._engine._call_parties
+                )
+                config = (tool.definition or {}).get("config", {}) or {}
+                organization_id = await self.get_organization_id()
+                credential_uuid = config.get("credential_uuid")
+                credential = (
+                    await db_client.get_credential_by_uuid(
+                        credential_uuid, organization_id
+                    )
+                    if credential_uuid and organization_id
+                    else None
+                )
+                if not credential or credential.credential_type != "basic_auth":
+                    raise FracTelConfigError(
+                        "SMS tool has no valid Basic Auth credential configured",
+                        reason="credentials_missing",
+                    )
+                data = credential.credential_data or {}
+                from_number = pick_from_number(config.get("from_numbers") or [])
+                logger.info(
+                    f"Send SMS resolved recipient={mask_number(recipient)} "
+                    f"(from {source_key}) sender={from_number}: {log_ctx}"
+                )
+                message_id = await send_fractel_sms(
+                    username=data.get("username", ""),
+                    password=data.get("password", ""),
+                    from_number=from_number,
+                    to_number=recipient,
+                    message=append_sms_links(
+                        str(args.get("message", "")),
+                        config.get("append_links") or [],
+                    ),
+                )
+                await function_call_params.result_callback(
+                    {"status": "success", "message_id": message_id}
+                )
+            except RecipientResolutionError as e:
+                logger.error(
+                    f"Send SMS failed: recipient resolution failed "
+                    f"(source={e.source_key}, call_parties="
+                    f"{sorted(self._engine._call_parties)}): {e}: {log_ctx}"
+                )
+                await function_call_params.result_callback(
+                    {
+                        "status": "error",
+                        "reason": "recipient_unavailable",
+                        "error": f"{e}. The text was not sent.",
+                    }
+                )
+            except FracTelError as e:
+                logger.error(
+                    f"Send SMS failed: reason={e.reason} "
+                    f"recipient={mask_number(recipient)} sender={from_number} "
+                    f"http_status={e.status_code} provider_code={e.provider_code} "
+                    f"provider_message={e.provider_message!r} error={e}: {log_ctx}"
+                )
+                await function_call_params.result_callback(
+                    {
+                        "status": "error",
+                        "reason": e.reason,
+                        "error": _SMS_ERROR_MESSAGES.get(
+                            e.reason, "Could not send the text message"
+                        ),
+                    }
+                )
+            except Exception as e:
+                logger.exception(
+                    f"Send SMS failed unexpectedly "
+                    f"({type(e).__name__}: {e}) recipient={mask_number(recipient)} "
+                    f"sender={from_number}: {log_ctx}"
+                )
+                await function_call_params.result_callback(
+                    {
+                        "status": "error",
+                        "reason": "internal_error",
+                        "error": "Could not send the text message",
+                    }
+                )
+
+        return send_sms_handler
+
     def _create_end_call_handler(self, tool: Any, function_name: str):
         """Create a handler function for an end call tool.
 
@@ -571,6 +757,36 @@ class CustomToolManager:
             function_call_params: FunctionCallParams,
         ) -> None:
             logger.info(f"Transfer Call Tool EXECUTED: {function_name}")
+
+            # Never hand a licensed agent a voicemail box, call screener or
+            # answering bot.
+            hygiene = getattr(self._engine, "call_hygiene", None)
+            machine_detected = getattr(hygiene, "machine_detected", False) is True
+            answering_bot = getattr(hygiene, "answering_bot", False) is True
+            screener_hold = getattr(hygiene, "screener_hold", False) is True
+            if machine_detected or answering_bot or screener_hold:
+                logger.info(
+                    "Blocking transfer: machine answered "
+                    f"(machine_detected={machine_detected}, "
+                    f"answering_bot={answering_bot}, screener_hold={screener_hold})"
+                )
+                await function_call_params.result_callback(
+                    {
+                        "status": "failed",
+                        "action": "transfer_blocked",
+                        "reason": "machine_answered",
+                    },
+                    properties=properties,
+                )
+                await self._engine.end_call_for_hygiene(
+                    disposition=(
+                        "answering_bot" if answering_bot else "voicemail_detected"
+                    ),
+                    tag="transfer_blocked_machine",
+                    abort_immediately=True,
+                )
+                return
+
             logger.info(
                 "Transfer call arguments received "
                 f"argument_keys={list((function_call_params.arguments or {}).keys())}"
@@ -805,6 +1021,13 @@ class CustomToolManager:
                 # Mute the pipeline
                 self._engine.set_mute_pipeline(True)
 
+                # HOPWHISTLE_TRANSFER_DURATION_HOTFIX_V1
+                # Disarm the AI max-duration callback before originating the
+                # transfer leg. A transfer may begin near the configured hard
+                # limit, and the callback must not race the successful bridge
+                # swap and hang up the original customer channel.
+                self._engine._transfer_handoff_started = True
+
                 # Initiate transfer via provider with inline TwiML
                 try:
                     masked_destination = (
@@ -824,6 +1047,7 @@ class CustomToolManager:
                     )
                 except Exception as e:
                     logger.error(f"Transfer provider failed: {e}")
+                    self._engine._transfer_handoff_started = False
                     self._engine.set_mute_pipeline(False)
                     await call_transfer_manager.remove_transfer_context(transfer_id)
                     provider_error_result = {
@@ -909,6 +1133,15 @@ class CustomToolManager:
                     logger.error(
                         f"Transfer call timed out or failed after {timeout_seconds} seconds"
                     )
+                    # Don't leave a destination that answers late alone in
+                    # the transfer conference.
+                    try:
+                        await provider.cancel_transfer_call(call_sid)
+                        await call_transfer_manager.remove_transfer_context(transfer_id)
+                    except Exception as cancel_error:
+                        logger.error(
+                            f"Failed to clean up transfer leg {call_sid}: {cancel_error}"
+                        )
                     timeout_result = {
                         "status": "failed",
                         "message": "I'm sorry, but the call is taking longer than expected to connect. The person might not be available right now. Please try calling back later.",
@@ -923,6 +1156,7 @@ class CustomToolManager:
                 logger.error(
                     f"Transfer call tool '{function_name}' execution failed: {e}"
                 )
+                self._engine._transfer_handoff_started = False
                 self._engine.set_mute_pipeline(False)
 
                 # Handle generic exception with user-friendly message
@@ -956,6 +1190,13 @@ class CustomToolManager:
         status = result.get("status", "")
 
         logger.info(f"Handling transfer result: action={action}, status={status}")
+
+        # HOPWHISTLE_TRANSFER_DURATION_HOTFIX_V1
+        # A failed or timed-out transfer returns ownership to the AI, so the
+        # normal duration policy is re-enabled. A successful handoff leaves the
+        # marker set and the AI timer can no longer tear down the human call.
+        if action == "transfer_failed":
+            self._engine._transfer_handoff_started = False
 
         if action == "destination_answered":
             # Transfer destination answered - proceeding with bridge swap/conference join

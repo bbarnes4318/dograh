@@ -1,6 +1,6 @@
 "use client";
 
-import { Calculator, Cog, Globe, type LucideIcon, PhoneForwarded, PhoneOff, Puzzle } from "lucide-react";
+import { Calculator, Cog, Globe, type LucideIcon, MessageSquare, Music, PhoneForwarded, PhoneOff, Puzzle } from "lucide-react";
 import { type ReactNode } from "react";
 
 import type {
@@ -9,13 +9,15 @@ import type {
     EndCallToolDefinition,
     HttpApiToolDefinition,
     McpToolDefinition,
+    PlayAudioToolDefinition,
     PresetToolParameter,
+    SendSmsToolDefinition,
     ToolParameter,
     TransferCallConfig,
     TransferCallToolDefinition,
 } from "@/client/types.gen";
 
-export type ToolCategory = "http_api" | "end_call" | "transfer_call" | "calculator" | "native" | "integration" | "mcp";
+export type ToolCategory = "http_api" | "end_call" | "transfer_call" | "calculator" | "native" | "integration" | "mcp" | "play_audio" | "send_sms";
 
 export type EndCallMessageType = "none" | "custom" | "audio";
 export type TransferDestinationSource = "static" | "dynamic" | "context_mapping";
@@ -112,6 +114,30 @@ export const TOOL_CATEGORIES: ToolCategoryConfig[] = [
         },
     },
     {
+        value: "play_audio",
+        label: "Play Audio",
+        description: "Play an audio file (e.g. a song) to the caller",
+        icon: Music,
+        iconName: "music",
+        iconColor: "#EC4899",
+        autoFill: {
+            name: "Play Song",
+            description: "Play the song for the caller when they ask to hear it. Stay silent while it plays.",
+        },
+    },
+    {
+        value: "send_sms",
+        label: "Send SMS",
+        description: "Text the customer on the current call via FracTEL",
+        icon: MessageSquare,
+        iconName: "message-square",
+        iconColor: "#0EA5E9",
+        autoFill: {
+            name: "Send Text",
+            description: "Send a text message to the customer on this call once they agree to receive one. Their number is already known from the call, so never ask for it.",
+        },
+    },
+    {
         value: "mcp",
         label: "MCP Server",
         description: "Connect a customer MCP server; its tools become available to the agent",
@@ -174,6 +200,10 @@ export function getToolTypeLabel(category: string): string {
             return "Integration Tool";
         case "mcp":
             return "MCP Server Tool";
+        case "play_audio":
+            return "Play Audio Tool";
+        case "send_sms":
+            return "Send SMS Tool";
         default:
             return "Tool";
     }
@@ -200,7 +230,9 @@ export type ToolDefinition =
     | EndCallToolDefinition
     | TransferCallToolDefinition
     | CalculatorToolDefinition
-    | McpToolDefinition;
+    | McpToolDefinition
+    | PlayAudioToolDefinition
+    | SendSmsToolDefinition;
 
 export function createEndCallDefinition(config: EndCallConfig): EndCallToolDefinition {
     return {
@@ -236,6 +268,30 @@ export function createCalculatorDefinition(): CalculatorToolDefinition {
     };
 }
 
+export function createPlayAudioDefinition(audioUrl: string = ""): PlayAudioToolDefinition {
+    return {
+        schema_version: 1,
+        type: "play_audio",
+        config: { audio_url: audioUrl.trim() },
+    };
+}
+
+export function createSendSmsDefinition(
+    credentialUuid: string = "",
+    fromNumbers: string[] = [],
+    appendLinks: string[] = [],
+): SendSmsToolDefinition {
+    return {
+        schema_version: 1,
+        type: "send_sms",
+        config: {
+            credential_uuid: credentialUuid || undefined,
+            from_numbers: fromNumbers,
+            append_links: appendLinks,
+        },
+    };
+}
+
 export const MCP_URL_PATTERN = /^https?:\/\//i;
 
 export function createMcpDefinition(
@@ -266,6 +322,10 @@ export function createToolDefinition(category: ToolCategory): ToolDefinition {
             return createTransferCallDefinition(DEFAULT_TRANSFER_CALL_CONFIG);
         case "calculator":
             return createCalculatorDefinition();
+        case "play_audio":
+            return createPlayAudioDefinition();
+        case "send_sms":
+            return createSendSmsDefinition();
         case "http_api":
         default:
             return createHttpApiDefinition();

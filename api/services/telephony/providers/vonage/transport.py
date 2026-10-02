@@ -14,6 +14,11 @@ from api.services.pipecat.transport_params import (
 from api.services.telephony.factory import load_credentials_for_transport
 
 from .serializers import VonageFrameSerializer
+from .strategies import VonageConversationTransferStrategy, VonageHangupStrategy
+
+# Vonage's WebSocket expects 20 ms binary frames (640 bytes at 16 kHz L16);
+# its playback buffer is counted in these packets.
+VONAGE_AUDIO_OUT_10MS_CHUNKS = 2
 
 
 async def create_transport(
@@ -41,6 +46,9 @@ async def create_transport(
             f"Incomplete Vonage configuration for organization {organization_id}"
         )
 
+    # Wire format and pipeline both run at 16 kHz (ProviderSpec
+    # transport_sample_rate), so the serializer's resamplers are pass-through:
+    # no duplicate resampling and no mu-law step — raw s16le PCM both ways.
     serializer = VonageFrameSerializer(
         call_uuid=call_uuid,
         application_id=application_id,
@@ -49,6 +57,8 @@ async def create_transport(
             vonage_sample_rate=audio_config.transport_in_sample_rate,
             sample_rate=audio_config.pipeline_sample_rate,
         ),
+        transfer_strategy=VonageConversationTransferStrategy(),
+        hangup_strategy=VonageHangupStrategy(),
     )
 
     mixer = await build_audio_out_mixer(
@@ -63,6 +73,7 @@ async def create_transport(
             audio_out_enabled=True,
             audio_in_sample_rate=audio_config.transport_in_sample_rate,
             audio_out_sample_rate=audio_config.transport_out_sample_rate,
+            audio_out_10ms_chunks=VONAGE_AUDIO_OUT_10MS_CHUNKS,
             audio_out_mixer=mixer,
             serializer=serializer,
             **audio_in_param_overrides(noise_suppression_config),

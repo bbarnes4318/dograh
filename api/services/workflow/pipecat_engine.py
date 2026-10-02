@@ -20,8 +20,10 @@ from api.db import db_client
 from api.enums import MuteReason, ToolCategory
 from api.schemas.workflow_configurations import ToolFillerConfiguration
 from api.services.pipecat.audio_playback import play_audio
+from api.services.pipecat.call_hygiene import CallHygieneState
 from api.services.pipecat.dtmf import send_dtmf_digits
 from api.services.pipecat.thinking_cue import ThinkingCue
+from api.services.sms.recipient import snapshot_call_parties
 from api.services.workflow.workflow_graph import Node, WorkflowGraph
 
 if TYPE_CHECKING:
@@ -126,12 +128,19 @@ class PipecatEngine:
         self.context = context
         self.workflow = workflow
         self._call_context_vars = call_context_vars
+        # Who is on this call, captured from call setup before a pre-call
+        # fetch can merge external data into _call_context_vars. Send SMS
+        # texts the customer from here, never from LLM arguments.
+        self._call_parties = snapshot_call_parties(call_context_vars)
         self._workflow_run_id = workflow_run_id
         self._node_transition_callback = node_transition_callback
         self._initialized = False
         self._call_disposed = False
         self._current_node: Optional[Node] = None
         self._gathered_context: dict = {}
+        # Machine/screener/answering-bot state shared by the call hygiene
+        # guards, the idle handler and the transfer gate.
+        self.call_hygiene = CallHygieneState()
         self._user_response_timeout_task: Optional[asyncio.Task] = None
         self._pending_extraction_tasks: set[asyncio.Task] = set()
         # True once a final (synchronous) extraction has run, so the end-of-call
@@ -162,6 +171,10 @@ class PipecatEngine:
         # True between the start of a transition tool call and the LLM
         # generation that the transition itself queues.
         self._transition_in_progress: bool = False
+
+        # True once a transfer leg is being originated: from then on the
+        # max-duration timer must not hang up the customer and the agent.
+        self._transfer_handoff_started: bool = False
 
         # Custom tool manager (initialized in initialize())
         self._custom_tool_manager: Optional[CustomToolManager] = None
@@ -969,6 +982,35 @@ class PipecatEngine:
         )
         await self.task.queue_frame(frame_to_push)
 
+    async def end_call_for_hygiene(
+        self, *, disposition: str, tag: str, abort_immediately: bool
+    ):
+        """End a call the call hygiene guards decided nobody is on.
+
+        Sets the disposition up front so it wins over the disconnect reason,
+        and tags which guard fired. Machine ends skip final extraction — there
+        is no conversation to extract from.
+        """
+        if self._call_disposed:
+            return
+
+        self._gathered_context["call_disposition"] = disposition
+        call_tags = self._gathered_context.get("call_tags", [])
+        if tag not in call_tags:
+            call_tags.append(tag)
+        self._gathered_context["call_tags"] = call_tags
+
+        if disposition == "no_speech":
+            reason = EndTaskReason.USER_IDLE_MAX_DURATION_EXCEEDED.value
+        else:
+            reason = EndTaskReason.VOICEMAIL_DETECTED.value
+
+        logger.info(
+            f"Call hygiene ending call: disposition={disposition} tag={tag} "
+            f"abort_immediately={abort_immediately}"
+        )
+        await self.end_call_with_reason(reason, abort_immediately=abort_immediately)
+
     async def should_mute_user(self, frame: "Frame") -> bool:
         """
         Callback for CallbackUserMuteStrategy to determine if the user should be muted.
@@ -1053,7 +1095,9 @@ class PipecatEngine:
         """
         return self._transition_in_progress
 
-    def create_user_idle_handler(self, idle_behavior=None, base_timeout=None):
+    def create_user_idle_handler(
+        self, idle_behavior=None, base_timeout=None, call_hygiene=None
+    ):
         """
         Returns a UserIdleHandler that manages user-idle timeouts with state.
         The handler walks the configured nudge ladder, escalating from a fast
@@ -1065,16 +1109,19 @@ class PipecatEngine:
             base_timeout: The aggregator's configured idle timeout
                 (``max_user_idle_timeout``), so the handler can restore it
                 after a nudge has pushed its own longer one.
+            call_hygiene: Optional CallHygieneConfiguration. Enables the
+                short first-response ladder for callers who never speak.
         """
         if idle_behavior is None:
             return engine_callbacks.create_user_idle_handler(
-                self, base_timeout=base_timeout
+                self, base_timeout=base_timeout, call_hygiene=call_hygiene
             )
         return engine_callbacks.create_user_idle_handler(
             self,
             nudges=idle_behavior.nudges,
             enabled=idle_behavior.enabled,
             base_timeout=base_timeout,
+            call_hygiene=call_hygiene,
         )
 
     def create_max_duration_callback(self):

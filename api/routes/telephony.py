@@ -599,6 +599,10 @@ async def _handle_telephony_websocket(
     run creation and redeemed here through an atomic
     ``initialized -> running`` compare-and-swap, which would also close the
     read-then-write race on the state check further down.
+
+    Providers that can authenticate the media connection do so through
+    ``TelephonyProvider.authenticate_websocket`` (Vonage verifies a
+    Vonage-signed handshake JWT plus a per-run token) before the state flip.
     """
     try:
         # Set the run context
@@ -697,6 +701,21 @@ async def _handle_telephony_websocket(
                 f"Provider mismatch: expected {provider_type}, got {provider.PROVIDER_NAME}"
             )
             await websocket.close(code=4400, reason="Provider mismatch")
+            return
+
+        # Provider-level media authentication must pass before the run is
+        # marked running, so an unauthenticated connection cannot claim it.
+        if not await provider.authenticate_websocket(
+            websocket,
+            workflow_run=workflow_run,
+            workflow_id=workflow_id,
+            organization_id=organization_id,
+        ):
+            logger.warning(
+                f"[run {workflow_run_id}] {provider_type} media websocket failed "
+                "authentication"
+            )
+            await websocket.close(code=4401, reason="Unauthorized")
             return
 
         # Set workflow run state to 'running' before starting the pipeline

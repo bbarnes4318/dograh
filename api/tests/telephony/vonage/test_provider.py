@@ -167,33 +167,58 @@ def test_can_handle_webhook_detects_signed_vonage_answer_payload():
 
 @pytest.mark.asyncio
 async def test_start_inbound_stream_returns_websocket_ncco():
+    from api.services.telephony.providers.vonage.auth import make_ws_token
+
     body = _body()
     provider = _provider()
     normalized = VonageProvider.parse_inbound_webhook(
         json.loads(body), headers=_signed_headers(body)
     )
-
-    response = await provider.start_inbound_stream(
-        websocket_url="wss://example.test/api/v1/telephony/ws/1/2/3",
-        workflow_run_id=123,
-        normalized_data=normalized,
-        backend_endpoint="https://example.test",
+    run = SimpleNamespace(
+        id=123,
+        workflow_id=1,
+        workflow=SimpleNamespace(organization_id=2),
+        initial_context={"telephony_configuration_id": 9},
     )
+
+    from api.db import db_client as real_db_client
+
+    with patch.object(
+        real_db_client,
+        "get_workflow_run_by_id",
+        new_callable=AsyncMock,
+        return_value=run,
+    ):
+        response = await provider.start_inbound_stream(
+            websocket_url="wss://example.test/api/v1/telephony/ws/1/2/123",
+            workflow_run_id=123,
+            normalized_data=normalized,
+            backend_endpoint="https://example.test",
+        )
 
     ncco = json.loads(response.body)
     assert ncco == [
         {
             "action": "connect",
             "eventUrl": ["https://example.test/api/v1/telephony/vonage/events/123"],
+            "eventMethod": "POST",
             "endpoint": [
                 {
                     "type": "websocket",
-                    "uri": "wss://example.test/api/v1/telephony/ws/1/2/3",
+                    "uri": "wss://example.test/api/v1/telephony/ws/1/2/123",
                     "content-type": "audio/l16;rate=16000",
                     "headers": {
+                        "dograh_ws_token": make_ws_token(
+                            SIGNATURE_SECRET,
+                            organization_id=2,
+                            workflow_id=1,
+                            workflow_run_id=123,
+                            telephony_configuration_id=9,
+                        ),
                         "workflow_run_id": "123",
                         "call_uuid": "aaaaaaaa-bbbb-cccc-dddd-0123456789ab",
                     },
+                    "authorization": {"type": "vonage"},
                 }
             ],
         }
@@ -219,7 +244,13 @@ async def test_vonage_events_route_verifies_signature_before_status_update():
             _process_status_update=process_status,
         )
         db_client.get_workflow_run_by_id = AsyncMock(
-            return_value=SimpleNamespace(workflow_id=7)
+            return_value=SimpleNamespace(
+                id=123,
+                workflow_id=7,
+                initial_context={},
+                gathered_context={},
+                logs={},
+            )
         )
         db_client.get_workflow_by_id = AsyncMock(
             return_value=SimpleNamespace(organization_id=11)
@@ -256,7 +287,13 @@ async def test_vonage_events_route_rejects_invalid_signature_with_401():
             _process_status_update=process_status,
         )
         db_client.get_workflow_run_by_id = AsyncMock(
-            return_value=SimpleNamespace(workflow_id=7)
+            return_value=SimpleNamespace(
+                id=123,
+                workflow_id=7,
+                initial_context={},
+                gathered_context={},
+                logs={},
+            )
         )
         db_client.get_workflow_by_id = AsyncMock(
             return_value=SimpleNamespace(organization_id=11)

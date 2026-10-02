@@ -33,6 +33,11 @@ from api.services.pipecat.active_calls import (
     unregister_active_call as unregister_worker_active_call,
 )
 from api.services.pipecat.audio_config import AudioConfig, create_audio_config
+from api.services.pipecat.call_hygiene import (
+    AssistantTurnGuard,
+    MachineAnswerGuard,
+    resolve_call_hygiene,
+)
 from api.services.pipecat.dtmf import DTMF_CONTEXT_KEY, DTMFCaptureProcessor
 from api.services.pipecat.event_handlers import (
     register_audio_data_handler,
@@ -840,6 +845,16 @@ async def _run_pipeline_impl(
         logger.warning(f"Invalid tool_filler configuration, using defaults: {e}")
         tool_filler = ToolFillerConfiguration()
 
+    # The guards sit around STT and the text LLM, neither of which exists in a
+    # speech-to-speech pipeline. CALL_HYGIENE_ENABLED=false turns them off
+    # deployment-wide.
+    call_hygiene, call_hygiene_active = resolve_call_hygiene(
+        run_configs, is_realtime=is_realtime
+    )
+    first_response_timeout = (
+        call_hygiene.first_response_timeout_seconds if call_hygiene_active else None
+    )
+
     engine = PipecatEngine(
         llm=llm,
         inference_llm=inference_llm,
@@ -949,7 +964,9 @@ async def _run_pipeline_impl(
         user_turn_strategies=user_turn_strategies,
         user_mute_strategies=user_mute_strategies,
         user_turn_stop_timeout=user_turn_stop_timeout,
-        user_idle_timeout=max_user_idle_timeout,
+        # A caller who has never spoken gets the short first-response timeout;
+        # the idle handler restores max_user_idle_timeout on their first turn.
+        user_idle_timeout=first_response_timeout or max_user_idle_timeout,
         vad_analyzer=user_vad_analyzer,
     )
     context_aggregator = LLMContextAggregatorPair(
@@ -983,7 +1000,9 @@ async def _run_pipeline_impl(
         logger.warning(f"Invalid idle_behavior configuration, using defaults: {e}")
         idle_behavior = IdleBehaviorConfiguration()
     user_idle_handler = engine.create_user_idle_handler(
-        idle_behavior, base_timeout=max_user_idle_timeout
+        idle_behavior,
+        base_timeout=max_user_idle_timeout,
+        call_hygiene=call_hygiene if call_hygiene_active else None,
     )
 
     @user_context_aggregator.event_handler("on_user_turn_idle")
@@ -1058,6 +1077,38 @@ async def _run_pipeline_impl(
             interdigit_timeout=dtmf_configuration.interdigit_timeout_seconds,
             max_digits=dtmf_configuration.max_digits,
         )
+
+    machine_answer_guard = None
+    assistant_turn_guard = None
+    if call_hygiene_active:
+
+        async def _log_guard_dropped_speech(text: str) -> None:
+            """Record caller speech the guard swallowed in the transcript."""
+            try:
+                await in_memory_logs_buffer.append(
+                    {
+                        "type": RealtimeFeedbackType.USER_TRANSCRIPTION.value,
+                        # "final" marks a complete caller utterance; without it
+                        # the transcript artifact skips the event.
+                        "payload": {
+                            "text": text,
+                            "final": True,
+                            "dropped_by_call_hygiene": True,
+                        },
+                    }
+                )
+            except Exception as e:
+                logger.error(f"Failed to log call hygiene dropped speech: {e}")
+
+        machine_answer_guard = MachineAnswerGuard(
+            engine,
+            call_hygiene,
+            on_dropped_transcription=_log_guard_dropped_speech,
+            # Deliver screener instructions below the voicemail detector so
+            # its classifier never sees them.
+            inject_context_frame=user_context_aggregator.queue_frame,
+        )
+        assistant_turn_guard = AssistantTurnGuard(engine, call_hygiene)
 
     voicemail_detector = None
     recording_router = None
@@ -1156,6 +1207,8 @@ async def _run_pipeline_impl(
             recording_router=recording_router,
             muted_speech_buffer=muted_speech_buffer,
             dtmf_capture=dtmf_capture,
+            machine_answer_guard=machine_answer_guard,
+            assistant_turn_guard=assistant_turn_guard,
         )
 
     # Create pipeline task with audio configuration

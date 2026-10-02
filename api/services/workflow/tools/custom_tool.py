@@ -22,6 +22,12 @@ TYPE_MAP = {
 }
 
 
+SEND_SMS_RECIPIENT_NOTE = (
+    "The text is sent automatically to the customer on this call; their phone "
+    "number is already known. Never ask for a phone number."
+)
+
+
 def custom_tool_function_name(name: str) -> str:
     """Return the LLM function name generated for a custom tool."""
     function_name = re.sub(r"[^a-z0-9_]", "_", name.lower())
@@ -72,6 +78,18 @@ def tool_to_function_schema(tool: Any) -> Dict[str, Any]:
     properties = {}
     required = []
 
+    if definition.get("type") == "send_sms":
+        # The recipient is never an LLM argument: the handler texts the
+        # customer on the active call (see api/services/sms/recipient.py).
+        parameters = [
+            {
+                "name": "message",
+                "type": "string",
+                "description": "The text message body to send.",
+                "required": True,
+            },
+        ]
+
     for param in parameters:
         param_name = param.get("name", "")
         param_type = param.get("type", "string")
@@ -117,12 +135,15 @@ def tool_to_function_schema(tool: Any) -> Dict[str, Any]:
         required.append("reason")
 
     function_name = custom_tool_function_name(tool.name)
+    description = tool.description or f"Execute {tool.name} tool"
+    if definition.get("type") == "send_sms":
+        description = f"{description}\n\n{SEND_SMS_RECIPIENT_NOTE}"
 
     return {
         "type": "function",
         "function": {
             "name": function_name,
-            "description": tool.description or f"Execute {tool.name} tool",
+            "description": description,
             "parameters": {
                 "type": "object",
                 "properties": properties,

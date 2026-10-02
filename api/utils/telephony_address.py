@@ -120,3 +120,38 @@ def _normalize_sip_uri(raw: str) -> NormalizedAddress:
         canonical += rest.lower()
 
     return NormalizedAddress(canonical=canonical, address_type="sip_uri")
+
+
+_NON_DIGIT_RE = re.compile(r"\D")
+
+
+def is_dialable_pstn(raw: str) -> bool:
+    """False only for a NANP number that can never connect.
+
+    Catches placeholder and junk numbers (``10000000000``, ``+12222222222``,
+    N11 area codes, area/exchange codes starting 0 or 1) before a dial attempt
+    is spent on them. Anything that isn't a NANP-shaped number — international
+    E.164, SIP URIs, extensions — passes through unchanged.
+    """
+    if raw is None:
+        return False
+    stripped = raw.strip()
+    if stripped.lower().startswith(("sip:", "sips:")) or "@" in stripped:
+        return True
+
+    digits = _NON_DIGIT_RE.sub("", stripped)
+    if len(digits) == 11 and digits.startswith("1"):
+        national = digits[1:]
+    elif len(digits) == 10 and not stripped.startswith("+"):
+        # A leading "+" with 10 digits is some other country's E.164 number.
+        national = digits
+    else:
+        return True
+
+    npa, nxx = national[:3], national[3:6]
+    return (
+        npa[0] in "23456789"
+        and nxx[0] in "23456789"
+        and npa[1:3] != "11"
+        and len(set(national)) > 1
+    )

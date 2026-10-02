@@ -1,7 +1,7 @@
 "use client";
 
 import { format } from "date-fns";
-import { ArrowLeft, BookA, Brain, CalendarIcon, Clipboard, Download, ExternalLink, FileDown, Fingerprint, Loader2, Mic, Pause, PhoneOff, Play, Plus, Rocket, Settings, Trash2Icon, Upload, Variable, X } from "lucide-react";
+import { ArrowLeft, BookA, Brain, CalendarIcon, Clipboard, Download, ExternalLink, FileDown, Fingerprint, Loader2, Mic, Pause, PhoneOff, Play, Plus, Rocket, Settings, ShieldCheck, Trash2Icon, Upload, Variable, X } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -48,6 +48,8 @@ import logger from "@/lib/logger";
 import { fetchModelConfigurationPricing } from "@/lib/modelConfigurationPricing";
 import {
     type AmbientNoiseConfiguration,
+    type CallHygieneConfiguration,
+    DEFAULT_CALL_HYGIENE_CONFIGURATION,
     DEFAULT_PROVISIONAL_VAD_PAUSE_SECS,
     DEFAULT_TURN_START_MIN_WORDS,
     DEFAULT_VOICEMAIL_DETECTION_CONFIGURATION,
@@ -96,6 +98,7 @@ const NAV_ITEMS = [
     { id: "variables", label: "Template Variables", icon: Variable },
     { id: "dictionary", label: "Dictionary", icon: BookA },
     { id: "voicemail", label: "Voicemail Detection", icon: PhoneOff },
+    { id: "hygiene", label: "Call Hygiene", icon: ShieldCheck },
     { id: "recordings", label: "Recordings", icon: Mic },
     { id: "deployment", label: "Add to Website", icon: Rocket },
     { id: "report", label: "Report", icon: FileDown },
@@ -1245,6 +1248,156 @@ function VoicemailSection({
 }
 
 // ---------------------------------------------------------------------------
+// Section: Call Hygiene
+// ---------------------------------------------------------------------------
+
+const clampNumber = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
+
+function CallHygieneSection({
+    workflowConfigurations,
+    workflowName,
+    onSave,
+}: {
+    workflowConfigurations: WorkflowConfigurations;
+    workflowName: string;
+    onSave: (configurations: WorkflowConfigurations, workflowName: string) => Promise<void>;
+}) {
+    const getConfig = (): CallHygieneConfiguration => ({
+        ...DEFAULT_CALL_HYGIENE_CONFIGURATION,
+        ...workflowConfigurations.call_hygiene,
+    });
+
+    const [enabled, setEnabled] = useState(getConfig().enabled);
+    const [screenerResponse, setScreenerResponse] = useState(getConfig().screener_response || "");
+    const [screenerPickupTimeout, setScreenerPickupTimeout] = useState(
+        getConfig().screener_pickup_timeout_seconds,
+    );
+    const [firstResponseTimeout, setFirstResponseTimeout] = useState<number | null>(
+        getConfig().first_response_timeout_seconds ?? null,
+    );
+    const [isSaving, setIsSaving] = useState(false);
+
+    const isDirty = useMemo(() => {
+        const init = {
+            ...DEFAULT_CALL_HYGIENE_CONFIGURATION,
+            ...workflowConfigurations.call_hygiene,
+        };
+        return (
+            enabled !== init.enabled ||
+            screenerResponse !== (init.screener_response || "") ||
+            screenerPickupTimeout !== init.screener_pickup_timeout_seconds ||
+            firstResponseTimeout !== (init.first_response_timeout_seconds ?? null)
+        );
+    }, [enabled, screenerResponse, screenerPickupTimeout, firstResponseTimeout, workflowConfigurations]);
+
+    useUnsavedChanges("hygiene", isDirty);
+
+    const handleSave = async () => {
+        setIsSaving(true);
+        try {
+            const cfg: CallHygieneConfiguration = {
+                ...getConfig(),
+                enabled,
+                screener_response: screenerResponse.trim() ? screenerResponse : undefined,
+                screener_pickup_timeout_seconds: clampNumber(screenerPickupTimeout, 5, 120),
+                first_response_timeout_seconds:
+                    firstResponseTimeout === null ? null : clampNumber(firstResponseTimeout, 2, 60),
+            };
+            await onSave({ ...workflowConfigurations, call_hygiene: cfg }, workflowName);
+        } catch (error) {
+            console.error("Failed to save call hygiene settings:", error);
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    return (
+        <Card id="hygiene">
+            <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                    <ShieldCheck className="h-4 w-4" />
+                    Call Hygiene
+                </CardTitle>
+                <CardDescription>
+                    End calls answered by voicemail, carrier menus, call screeners or answering bots, and
+                    hang up when the agent says goodbye. Runs alongside voicemail detection.
+                </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                <div className="flex items-center space-x-2 rounded-md border bg-muted/20 p-2">
+                    <Switch id="call-hygiene-enabled" checked={enabled} onCheckedChange={setEnabled} />
+                    <Label htmlFor="call-hygiene-enabled">Enable call hygiene guards</Label>
+                </div>
+
+                {enabled && (
+                    <>
+                        <div className="space-y-2">
+                            <Label htmlFor="call-hygiene-screener-response">Screener response</Label>
+                            <p className="text-xs text-muted-foreground">
+                                Spoken once when a call-screening assistant answers. Leave blank to have the agent
+                                say one sentence from its greeting.
+                            </p>
+                            <Textarea
+                                id="call-hygiene-screener-response"
+                                value={screenerResponse}
+                                onChange={(e) => setScreenerResponse(e.target.value)}
+                                className="min-h-[80px] text-sm"
+                            />
+                        </div>
+
+                        <div className="space-y-2">
+                            <Label htmlFor="call-hygiene-screener-timeout">
+                                Wait for pickup after screener (seconds)
+                            </Label>
+                            <Input
+                                id="call-hygiene-screener-timeout"
+                                type="number"
+                                step="1"
+                                min="5"
+                                max="120"
+                                value={screenerPickupTimeout}
+                                onChange={(e) =>
+                                    setScreenerPickupTimeout(
+                                        parseFloat(e.target.value) ||
+                                            DEFAULT_CALL_HYGIENE_CONFIGURATION.screener_pickup_timeout_seconds,
+                                    )
+                                }
+                            />
+                        </div>
+
+                        <div className="space-y-2">
+                            <Label htmlFor="call-hygiene-first-response">First response timeout (seconds)</Label>
+                            <p className="text-xs text-muted-foreground">
+                                When the caller has not said anything yet, nudge once after this much silence, then
+                                end the call. Leave blank to use the normal idle behavior.
+                            </p>
+                            <Input
+                                id="call-hygiene-first-response"
+                                type="number"
+                                step="0.5"
+                                min="2"
+                                max="60"
+                                value={firstResponseTimeout ?? ""}
+                                onChange={(e) => {
+                                    const value = parseFloat(e.target.value);
+                                    setFirstResponseTimeout(Number.isNaN(value) ? null : value);
+                                }}
+                            />
+                        </div>
+                    </>
+                )}
+            </CardContent>
+            <CardFooter className="justify-end gap-3 border-t pt-6">
+                {isDirty && <span className="text-xs text-muted-foreground">Unsaved changes</span>}
+                <Button onClick={handleSave} disabled={isSaving || !isDirty}>
+                    {isSaving ? "Saving..." : "Save Call Hygiene Settings"}
+                </Button>
+            </CardFooter>
+        </Card>
+    );
+}
+
+// ---------------------------------------------------------------------------
 // Section: Agent UUID
 // ---------------------------------------------------------------------------
 
@@ -1694,6 +1847,13 @@ function WorkflowSettingsInner({
 
                             {/* Voicemail Detection */}
                             <VoicemailSection
+                                workflowConfigurations={resolvedWorkflowConfigurationsForRender}
+                                workflowName={workflowName}
+                                onSave={saveWorkflowConfigurations}
+                            />
+
+                            {/* Call Hygiene */}
+                            <CallHygieneSection
                                 workflowConfigurations={resolvedWorkflowConfigurationsForRender}
                                 workflowName={workflowName}
                                 onSave={saveWorkflowConfigurations}

@@ -28,6 +28,8 @@ ToolCategoryValue = Literal[
     "native",
     "integration",
     "mcp",
+    "play_audio",
+    "send_sms",
 ]
 
 
@@ -178,6 +180,74 @@ class EndCallConfig(BaseModel):
             "when endCallReason is enabled."
         ),
     )
+
+
+class PlayAudioConfig(BaseModel):
+    """Configuration for Play Audio tools."""
+
+    audio_url: str = Field(
+        description=(
+            "Public http(s) URL of the audio file (mp3, wav, ...) to play to "
+            "the caller. It is fetched and converted to the call's sample rate."
+        )
+    )
+
+    @field_validator("audio_url")
+    @classmethod
+    def validate_audio_url(cls, v: str) -> str:
+        v = v.strip()
+        # Empty is allowed so the tool can be created first and configured after.
+        if v and not v.lower().startswith(("http://", "https://")):
+            raise ValueError("audio_url must start with http:// or https://")
+        return v
+
+
+class SendSmsConfig(BaseModel):
+    """Configuration for Send SMS tools (FracTEL provider)."""
+
+    credential_uuid: Optional[str] = Field(
+        default=None,
+        description=(
+            "Reference to a Basic Auth credential holding the FracTEL API "
+            "username and password."
+        ),
+        json_schema_extra=_llm_hint(
+            "Use a basic_auth credential_uuid returned by list_credentials. The "
+            "MCP flow does not create credential secrets."
+        ),
+    )
+    from_numbers: List[str] = Field(
+        default_factory=list,
+        description=(
+            "10-digit sender DIDs registered with FracTEL (10DLC). With more than "
+            "one, messages rotate round-robin across them."
+        ),
+    )
+
+    append_links: List[str] = Field(
+        default_factory=list,
+        description=(
+            "http(s) links added to the end of every text, one per line. A link "
+            "already present in the message is not added again."
+        ),
+    )
+
+    @field_validator("append_links")
+    @classmethod
+    def validate_append_links(cls, v: List[str]) -> List[str]:
+        links = [link.strip() for link in v if link and link.strip()]
+        for link in links:
+            if not link.lower().startswith(("http://", "https://")) or " " in link:
+                raise ValueError("append_links must be http:// or https:// URLs")
+        return links
+
+    @field_validator("from_numbers")
+    @classmethod
+    def validate_from_numbers(cls, v: List[str]) -> List[str]:
+        from api.services.sms.fractel import normalize_number
+
+        # Empty is allowed so the tool can be created first and configured after.
+        return [normalize_number(n) for n in v]
 
 
 class HttpTransferResolverConfig(BaseModel):
@@ -435,6 +505,22 @@ class CalculatorToolDefinition(BaseModel):
     type: Literal["calculator"] = Field(description="Tool type.")
 
 
+class PlayAudioToolDefinition(BaseModel):
+    """Tool definition for Play Audio tools."""
+
+    schema_version: int = Field(default=1, description="Schema version.")
+    type: Literal["play_audio"] = Field(description="Tool type.")
+    config: PlayAudioConfig = Field(description="Play Audio configuration.")
+
+
+class SendSmsToolDefinition(BaseModel):
+    """Tool definition for Send SMS tools."""
+
+    schema_version: int = Field(default=1, description="Schema version.")
+    type: Literal["send_sms"] = Field(description="Tool type.")
+    config: SendSmsConfig = Field(description="Send SMS configuration.")
+
+
 class McpToolDefinition(BaseModel):
     """Persisted MCP tool definition."""
 
@@ -450,6 +536,8 @@ ToolDefinition = Annotated[
         TransferCallToolDefinition,
         CalculatorToolDefinition,
         McpToolDefinition,
+        PlayAudioToolDefinition,
+        SendSmsToolDefinition,
     ],
     Field(discriminator="type"),
 ]

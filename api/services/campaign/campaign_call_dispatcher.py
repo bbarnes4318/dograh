@@ -1,4 +1,5 @@
 import asyncio
+import os
 import time
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Optional
@@ -7,12 +8,13 @@ from loguru import logger
 
 from api.db import db_client
 from api.db.models import QueuedRunModel, WorkflowRunModel
-from api.enums import WorkflowRunState
+from api.enums import WorkflowRunMode, WorkflowRunState
 from api.services.call_concurrency import (
     CallConcurrencyLimitError,
     CallConcurrencySlot,
     call_concurrency,
 )
+from api.services.campaign.areacode_state import state_for_number
 from api.services.campaign.circuit_breaker import circuit_breaker
 from api.services.campaign.dialing_windows import (
     DialingPolicy,
@@ -30,6 +32,72 @@ from api.services.dnc import dnc_service, phone_number_from_context
 from api.services.quota_service import authorize_workflow_run_start
 from api.services.workflow.run_creation import prepare_workflow_run_inputs
 from api.utils.common import get_backend_endpoints
+from api.utils.telephony_address import is_dialable_pstn
+
+NO_CALLER_ID_FOR_STATE_REASON = "NO_CALLER_ID_AVAILABLE_FOR_DESTINATION_STATE"
+
+
+class NoCallerIdForDestinationStateError(Exception):
+    """Strict state-matched caller ID found no same-state number for the lead.
+
+    The queued run fails rather than dialling with an out-of-state caller ID.
+    """
+
+    def __init__(
+        self,
+        *,
+        destination: str,
+        destination_state: str | None,
+        destination_reason: str,
+        campaign_id: int,
+        organization_id: int,
+    ) -> None:
+        self.destination = destination
+        self.destination_state = destination_state
+        self.destination_reason = destination_reason
+        self.campaign_id = campaign_id
+        self.organization_id = organization_id
+        super().__init__(
+            f"{NO_CALLER_ID_FOR_STATE_REASON}: destination={destination} "
+            f"destination_state={destination_state} state_reason={destination_reason} "
+            f"campaign_id={campaign_id} organization_id={organization_id}"
+        )
+
+
+def resolve_state_cid_policy(campaign) -> str:
+    """Per-campaign state-matched caller ID policy.
+
+    Order: ``campaign.orchestrator_metadata.state_cid_policy``, then env
+    ``DOGRAH_STATE_CID_POLICY``, else ``"off"``.
+
+    - ``off``: whole-pool selection (local-presence ranking still applies).
+    - ``prefer``: same-state caller ID when one is free, else any.
+    - ``strict``: same-state only; with none in the pool the call fails with
+      ``NO_CALLER_ID_AVAILABLE_FOR_DESTINATION_STATE``.
+    """
+    policy = None
+    metadata = campaign.orchestrator_metadata
+    if isinstance(metadata, dict):
+        policy = metadata.get("state_cid_policy")
+    if not policy:
+        policy = os.environ.get("DOGRAH_STATE_CID_POLICY", "off")
+    policy = str(policy).strip().lower()
+    return policy if policy in ("off", "prefer", "strict") else "off"
+
+
+def resolve_transfer_destination(queued_run, campaign) -> Optional[str]:
+    """Transfer target for this call: the lead's, then the campaign's, then
+    the deployment default (``CAMPAIGN_DEFAULT_TRANSFER_DESTINATION``)."""
+    metadata = campaign.orchestrator_metadata
+    return (
+        queued_run.context_variables.get("transfer_destination")
+        or (
+            metadata.get("transfer_destination") if isinstance(metadata, dict) else None
+        )
+        or os.environ.get("CAMPAIGN_DEFAULT_TRANSFER_DESTINATION")
+        or None
+    )
+
 
 if TYPE_CHECKING:
     # Type-only — importing api.services.telephony eagerly triggers the
@@ -391,6 +459,10 @@ class CampaignCallDispatcher:
             phone_number = queued_run.context_variables.get("phone_number")
             if not phone_number:
                 raise ValueError(f"No phone number in queued run {queued_run.id}")
+            if not is_dialable_pstn(phone_number):
+                raise ValueError(
+                    f"Undialable phone number in queued run {queued_run.id}"
+                )
 
             # Get provider for this campaign's pinned telephony config.
             provider = await self.get_provider_for_campaign(campaign)
@@ -407,18 +479,89 @@ class CampaignCallDispatcher:
                 if dialing.local_presence
                 else None
             )
-            from_number = await self.acquire_from_number(
-                campaign.organization_id,
+
+            # State-matched caller ID: per policy, restrict selection to pool
+            # numbers in the lead's state. Selection stays server-side and
+            # atomic in the rate limiter; local-presence ranking still applies
+            # inside the allowed subset.
+            state_cid_policy = resolve_state_cid_policy(campaign)
+            dest_state, dest_state_reason = state_for_number(phone_number)
+            allowed_from_numbers: Optional[list[str]] = None
+            state_match_active = False
+            if state_cid_policy != "off":
+                pool_numbers = list(provider.from_numbers or [])
+                same_state = (
+                    [n for n in pool_numbers if state_for_number(n)[0] == dest_state]
+                    if dest_state
+                    else []
+                )
+                if same_state:
+                    allowed_from_numbers = same_state
+                    state_match_active = True
+                elif state_cid_policy == "strict":
+                    logger.warning(
+                        "STATE-CID strict: no same-state caller ID — failing call. "
+                        f"destination_state={dest_state} "
+                        f"state_reason={dest_state_reason} "
+                        f"campaign_id={campaign.id} pool_size={len(pool_numbers)}"
+                    )
+                    raise NoCallerIdForDestinationStateError(
+                        destination=phone_number,
+                        destination_state=dest_state,
+                        destination_reason=dest_state_reason,
+                        campaign_id=campaign.id,
+                        organization_id=campaign.organization_id,
+                    )
+                else:
+                    logger.info(
+                        "STATE-CID prefer: no same-state caller ID for "
+                        f"destination_state={dest_state} "
+                        f"(reason={dest_state_reason}); using whole pool. "
+                        f"campaign_id={campaign.id}"
+                    )
+
+            acquire_kwargs = dict(
                 telephony_configuration_id=campaign.telephony_configuration_id,
                 preferred_numbers=preferred_numbers,
                 daily_cap=dialing.from_number_daily_cap,
                 # Reset the cap on the campaign's calling day, not the UTC day.
                 cap_timezone=dialing.timezone,
             )
+            from_number = await self.acquire_from_number(
+                campaign.organization_id,
+                allowed_numbers=allowed_from_numbers,
+                # prefer: don't stall the batch on a busy same-state subset.
+                timeout=(
+                    5 if (state_match_active and state_cid_policy == "prefer") else 600
+                ),
+                **acquire_kwargs,
+            )
+            if (
+                from_number is None
+                and state_match_active
+                and state_cid_policy == "prefer"
+            ):
+                logger.info(
+                    f"STATE-CID prefer: same-state pool busy for {dest_state}; "
+                    f"using whole pool. campaign_id={campaign.id}"
+                )
+                state_match_active = False
+                from_number = await self.acquire_from_number(
+                    campaign.organization_id, **acquire_kwargs
+                )
             if from_number is None:
+                if state_match_active and state_cid_policy == "strict":
+                    # Same-state numbers exist but are all in use: transient, so
+                    # the run goes back to the queue like any exhausted pool.
+                    logger.warning(
+                        f"STATE-CID strict: same-state pool ({dest_state}) busy; "
+                        f"deferring call. campaign_id={campaign.id}"
+                    )
                 raise PhoneNumberPoolExhaustedError(
                     organization_id=campaign.organization_id
                 )
+
+            caller_id_state, _ = state_for_number(from_number)
 
             logger.info(f"Provider name: {provider.PROVIDER_NAME}")
             logger.info(f"Queued run context: {queued_run.context_variables}")
@@ -431,8 +574,19 @@ class CampaignCallDispatcher:
                 "source_uuid": queued_run.source_uuid,
                 "caller_number": from_number,
                 "called_number": phone_number,
+                # State-matched caller ID decision, kept for reporting.
+                "destination_state": dest_state,
+                "destination_state_reason": dest_state_reason,
+                "caller_id_state": caller_id_state,
+                "state_cid_policy": state_cid_policy,
+                "caller_id_state_match": bool(
+                    dest_state and caller_id_state == dest_state
+                ),
                 "telephony_configuration_id": campaign.telephony_configuration_id,
             }
+            transfer_destination = resolve_transfer_destination(queued_run, campaign)
+            if transfer_destination:
+                initial_context["transfer_destination"] = transfer_destination
 
             logger.info(f"Final initial_context: {initial_context}")
 
@@ -540,6 +694,24 @@ class CampaignCallDispatcher:
             logger.info(
                 f"Call initiated for workflow run {workflow_run.id}, Call ID: {call_result.call_id}"
             )
+
+            # Map channel -> run at dial time so the ARI manager can release the
+            # concurrency slot and caller ID for a call that never answers (no
+            # StasisStart, so the normal StasisEnd release never runs). The key
+            # matches ari_manager's _CHANNEL_KEY_PREFIX.
+            if (
+                provider.PROVIDER_NAME == WorkflowRunMode.ARI.value
+                and call_result.call_id
+            ):
+                try:
+                    redis_client = await rate_limiter._get_redis()
+                    await redis_client.set(
+                        f"ari:channel:{call_result.call_id}",
+                        str(workflow_run.id),
+                        ex=3600,
+                    )
+                except Exception as map_err:
+                    logger.warning(f"Failed to record channel->run mapping: {map_err}")
 
         except Exception as e:
             logger.error(
@@ -668,6 +840,7 @@ class CampaignCallDispatcher:
         preferred_numbers: Optional[list[str]] = None,
         daily_cap: Optional[int] = None,
         cap_timezone: Optional[str] = None,
+        allowed_numbers: Optional[list[str]] = None,
     ) -> Optional[str]:
         """
         Acquire a from_number from the (org, telephony config) pool with retry.
@@ -677,10 +850,15 @@ class CampaignCallDispatcher:
             preferred_numbers: Ranked caller IDs to try first (local presence).
             daily_cap: Max dials per caller ID per day, or None for no cap.
             cap_timezone: Zone whose calendar day the cap resets on.
+            allowed_numbers: Restrict acquisition to this subset (state-matched
+                caller ID). An empty list returns None immediately.
 
         Returns:
             The acquired phone number as a string, or None if timeout is exceeded.
         """
+        if allowed_numbers is not None and len(allowed_numbers) == 0:
+            return None
+
         wait_start = time.time()
 
         while True:
@@ -690,6 +868,7 @@ class CampaignCallDispatcher:
                 preferred_numbers=preferred_numbers,
                 daily_cap=daily_cap,
                 cap_timezone=cap_timezone,
+                allowed_numbers=allowed_numbers,
             )
             if from_number:
                 return from_number
