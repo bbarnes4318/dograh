@@ -263,6 +263,7 @@ export function createPlayAudioDefinition(audioUrl: string = ""): PlayAudioToolD
 export function createSendSmsDefinition(
     credentialUuid: string = "",
     fromNumbers: string[] = [],
+    appendLinks: string[] = [],
 ): SendSmsToolDefinition {
     return {
         schema_version: 1,
@@ -270,6 +271,7 @@ export function createSendSmsDefinition(
         config: {
             credential_uuid: credentialUuid || undefined,
             from_numbers: fromNumbers,
+            append_links: appendLinks,
         },
     };
 }

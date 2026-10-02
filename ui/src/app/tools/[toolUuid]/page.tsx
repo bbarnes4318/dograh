@@ -75,6 +75,13 @@ function headersToRows(headers: Record<string, string> | undefined | null): KeyV
     return Object.entries(headers).map(([key, value]) => ({ key, value }));
 }
 
+function parseSmsLinks(value: string): string[] {
+    return value
+        .split("\n")
+        .map((l) => l.trim())
+        .filter(Boolean);
+}
+
 function parseSmsNumbers(value: string): string[] {
     return value
         .split(/[,\s]+/)
@@ -153,6 +160,7 @@ export default function ToolDetailPage() {
     // Send SMS form state
     const [smsCredentialUuid, setSmsCredentialUuid] = useState("");
     const [smsFromNumbers, setSmsFromNumbers] = useState("");
+    const [smsAppendLinks, setSmsAppendLinks] = useState("");
 
     // Org-level recordings for audio dropdowns
     const [recordings, setRecordings] = useState<RecordingResponseSchema[]>([]);
@@ -263,10 +271,11 @@ export default function ToolDetailPage() {
             setAudioUrl(config?.audio_url || "");
         } else if (tool.category === "send_sms") {
             const config = tool.definition?.config as
-                | { credential_uuid?: string | null; from_numbers?: string[] }
+                | { credential_uuid?: string | null; from_numbers?: string[]; append_links?: string[] }
                 | undefined;
             setSmsCredentialUuid(config?.credential_uuid || "");
             setSmsFromNumbers((config?.from_numbers || []).join(", "));
+            setSmsAppendLinks((config?.append_links || []).join("\n"));
         } else if (tool.category === "mcp") {
             // Populate MCP specific fields
             const config = tool.definition?.config as
@@ -431,6 +440,10 @@ export default function ToolDetailPage() {
                 setError("Add at least one sender number");
                 return;
             }
+            if (parseSmsLinks(smsAppendLinks).some((l) => !MCP_URL_PATTERN.test(l))) {
+                setError("Each link must start with http:// or https://");
+                return;
+            }
         } else if (tool.category !== "end_call") {
             // Validate URL for HTTP API tools
             const urlValidation = validateUrl(url);
@@ -563,6 +576,7 @@ export default function ToolDetailPage() {
                     definition: createSendSmsDefinition(
                         smsCredentialUuid,
                         parseSmsNumbers(smsFromNumbers),
+                        parseSmsLinks(smsAppendLinks),
                     ),
                 };
             } else if (tool.category === "mcp") {
@@ -953,6 +967,20 @@ const data = await response.json();`;
                                     />
                                     <p className="text-xs text-muted-foreground">
                                         Comma-separated 10-digit numbers registered on your FracTEL 10DLC campaign. With several, messages rotate round-robin.
+                                    </p>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label htmlFor="send-sms-links">Links to append</Label>
+                                    <Textarea
+                                        id="send-sms-links"
+                                        value={smsAppendLinks}
+                                        onChange={(e) => setSmsAppendLinks(e.target.value)}
+                                        placeholder={"https://dialbrowser.com/distribution"}
+                                        rows={3}
+                                    />
+                                    <p className="text-xs text-muted-foreground">
+                                        One link per line. Added to the end of every text automatically (a link already in the message is not repeated).
                                     </p>
                                 </div>
                             </CardContent>
