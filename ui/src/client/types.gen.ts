@@ -102,6 +102,12 @@ export type AriConfigurationRequest = {
      * List of SIP extensions/numbers for outbound calls (optional)
      */
     from_numbers?: Array<string>;
+    /**
+     * Append Links
+     *
+     * http(s) links added to the end of every text, one per line. A link already present in the message is not added again.
+     */
+    append_links?: Array<string>;
 };
 
 /**
