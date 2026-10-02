@@ -1,0 +1,227 @@
+{
+  "_comment": "Agent 12 'body to body', released definition 194 (prompts lightly trimmed). Only change: edge 3-10 has transition_on_playback_complete=true.",
+  "nodes": [
+    {
+      "id": "1",
+      "type": "startCall",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "name": "OPENING",
+        "prompt": "Say:\n\n\"Hey {{first_name}}, quick favor — I'm helping a new rap artist named Yink. Can I play you 30 seconds of a track and you just tell me yes or no?\"\n\nStop and listen.\n\nIf yes:\nGo to Play Song.\n\nIf no:\nGo to Text Offer.\n\nIf they say stop calling, remove me, or clearly want the call ended:\nGo to End Call.\n\nIf they ask what this is about, say:\n\n\"Just getting quick reactions to a new artist. It's only thirty seconds.\"\n\nThen ask:\n\n\"You down?\"\n\nDo not play the song from this node.",
+        "allow_interrupt": true,
+        "add_global_prompt": true,
+        "delayed_start": false,
+        "is_start": true,
+        "extraction_enabled": false,
+        "greeting_type": "text",
+        "delayed_start_duration": 2,
+        "pre_call_fetch_enabled": false,
+        "greeting": "Hey {{first_name}}, quick favor — I'm helping a new rap artist named Yink. Can I play you 30 seconds of a track and you just tell me yes or no?\"",
+        "tool_uuids": []
+      }
+    },
+    {
+      "id": "2",
+      "type": "globalNode",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "name": "GLOBAL",
+        "prompt": "You are an outbound AI voice agent calling for a new rap artist named Yink.\n\nKeep everything short, casual, and natural.\n\nYour goals are:\n\n1. Get them to listen to the song.\n2. Ask if they liked it.\n3. Offer to text Yink's page.\n\nDo not ramble.\n\nDo not repeat yourself.\n\nDo not speak during the song.\n\nNever send a text unless they agree.\n\nIf they decline listening, offer to text Yink's page instead.\n\nIf they say stop calling, remove me, or clearly want the call ended, go to End Call.\n\nFollow the current node only.",
+        "allow_interrupt": false
+      }
+    },
+    {
+      "id": "3",
+      "type": "agentNode",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "name": "PLAY SONG",
+        "allow_interrupt": false,
+        "add_global_prompt": false,
+        "extraction_enabled": false,
+        "prompt": "Immediately use the Play Song tool.\n\nSay nothing.\n\nDo not ask for feedback before the song plays.\n\nWhen the song finishes, go to Feedback.",
+        "tool_uuids": [
+          "90ca5f26-632c-4daa-8d7b-ae629454ec41"
+        ]
+      }
+    },
+    {
+      "id": "7",
+      "type": "agentNode",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "name": "TEXT OFFER",
+        "allow_interrupt": true,
+        "add_global_prompt": true,
+        "extraction_enabled": false,
+        "prompt": "If they listened to the song, say:\n\n\"Want me to text you Yink's page?\"\n\nIf they declined listening, say:\n\n\"No worries. Want me to just text you Yink's page?\"\n\nStop and listen.\n\nIf yes:\nGo to Send Text.\n\nIf no:\nGo to End Call.",
+        "tool_uuids": []
+      }
+    },
+    {
+      "id": "9",
+      "type": "endCall",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "name": "End Call",
+        "add_global_prompt": false,
+        "extraction_enabled": false,
+        "is_end": true,
+        "prompt": "Immediately end the call.",
+        "allow_interrupt": false
+      }
+    },
+    {
+      "id": "10",
+      "type": "agentNode",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "name": "FEEDBACK",
+        "allow_interrupt": true,
+        "add_global_prompt": true,
+        "extraction_enabled": false,
+        "prompt": "The song has just finished playing.\n\nYour only job in this node is to get the listener's yes-or-no reaction to the song.\n\nIMMEDIATELY say:\n\n\"So, yes or no?\"\n\nDo not say anything before that question.\n\nAfter asking the question, stop speaking and listen.\n\nInterpret the listener's response naturally.\n\nTreat any clearly positive reaction as YES.\n\nTreat any clearly negative reaction as NO.\n\nIf the response is unclear, neutral, or does not answer the question, ask only:\n\n\"Would you say yes or no?\"\n\nThen stop and listen again.\n\nSimply allow the workflow to follow the existing YES or NO transition to the next node.\n\nIMPORTANT:\nWhen this node is entered after Play Song finishes, the first assistant speech must be:\n\n\"So, yes or no?\"\n\nThere must be no greeting, acknowledgement, filler, explanation, or introductory sentence before it.",
+        "tool_uuids": []
+      }
+    },
+    {
+      "id": "11",
+      "type": "agentNode",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "name": "SEND TEXT",
+        "allow_interrupt": false,
+        "add_global_prompt": false,
+        "extraction_enabled": false,
+        "prompt": "Immediately use the Send Text tool.\n\nAfter it sends, say:\n\n\"Just sent it. Appreciate you.\"\n\nThen go to End Call.",
+        "tool_uuids": [
+          "7cd9fd53-891c-449f-8672-1bbbd8f0bff4"
+        ]
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "1-3",
+      "type": "custom",
+      "source": "1",
+      "target": "3",
+      "data": {
+        "condition": "PLAY SONG",
+        "label": "YES",
+        "transition_speech_type": "text",
+        "transition_speech": "Alright. Check this out. "
+      }
+    },
+    {
+      "id": "1-7",
+      "type": "custom",
+      "source": "1",
+      "target": "7",
+      "data": {
+        "condition": "Text offer",
+        "label": "NO",
+        "transition_speech_type": "text"
+      }
+    },
+    {
+      "id": "1-9",
+      "type": "custom",
+      "source": "1",
+      "target": "9",
+      "data": {
+        "condition": "End call",
+        "label": "STOP / DNC",
+        "transition_speech_type": "text"
+      }
+    },
+    {
+      "id": "3-10",
+      "type": "custom",
+      "source": "3",
+      "target": "10",
+      "data": {
+        "condition": "The Play Song tool has completed playback.",
+        "label": "Song finished → Feedback",
+        "transition_speech_type": "text",
+        "transition_on_playback_complete": true
+      }
+    },
+    {
+      "id": "11-9",
+      "type": "custom",
+      "source": "11",
+      "target": "9",
+      "data": {
+        "condition": "End call.",
+        "label": "Done",
+        "transition_speech_type": "text"
+      }
+    },
+    {
+      "id": "7-11",
+      "type": "custom",
+      "source": "7",
+      "target": "11",
+      "data": {
+        "condition": "Send text",
+        "label": "Yes",
+        "transition_speech_type": "text"
+      }
+    },
+    {
+      "id": "7-9",
+      "type": "custom",
+      "source": "7",
+      "target": "9",
+      "data": {
+        "condition": "End call",
+        "label": "No",
+        "transition_speech_type": "text"
+      }
+    },
+    {
+      "id": "10-7",
+      "type": "custom",
+      "source": "10",
+      "target": "7",
+      "data": {
+        "condition": "Text offer",
+        "label": "Any  normal answer",
+        "transition_speech_type": "text"
+      }
+    },
+    {
+      "id": "10-9",
+      "type": "custom",
+      "source": "10",
+      "target": "9",
+      "data": {
+        "condition": "End call",
+        "label": "STOP / DNC → End Call",
+        "transition_speech_type": "text"
+      }
+    }
+  ]
+}

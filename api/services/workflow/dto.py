@@ -1024,6 +1024,10 @@ class EdgeDataDTO(BaseModel):
     transition_speech: Optional[str] = None
     transition_speech_type: Optional[str] = None  # 'text' or 'audio'
     transition_speech_recording_id: Optional[str] = None
+    # Off by default. When on, a Play Audio tool in the source node waits for
+    # playback to finish, then the workflow takes this edge itself and the
+    # target node gets an assistant turn without waiting for the caller.
+    transition_on_playback_complete: bool = False
 
 
 class RFEdgeDTO(BaseModel):

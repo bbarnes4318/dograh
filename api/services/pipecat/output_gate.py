@@ -22,6 +22,7 @@ from pipecat.frames.frames import Frame, LLMTextFrame
 from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
 
 REASON_TERMINAL_CHAIN = "terminal_chain"
+REASON_MEDIA_PLAYBACK = "media_playback"
 
 
 class ConversationOutputGate:
