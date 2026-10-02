@@ -102,12 +102,6 @@ export type AriConfigurationRequest = {
      * List of SIP extensions/numbers for outbound calls (optional)
      */
     from_numbers?: Array<string>;
-    /**
-     * Append Links
-     *
-     * http(s) links added to the end of every text, one per line. A link already present in the message is not added again.
-     */
-    append_links?: Array<string>;
 };
 
 /**
@@ -824,6 +818,12 @@ export type SendSmsConfig = {
      * 10-digit sender DIDs registered with FracTEL (10DLC). With more than one, messages rotate round-robin across them.
      */
     from_numbers?: Array<string>;
+    /**
+     * Append Links
+     *
+     * http(s) links added to the end of every text, one per line. A link already present in the message is not added again.
+     */
+    append_links?: Array<string>;
 };
 
 /**
