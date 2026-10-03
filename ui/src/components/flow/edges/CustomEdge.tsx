@@ -6,6 +6,7 @@ import { useWorkflow, useWorkflowOptional } from "@/app/workflow/[workflowId]/co
 import { useWorkflowStore } from "@/app/workflow/[workflowId]/stores/workflowStore";
 import { StaticTextWarning, TextOrAudioInput } from "@/components/flow/TextOrAudioInput";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -31,6 +32,7 @@ const EdgeDetailsDialog = ({ open, onOpenChange, data, onSave }: EdgeDetailsDial
     const [transitionSpeech, setTransitionSpeech] = useState(data?.transition_speech ?? '');
     const [transitionSpeechType, setTransitionSpeechType] = useState<'text' | 'audio'>(data?.transition_speech_type ?? 'text');
     const [transitionSpeechRecordingId, setTransitionSpeechRecordingId] = useState(data?.transition_speech_recording_id ?? '');
+    const [transitionOnPlaybackComplete, setTransitionOnPlaybackComplete] = useState(data?.transition_on_playback_complete ?? false);
 
     // Update form state when data changes (e.g., from undo/redo)
     useEffect(() => {
@@ -40,6 +42,7 @@ const EdgeDetailsDialog = ({ open, onOpenChange, data, onSave }: EdgeDetailsDial
             setTransitionSpeech(data?.transition_speech ?? '');
             setTransitionSpeechType(data?.transition_speech_type ?? 'text');
             setTransitionSpeechRecordingId(data?.transition_speech_recording_id ?? '');
+            setTransitionOnPlaybackComplete(data?.transition_on_playback_complete ?? false);
         }
     }, [data, open]);
 
@@ -50,9 +53,10 @@ const EdgeDetailsDialog = ({ open, onOpenChange, data, onSave }: EdgeDetailsDial
             transition_speech: transitionSpeechType === 'text' ? (transitionSpeech || undefined) : undefined,
             transition_speech_type: transitionSpeechType,
             transition_speech_recording_id: transitionSpeechType === 'audio' ? (transitionSpeechRecordingId || undefined) : undefined,
+            transition_on_playback_complete: transitionOnPlaybackComplete || undefined,
         });
         onOpenChange(false);
-    }, [condition, label, transitionSpeech, transitionSpeechType, transitionSpeechRecordingId, onSave, onOpenChange]);
+    }, [condition, label, transitionSpeech, transitionSpeechType, transitionSpeechRecordingId, transitionOnPlaybackComplete, onSave, onOpenChange]);
 
     // Handle Cmd+S / Ctrl+S keyboard shortcut to save
     useEffect(() => {
@@ -130,6 +134,19 @@ const EdgeDetailsDialog = ({ open, onOpenChange, data, onSave }: EdgeDetailsDial
                                 />
                             </>
                         </TextOrAudioInput>
+                    </div>
+                    <div className="flex items-start gap-2">
+                        <Checkbox
+                            id="transition-on-playback-complete"
+                            checked={transitionOnPlaybackComplete}
+                            onCheckedChange={(c) => setTransitionOnPlaybackComplete(c === true)}
+                        />
+                        <div className="grid gap-1">
+                            <Label htmlFor="transition-on-playback-complete">Take this pathway when audio playback finishes</Label>
+                            <Label className="text-xs text-muted-foreground">
+                                When a Play Audio tool in the source node finishes, move to the next node and have the agent speak right away, without waiting for the caller.
+                            </Label>
+                        </div>
                     </div>
                 </div>
                 <DialogFooter>

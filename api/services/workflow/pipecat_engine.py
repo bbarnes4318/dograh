@@ -28,7 +28,7 @@ from api.services.pipecat.output_gate import (
 )
 from api.services.pipecat.thinking_cue import ThinkingCue
 from api.services.sms.recipient import snapshot_call_parties
-from api.services.workflow.workflow_graph import Node, WorkflowGraph
+from api.services.workflow.workflow_graph import Edge, Node, WorkflowGraph
 
 if TYPE_CHECKING:
     from pipecat.frames.frames import Frame
@@ -1036,6 +1036,55 @@ class PipecatEngine:
             logger.warning(f"Playback did not signal completion within {timeout:.1f}s")
             self._playback_complete.set()
             return False
+
+    def playback_transition_edge(self) -> Optional[Edge]:
+        """The current node's edge flagged ``transition_on_playback_complete``.
+
+        None for every node without that flag, which keeps Play Audio on its
+        default behavior there.
+        """
+        node = self._current_node
+        if node is None or node.is_end:
+            return None
+        for edge in node.out_edges:
+            if edge.transition_on_playback_complete:
+                return edge
+        return None
+
+    async def transition_after_playback(
+        self, edge: Edge, function_call_params: FunctionCallParams
+    ) -> None:
+        """Take ``edge`` once its source node's audio has finished playing.
+
+        Same steps as an LLM-chosen transition (extraction, ``set_node``, end
+        node handling), but driven by playback completion. The tool result is
+        delivered with ``run_llm=True`` so the target node's assistant turn
+        starts immediately instead of waiting for the caller to speak.
+        """
+        target = self.workflow.nodes[edge.target]
+        logger.info(
+            f"Playback complete -> taking edge {edge.id} to node "
+            f"'{target.name}' and starting its assistant turn"
+        )
+        self._transition_in_progress = True
+        try:
+            await self._perform_variable_extraction_if_needed(self._current_node)
+            await self.set_node(edge.target)
+
+            async def on_context_updated() -> None:
+                if self._current_node.is_end:
+                    self._transition_in_progress = False
+                    await self.end_call_with_reason(EndTaskReason.USER_QUALIFIED.value)
+
+            await function_call_params.result_callback(
+                {"status": "success", "action": "playback_complete"},
+                properties=FunctionCallResultProperties(
+                    run_llm=True, on_context_updated=on_context_updated
+                ),
+            )
+        except Exception:
+            self._transition_in_progress = False
+            raise
 
     async def should_mute_user(self, frame: "Frame") -> bool:
         """

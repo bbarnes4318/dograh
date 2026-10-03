@@ -24,6 +24,7 @@ from api.db import db_client
 from api.enums import ToolCategory, WorkflowRunMode
 from api.services.pipecat.audio_file_cache import convert_audio_file
 from api.services.pipecat.audio_playback import play_audio, play_audio_loop
+from api.services.pipecat.output_gate import REASON_MEDIA_PLAYBACK
 from api.services.sms.fractel import (
     FracTelConfigError,
     FracTelError,
@@ -331,7 +332,12 @@ class CustomToolManager:
                 is_node_transition = tool.category in {
                     ToolCategory.END_CALL.value,
                     ToolCategory.TRANSFER_CALL.value,
-                }
+                } or (
+                    # Play Audio moves the workflow on itself in a node with a
+                    # transition_on_playback_complete edge.
+                    tool.category == ToolCategory.PLAY_AUDIO.value
+                    and self._engine.playback_transition_edge() is not None
+                )
                 self._engine.llm.register_function(
                     function_name,
                     handler,
@@ -368,7 +374,11 @@ class CustomToolManager:
             # Covers downloading + transcoding the file; playback itself is
             # queued — except terminal-chain tools, which wait out the audio.
             cfg = (tool.definition or {}).get("config", {}) or {}
-            timeout_secs = 900.0 if cfg.get("terminal_chain") else 60.0
+            waits_out_audio = (
+                cfg.get("terminal_chain")
+                or self._engine.playback_transition_edge() is not None
+            )
+            timeout_secs = 900.0 if waits_out_audio else 60.0
             handler = self._create_play_audio_handler(tool, function_name)
         elif tool.category == ToolCategory.SEND_SMS.value:
             # 10s per request x (1 + 3 retries) plus backoff, plus token fetch.
@@ -538,6 +548,12 @@ class CustomToolManager:
         playback to actually finish, and returns control to the model *only for
         silent follow-up tool calls* (e.g. send SMS, end call). Output stays
         suppressed until the workflow moves to another node.
+
+        When the current node has an outgoing edge flagged
+        ``transition_on_playback_complete``, the model stays silent while the
+        audio plays; once it finishes the workflow takes that edge and starts
+        the target node's assistant turn (see
+        ``PipecatEngine.transition_after_playback``).
         """
         properties = FunctionCallResultProperties(run_llm=False)
 
@@ -547,6 +563,7 @@ class CustomToolManager:
             logger.info(f"Play Audio Tool EXECUTED: {function_name}")
             config = (tool.definition or {}).get("config", {}) or {}
             terminal = bool(config.get("terminal_chain", False))
+            advance_edge = self._engine.playback_transition_edge()
             try:
                 audio_url = config.get("audio_url", "")
                 validate_user_configured_service_url(audio_url, field_name="audio_url")
@@ -560,6 +577,12 @@ class CustomToolManager:
                 audio = await convert_audio_file(audio_url, sample_rate, "pcm")
                 if not audio:
                     raise RuntimeError(f"could not load audio from {audio_url}")
+
+                if advance_edge is not None:
+                    await self._play_then_take_edge(
+                        audio, sample_rate, advance_edge, function_call_params
+                    )
+                    return
 
                 if terminal:
                     # Application state, not a prompt, keeps the model silent.
@@ -591,6 +614,44 @@ class CustomToolManager:
                 )
 
         return play_audio_handler
+
+    async def _play_then_take_edge(
+        self,
+        audio: bytes,
+        sample_rate: int,
+        edge: Any,
+        function_call_params: FunctionCallParams,
+    ) -> None:
+        """Play the audio to the end, then take ``edge`` with an assistant turn."""
+        source_node_id = self._engine._current_node.id
+        # Nothing the model generates may be spoken over the song.
+        self._engine.suppress_conversation_output(REASON_MEDIA_PLAYBACK)
+        try:
+            self._engine.begin_playback_wait()
+            self._engine._queued_speech_mute_state = "waiting"
+            await play_audio(
+                audio,
+                sample_rate=sample_rate,
+                queue_frame=self._engine._transport_output.queue_frame,
+            )
+            duration = len(audio) / 2 / sample_rate
+            await self._engine.wait_for_playback_complete(duration + 5.0)
+        except Exception:
+            self._engine.resume_conversation_output()
+            raise
+
+        current = self._engine._current_node
+        if current is None or current.id != source_node_id:
+            # Something else already moved the workflow on; don't move it twice.
+            self._engine.resume_conversation_output()
+            await function_call_params.result_callback(
+                {"status": "success", "action": "playback_complete"},
+                properties=FunctionCallResultProperties(run_llm=False),
+            )
+            return
+
+        # set_node() resumes conversational output on the node change.
+        await self._engine.transition_after_playback(edge, function_call_params)
 
     def _create_send_sms_handler(self, tool: Any, function_name: str):
         """Create a handler that texts the customer on the current call through

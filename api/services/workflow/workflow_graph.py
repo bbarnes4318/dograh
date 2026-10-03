@@ -86,6 +86,7 @@ class Edge:
         self.label = data.label
         self.condition = data.condition
         self.transition_speech = data.transition_speech
+        self.transition_on_playback_complete = data.transition_on_playback_complete
 
         self.data = data
 
