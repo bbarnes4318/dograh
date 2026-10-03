@@ -112,6 +112,14 @@ AUDIO_FORMAT_PCM = "pcm"
 
 _UNCORRELATED = "uncorrelated"
 
+# Spoken-context prompt that makes the model open a call whose start node has
+# no fixed greeting (the engine asks for an "LLM generated" opening).
+OPENING_PROMPT = (
+    "The phone call has just connected. Open the conversation now: greet the "
+    "caller as your backend's instructions direct, then stop and wait for the "
+    "caller to respond."
+)
+
 
 def build_frontend_instructions(voice_instructions: str | None) -> str:
     """Instructions for the GPT-Live frontend: voice and delegation behaviour only.
@@ -215,6 +223,9 @@ class DograhOpenAILiveLLMService(LLMService[OpenAILiveLLMAdapter]):
         self._session_closed_event = asyncio.Event()
         self._sent_delegation_snapshot: str | None = None
         self._pending_opening_text: str | None = None
+        # Set once the call has had its opening (greeting, generated opening,
+        # or the caller speaking first).
+        self._opening_handled = False
 
         self._in_resampler = create_stream_resampler()
         self._out_resampler = create_stream_resampler()
@@ -318,6 +329,7 @@ class DograhOpenAILiveLLMService(LLMService[OpenAILiveLLMAdapter]):
             self._context = frame.context
             await self._maybe_send_session_config()
             await self._maybe_send_delegation_update()
+            await self._maybe_request_opening()
         elif isinstance(frame, InputAudioRawFrame):
             await self._send_user_audio(frame)
         elif isinstance(frame, LLMSetToolsFrame):
@@ -616,6 +628,7 @@ class DograhOpenAILiveLLMService(LLMService[OpenAILiveLLMAdapter]):
         if not self._output_allowed():
             self._output_gate.record_suppressed()
             return
+        self._opening_handled = True
         raw = base64.b64decode(evt.delta)
         if self._wire_format.type == "audio/pcmu":
             pcm = await ulaw_to_pcm(
@@ -683,6 +696,7 @@ class DograhOpenAILiveLLMService(LLMService[OpenAILiveLLMAdapter]):
         await self._close_turn("assistant")
 
     async def _open_turn(self, role: str):
+        self._opening_handled = True
         if role == "user":
             self._latency.mark(vl.USER_SPEECH_STARTED)
             # Caller spoke: model speech is allowed again after a silent continuation.
@@ -750,6 +764,7 @@ class DograhOpenAILiveLLMService(LLMService[OpenAILiveLLMAdapter]):
         text = (frame.text or "").strip()
         if not text:
             return
+        self._opening_handled = True
         if not self._output_allowed():
             logger.info(
                 f"{self}: dropping speak request while conversation output is suppressed"
@@ -762,6 +777,24 @@ class DograhOpenAILiveLLMService(LLMService[OpenAILiveLLMAdapter]):
         else:
             self._pending_opening_text = prompt
 
+    async def _maybe_request_opening(self):
+        """Have the model open the call when the start node has no greeting.
+
+        The engine signals an LLM-generated opening with an ``LLMContextFrame``.
+        GPT-Live otherwise waits for the caller, while the pipeline keeps the
+        caller muted until the bot's first turn completes — so without this
+        neither side would ever speak.
+        """
+        if self._opening_handled:
+            return
+        self._opening_handled = True
+        if not self._output_allowed():
+            return
+        if self._session_started:
+            await self._send_context_append(None, OPENING_PROMPT, spoken=True)
+        else:
+            self._pending_opening_text = OPENING_PROMPT
+
     async def _handle_messages_append(self, frame: LLMMessagesAppendFrame):
         texts = []
         for m in frame.messages:
@@ -771,6 +804,8 @@ class DograhOpenAILiveLLMService(LLMService[OpenAILiveLLMAdapter]):
         if not text:
             return
         speak = bool(frame.run_llm) and self._output_allowed()
+        if speak:
+            self._opening_handled = True
         if not self._session_started:
             if speak:
                 self._pending_opening_text = text
