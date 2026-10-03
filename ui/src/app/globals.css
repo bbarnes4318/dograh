@@ -7,7 +7,7 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: var(--font-geist-mono);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
@@ -46,49 +46,127 @@
   --color-cta-foreground: var(--cta-foreground);
 }
 
-:root {
-  --radius: 0.375rem;
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: hsl(156 72% 40%);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  /* Single restrained warm accent — used only on primary CTAs + focus rings. */
-  --cta: oklch(0.72 0.15 65);
-  --cta-foreground: oklch(0.16 0.02 60);
-  /* Giant faded "dograh" wordmark (authentic Proxima Nova letterforms traced
-     from the brand logo PNG — the font is commercial, so the lettering ships
-     as static artwork in /public; fill + 0.9% opacity are baked into the
-     files). Theme-switched here; consumed by .app-surface and .auth-imprint. */
-  --brand-imprint: url("/brand-imprint-light.svg");
+/* ---------------------------------------------------------------------------
+   PORTAL BRANDS. This app is embedded on the agency portal's /voice-agents
+   page and wears that portal's skin: NetEnroll by default, or the agency's
+   white label. `data-brand` on <html> is set before first paint from the
+   portal's `?brand=` (see lib/brand.ts). Values are the portal's own design
+   tokens (apps/web/src/app/globals.css in hoppwhistle), mapped onto shadcn's
+   names. Light only: the portal is a light workspace.
+--------------------------------------------------------------------------- */
+
+/* NetEnroll: cool grey canvas, white cards, the "Enroll" green as the single
+   accent. #047857 (brand-ink) carries white text at 5.48:1; the bright
+   #10b981 is a fill colour only. */
+:root,
+[data-brand="netenroll"] {
+  --radius: 0.625rem;
+  --background: #f5f6f8;
+  --foreground: #101828;
+  --card: #ffffff;
+  --card-foreground: #101828;
+  --popover: #ffffff;
+  --popover-foreground: #101828;
+  --primary: #047857;
+  --primary-foreground: #ffffff;
+  --secondary: #eef0f3;
+  --secondary-foreground: #101828;
+  --muted: #eef0f3;
+  --muted-foreground: #5f6b7d;
+  --accent: #eef0f3;
+  --accent-foreground: #101828;
+  --destructive: #b42318;
+  --border: #e4e7ec;
+  --input: #d0d5dd;
+  --ring: #047857;
+  --chart-1: #10b981;
+  --chart-2: #1b4d8f;
+  --chart-3: #c8801a;
+  --chart-4: #6b4e9e;
+  --chart-5: #a8452c;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #344054;
+  --sidebar-primary: #047857;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #f2f4f7;
+  --sidebar-accent-foreground: #101828;
+  --sidebar-border: #e4e7ec;
+  --sidebar-ring: #047857;
+  /* Primary actions and the active nav item. */
+  --cta: #047857;
+  --cta-foreground: #ffffff;
+  --brand: #10b981;
+  --brand-ink: #047857;
+  --brand-tint: #e7f8f0;
+  /* Dark brand panel on the sign-in page. */
+  --brand-panel: #0b1a14;
+  --brand-panel-image: linear-gradient(165deg, #0f2a20 0%, #0b1a14 55%, #08130f 100%);
+  --brand-panel-accent: #34d399;
+  --shadow-card: 0 1px 2px rgba(16, 24, 40, 0.05), 0 1px 3px rgba(16, 24, 40, 0.04);
+  --brand-imprint: none;
 }
 
+/* Life Leads Plus: the logo's blue on a cool canvas with the navy of its
+   wordmark; tighter radii, flatter cards -- as its portal draws them. */
+[data-brand="life-leads-plus"] {
+  --radius: 0.5rem;
+  --background: #f4f6fa;
+  --foreground: #0f172a;
+  --card: #ffffff;
+  --card-foreground: #0f172a;
+  --popover: #ffffff;
+  --popover-foreground: #0f172a;
+  --primary: #0b5cd6;
+  --primary-foreground: #ffffff;
+  --secondary: #edf1f6;
+  --secondary-foreground: #0f172a;
+  --muted: #edf1f6;
+  --muted-foreground: #5b6b82;
+  --accent: #edf1f6;
+  --accent-foreground: #0f172a;
+  --destructive: #b42318;
+  --border: #e1e7ef;
+  --input: #cbd5e1;
+  --ring: #0a56c2;
+  --chart-1: #0081f1;
+  --chart-2: #0b1f44;
+  --chart-3: #e11d2e;
+  --chart-4: #c8801a;
+  --chart-5: #6b4e9e;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #3f4d63;
+  --sidebar-primary: #0b5cd6;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #f1f5f9;
+  --sidebar-accent-foreground: #0f172a;
+  --sidebar-border: #e1e7ef;
+  --sidebar-ring: #0a56c2;
+  --cta: #0b5cd6;
+  --cta-foreground: #ffffff;
+  --brand: #0081f1;
+  --brand-ink: #0a56c2;
+  --brand-tint: #eaf2fe;
+  --brand-panel: #0b1f44;
+  --brand-panel-image: linear-gradient(165deg, #0d2550 0%, #0b1f44 52%, #0a1a3a 100%);
+  --brand-panel-accent: #3d9bff;
+  --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.04);
+  --brand-imprint: none;
+}
+
+/* Brand-specific artwork: every variant is in the DOM and CSS shows the one
+   for the active brand, so a logo never flashes from one brand to another on
+   hydration. */
+[data-brand-only] {
+  display: none !important;
+}
+html:not([data-brand]) [data-brand-only="netenroll"],
+[data-brand="netenroll"] [data-brand-only="netenroll"],
+[data-brand="life-leads-plus"] [data-brand-only="life-leads-plus"] {
+  display: inline-flex !important;
+}
+
+/* Legacy dark palette. Unreachable (the theme is forced light); kept so the
+   `dark:` variants scattered through the components stay meaningful. */
 .dark {
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
@@ -238,7 +316,7 @@
      paints inside .app-surface, which starts right of the ~270px sidebar —
      the +135px x-shift recentres the wordmark on the VISIBLE canvas. */
   .app-surface {
-    background-color: oklch(0.984 0.001 80);
+    background-color: var(--background);
     background-image: var(--brand-imprint);
     background-size: min(68vw, 980px) auto;
     background-position: calc(50% + 135px) calc(100% - 24px);
@@ -298,9 +376,9 @@
    catching the machined top edge of the panel. Applied app-wide by the Card
    primitive (components/ui/card.tsx). Un-layered so border-top-color beats
    the border-border/60 utility. No gradients (user constraint). */
+/* Light: a plain white card with the portal's card shadow -- no texture. */
 .card-weave {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12'%3E%3Cpath d='M0 0l12 12M12 0L0 12' stroke='%23000000' stroke-opacity='.015' fill='none'/%3E%3C/svg%3E");
-  background-repeat: repeat;
+  box-shadow: var(--shadow-card);
 }
 .dark .card-weave {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12'%3E%3Cpath d='M0 0l12 12M12 0L0 12' stroke='%23ffffff' stroke-opacity='.01' fill='none'/%3E%3C/svg%3E");

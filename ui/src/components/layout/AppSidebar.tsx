@@ -1,8 +1,8 @@
 "use client";
 
 import {
+  Activity,
   AlertTriangle,
-  ArrowUpCircle,
   AudioLines,
   Brain,
   ChevronLeft,
@@ -10,7 +10,6 @@ import {
   CircleDollarSign,
   Database,
   FileText,
-  Home,
   Key,
   LogOut,
   type LucideIcon,
@@ -21,7 +20,6 @@ import {
   UserRound,
   Workflow,
   Wrench,
-  Activity,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -29,7 +27,6 @@ import React from "react";
 
 import { BrandLogo } from "@/components/BrandLogo";
 import { SidebarTeamSwitcher } from "@/components/layout/SidebarTeamSwitcher";
-import ThemeToggle from "@/components/ThemeSwitcher";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -57,7 +54,6 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { useAppConfig } from "@/context/AppConfigContext";
 import { useLeadForms } from "@/context/LeadFormsContext";
 import { useTelephonyConfigWarnings } from "@/context/TelephonyConfigWarningsContext";
-import { useLatestReleaseVersion } from "@/hooks/useLatestReleaseVersion";
 import type { LocalUser } from "@/lib/auth";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
@@ -169,12 +165,6 @@ export function AppSidebar() {
   // Version info from app config context
   const versionInfo = config ? { ui: config.uiVersion, api: config.apiVersion } : null;
 
-  // Check for updates only on self-hosted (OSS) deployments — cloud is managed for the user.
-  const { latest: latestRelease, isBehind, isLatest } = useLatestReleaseVersion(
-    versionInfo?.ui,
-    { enabled: config?.deploymentMode === "oss" },
-  );
-
   const isActive = (path: string) => pathname.startsWith(path);
 
   const handleMobileNavClick = () => {
@@ -212,9 +202,9 @@ export function AppSidebar() {
         asChild
         tooltip={tooltip}
         className={cn(
-          "rounded-xl transition-colors hover:bg-accent hover:text-accent-foreground",
+          "h-9 rounded-md font-medium text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
           isItemActive &&
-            "bg-cta/15 font-semibold text-foreground hover:bg-cta/20 hover:text-foreground"
+            "bg-[var(--brand-tint)] font-semibold text-[var(--brand-ink)] hover:bg-[var(--brand-tint)] hover:text-[var(--brand-ink)]"
         )}
       >
         <Link
@@ -225,14 +215,14 @@ export function AppSidebar() {
         >
           {isItemActive && !isCollapsed && (
             <span
-              className="absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-full bg-cta"
+              className="absolute -left-2 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-primary"
               aria-hidden
             />
           )}
           <Icon
             className={cn(
               "h-4 w-4 shrink-0",
-              isItemActive && "text-cta drop-shadow-[0_0_6px_rgba(240,170,70,0.8)]"
+              isItemActive ? "text-[var(--brand-ink)]" : "text-muted-foreground"
             )}
           />
           <span
@@ -279,7 +269,7 @@ export function AppSidebar() {
     <Button
       variant="ghost"
       size="icon"
-      className="h-7 w-7 shrink-0 cursor-pointer rounded-full border border-border/80 bg-muted/40 hover:bg-muted/60"
+      className="h-8 w-8 shrink-0 cursor-pointer rounded-full bg-[var(--brand-tint)] text-[var(--brand-ink)] ring-1 ring-inset ring-border hover:bg-[var(--brand-tint)] hover:ring-input"
     >
       <span className="text-xs font-medium">{userInitials}</span>
     </Button>
@@ -292,7 +282,7 @@ export function AppSidebar() {
       <TooltipTrigger asChild>
         <Button
           size="icon"
-          className="h-7 w-7 rounded-full"
+          className="h-8 w-8 rounded-md"
           onClick={() => openHireExpert("sidebar")}
           aria-label="Hire an Expert"
         >
@@ -306,7 +296,7 @@ export function AppSidebar() {
   ) : (
     <Button
       size="sm"
-      className="h-7 gap-1.5 rounded-full px-3 text-xs"
+      className="h-8 gap-1.5 rounded-md px-3 text-xs"
       onClick={() => openHireExpert("sidebar")}
     >
       <UserRound className="h-3.5 w-3.5" />
@@ -315,55 +305,23 @@ export function AppSidebar() {
   );
 
   return (
-    <Sidebar collapsible="icon" variant="floating" className="app-sidebar-dock py-4">
-      <SidebarHeader className="px-2 py-3 notranslate" translate="no">
+    <Sidebar collapsible="icon" variant="sidebar" className="border-r border-sidebar-border">
+      <SidebarHeader className="border-b border-sidebar-border px-3 py-4 notranslate" translate="no">
         <div className="flex items-center justify-between">
-          <div className={cn("flex items-center gap-2", isCollapsed && "hidden")}>
+          <div className={cn("flex min-w-0 items-center", isCollapsed && "hidden")}>
+            {/* The portal's own logo (NetEnroll, or the agency's white label),
+                with the product area named beside it. */}
             <Link
               href="/"
-              className="notranslate flex items-center gap-2 px-1"
+              className="notranslate flex min-w-0 flex-col items-start gap-1 px-1"
               translate="no"
+              aria-label="Voice Agents home"
             >
-              <BrandLogo mark className="h-6" />
-              {versionInfo && (
-                <span
-                  className="notranslate text-xs font-normal text-muted-foreground"
-                  translate="no"
-                >
-                  v{versionInfo.ui}
-                </span>
-              )}
+              <BrandLogo className="h-7 max-w-[10.5rem] object-contain object-left" />
+              <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                Voice Agents
+              </span>
             </Link>
-            {isBehind && latestRelease && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <a
-                    href="https://hopwhistle.com/deployment/update"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 rounded-md border bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium leading-none text-amber-900 transition-opacity hover:opacity-80 dark:bg-amber-950 dark:text-amber-200"
-                  >
-                    <ArrowUpCircle className="h-3 w-3" />
-                    Update
-                  </a>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">
-                  <p>Latest: {latestRelease} - click to see the update guide</p>
-                </TooltipContent>
-              </Tooltip>
-            )}
-            {isLatest && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span className="inline-flex items-center rounded-md border bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium leading-none text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">
-                    Latest
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">
-                  <p>You&apos;re running the latest release</p>
-                </TooltipContent>
-              </Tooltip>
-            )}
           </div>
 
           <SidebarTrigger className={cn("hover:bg-accent", isCollapsed && "mx-auto")}>
@@ -418,7 +376,7 @@ export function AppSidebar() {
           {provider !== "stack" && (
             <div
               className={cn(
-                "flex items-center justify-between gap-1 rounded-full border border-border/60 bg-muted/30 p-1",
+                "flex items-center justify-between gap-1 rounded-lg border border-sidebar-border bg-background p-1.5",
                 isCollapsed && "flex-col"
               )}
             >
@@ -431,6 +389,9 @@ export function AppSidebar() {
                     <div className="flex flex-col space-y-1">
                       {(user as LocalUser | undefined)?.email && (
                         <p className="text-xs text-muted-foreground">{(user as LocalUser).email}</p>
+                      )}
+                      {versionInfo && (
+                        <p className="text-[11px] text-muted-foreground/80">Version {versionInfo.ui}</p>
                       )}
                     </div>
                   </DropdownMenuLabel>
@@ -452,7 +413,7 @@ export function AppSidebar() {
           {provider === "stack" && (
             <div
               className={cn(
-                "flex items-center justify-between gap-1 rounded-full border border-border/60 bg-muted/30 p-1",
+                "flex items-center justify-between gap-1 rounded-lg border border-sidebar-border bg-background p-1.5",
                 isCollapsed && "flex-col"
               )}
             >
@@ -468,6 +429,9 @@ export function AppSidebar() {
                       )}
                       {(user as { primaryEmail?: string })?.primaryEmail && (
                         <p className="text-xs text-muted-foreground">{(user as { primaryEmail?: string }).primaryEmail}</p>
+                      )}
+                      {versionInfo && (
+                        <p className="text-[11px] text-muted-foreground/80">Version {versionInfo.ui}</p>
                       )}
                     </div>
                   </DropdownMenuLabel>
@@ -490,21 +454,6 @@ export function AppSidebar() {
             </div>
           )}
 
-          <div className="mt-1 flex justify-center">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div className="notranslate" translate="no">
-                  <ThemeToggle
-                    showLabel={false}
-                    className="rounded-full hover:bg-accent hover:text-accent-foreground"
-                  />
-                </div>
-              </TooltipTrigger>
-              <TooltipContent side={isCollapsed ? "right" : "top"}>
-                <p>Toggle theme</p>
-              </TooltipContent>
-            </Tooltip>
-          </div>
         </div>
       </SidebarFooter>
       <SidebarRail />

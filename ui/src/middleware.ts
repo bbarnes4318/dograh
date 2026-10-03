@@ -2,6 +2,7 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
 import { getServerBackendUrl } from '@/lib/apiClient';
+import { BRAND_COOKIE, BRAND_QUERY_PARAM, isBrandKey } from '@/lib/brand';
 
 const OSS_TOKEN_COOKIE = 'dograh_auth_token';
 
@@ -39,7 +40,34 @@ async function fetchAuthProvider(): Promise<string> {
   return 'unknown';
 }
 
+/**
+ * Persist the portal brand (`?brand=` on the iframe src) in a cookie.
+ *
+ * The app's own "/" page and the login guard below both redirect, and a
+ * redirect drops the query string, so the page that finally renders would not
+ * know which portal embedded it. The inline script in app/layout.tsx reads this
+ * cookie. `SameSite=None; Partitioned` so it is kept when the portal embedding
+ * the frame is a different site; it carries a theme name and nothing else.
+ */
+function withBrandCookie(request: NextRequest, response: NextResponse): NextResponse {
+  const brand = request.nextUrl.searchParams.get(BRAND_QUERY_PARAM);
+  if (isBrandKey(brand) && request.cookies.get(BRAND_COOKIE)?.value !== brand) {
+    response.cookies.set(BRAND_COOKIE, brand, {
+      path: '/',
+      maxAge: 60 * 60 * 24 * 365,
+      sameSite: 'none',
+      secure: true,
+      partitioned: true,
+    });
+  }
+  return response;
+}
+
 export async function middleware(request: NextRequest) {
+  return withBrandCookie(request, await guard(request));
+}
+
+async function guard(request: NextRequest): Promise<NextResponse> {
   const authProvider = await fetchAuthProvider();
 
   // Only handle OSS mode
