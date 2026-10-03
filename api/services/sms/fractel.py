@@ -106,17 +106,38 @@ def append_links(message: str, links: list[str]) -> str:
     return message.rstrip() + "\n" + "\n".join(missing)
 
 
+_ESCAPED_NEWLINE_RE = re.compile(r"\\r\\n|\\n|\\r")
+
+
+def normalize_lines(message: str) -> str:
+    """Turn escaped ``\\n`` sequences the model writes into real line breaks,
+    trim each line, and drop blank lines."""
+    text = _ESCAPED_NEWLINE_RE.sub("\n", message)
+    return "\n".join(line.strip() for line in text.splitlines() if line.strip())
+
+
 def append_labeled_link(message: str, label: str, url: str) -> str:
-    """Add ``label url`` as its own paragraph unless the URL is already there."""
-    if url in message:
-        return message
-    return f"{message.rstrip()}\n\n{label} {url}"
+    """End the message with ``label url`` on its own line.
+
+    A line the model wrote itself for this link (the URL, optionally with the
+    label) is replaced, so the link always appears once, labeled, last.
+    """
+    kept = []
+    for line in message.splitlines():
+        rest = line.replace(url, "").replace(label, "").strip(" :-")
+        if url in line and not rest:
+            continue
+        kept.append(line)
+    text = "\n".join(kept).rstrip()
+    if url in text:
+        return text
+    return f"{text}\n{label} {url}" if text else f"{label} {url}"
 
 
 def prepare_message(message: str, configured_links: list[str]) -> str:
     """Final text to send: cleaned message, any tool-configured links, then the
-    labeled default link."""
-    text = append_links(clean_message_text(message), configured_links)
+    labeled default link on the last line."""
+    text = append_links(normalize_lines(clean_message_text(message)), configured_links)
     return append_labeled_link(text, DEFAULT_LINK_LABEL, DEFAULT_LINK_URL)
 
 
