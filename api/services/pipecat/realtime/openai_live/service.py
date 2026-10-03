@@ -130,11 +130,16 @@ def build_frontend_instructions(voice_instructions: str | None) -> str:
     parts = [
         "You are the voice of a phone agent. You handle listening, speaking, "
         "timing and being interrupted.",
-        "Do not decide business logic yourself. For anything beyond brief "
-        "acknowledgements, delegate to your backend: it knows the workflow, "
-        "runs the tools, and tells you what to say. Speak what it provides "
-        "faithfully and naturally, and do not claim an action happened until "
-        "the backend confirms it.",
+        "Do not decide business logic yourself. Your backend knows the "
+        "workflow, runs the tools, and tells you what to say. Always delegate "
+        "to it on every caller turn, including one-word answers such as 'yes', 'no', "
+        "'sure' or 'okay': those answers are what move the call forward "
+        "(playing media, sending texts, the next question), and only the "
+        "backend can act on them. Never answer a caller turn yourself; the only "
+        "thing you may say without delegating is a brief filler while you "
+        "wait for the backend.",
+        "Speak what the backend provides faithfully and naturally, and do not "
+        "claim an action happened until the backend confirms it.",
         "When asked to say something exactly, say exactly that.",
         "If the backend says to stay silent, say nothing.",
     ]
@@ -573,7 +578,7 @@ class DograhOpenAILiveLLMService(LLMService[OpenAILiveLLMAdapter]):
             await self._handle_transcript_delta(evt)
         elif isinstance(evt, events.SessionDelegationCreatedEvent):
             self._latency.mark(vl.BACKEND_START)
-            logger.debug(
+            logger.info(
                 f"{self}: delegation {evt.delegation.id} ({evt.delegation.target})"
             )
         elif isinstance(evt, events.ResponseEventEnvelope):
@@ -750,6 +755,7 @@ class DograhOpenAILiveLLMService(LLMService[OpenAILiveLLMAdapter]):
         turn.open = False
         text, turn.text = turn.text, ""
         if role == "user":
+            logger.info(f"{self}: caller turn ended ({len(text.split())} words)")
             if text.strip():
                 self._latency.mark(vl.TRANSCRIPT_COMPLETE)
                 await self.broadcast_frame(
