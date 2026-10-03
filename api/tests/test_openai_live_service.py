@@ -19,7 +19,9 @@ from pipecat.frames.frames import (
     FunctionCallResultProperties,
     InputAudioRawFrame,
     InterruptionFrame,
+    LLMContextFrame,
     SpeechOutputAudioRawFrame,
+    TTSSpeakFrame,
     UserStartedSpeakingFrame,
 )
 from pipecat.pipeline.pipeline import Pipeline
@@ -35,6 +37,7 @@ from api.services.pipecat.realtime.openai_live import (
     DograhOpenAILiveLLMService,
     build_frontend_instructions,
 )
+from api.services.pipecat.realtime.openai_live.service import OPENING_PROMPT
 from api.services.pipecat.worker_runner import run_pipeline_worker
 
 
@@ -518,6 +521,52 @@ async def test_node_change_updates_backend_instructions():
             "responses"
         ]
         assert upd["instructions"] == "Node two prompt."
+
+
+# ── call opening ────────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_generated_opening_makes_model_speak_first():
+    # Start node without a fixed greeting: the engine queues an LLMContextFrame
+    # and expects the bot to open. The caller is muted until it does.
+    async with live_session() as h:
+        await h.worker.queue_frame(LLMContextFrame(h.service._context))
+        await settle(lambda: h.server.of_type("session.commentary.append"))
+        opening = h.server.of_type("session.commentary.append")
+        assert opening[0]["content"] == OPENING_PROMPT
+        assert opening[0]["delegation_id"] is None
+
+        # Later context frames (node changes) do not re-open the call.
+        await h.worker.queue_frame(LLMContextFrame(h.service._context))
+        await asyncio.sleep(0.2)
+        assert len(h.server.of_type("session.commentary.append")) == 1
+
+
+@pytest.mark.asyncio
+async def test_static_greeting_is_not_followed_by_generated_opening():
+    async with live_session() as h:
+        await h.worker.queue_frame(TTSSpeakFrame("Hi, this is Sam."))
+        await h.worker.queue_frame(LLMContextFrame(h.service._context))
+        await settle(lambda: h.server.of_type("session.commentary.append"))
+        await asyncio.sleep(0.2)
+        appended = h.server.of_type("session.commentary.append")
+        assert len(appended) == 1
+        assert "Hi, this is Sam." in appended[0]["content"]
+
+
+@pytest.mark.asyncio
+async def test_no_generated_opening_once_caller_has_spoken():
+    async with live_session() as h:
+        await h.server.send(
+            {"type": "session.input_transcript.delta", "delta": "hello?", "start_ms": 0}
+        )
+        await settle(
+            lambda: any(isinstance(f, UserStartedSpeakingFrame) for f in h.down.frames)
+        )
+        await h.worker.queue_frame(LLMContextFrame(h.service._context))
+        await asyncio.sleep(0.2)
+        assert not h.server.of_type("session.commentary.append")
 
 
 # ── lifecycle & failures ────────────────────────────────────────────
