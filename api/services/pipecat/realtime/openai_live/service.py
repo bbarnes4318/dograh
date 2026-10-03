@@ -242,6 +242,11 @@ class DograhOpenAILiveLLMService(LLMService[OpenAILiveLLMAdapter]):
         self._user_turn = _TurnGrouper(TURN_GAP_SECS)
         self._assistant_turn = _TurnGrouper(TURN_GAP_SECS)
 
+        # Call diagnostics: each server event type and audio milestone is
+        # logged once at INFO so a silent call shows where audio stopped.
+        self._seen_event_types: set[str] = set()
+        self._logged_audio_milestones: set[str] = set()
+
         self._open_function_calls: dict[str, str] = {}
         self._pending_responses: dict[str, _PendingResponse] = {}
 
@@ -544,7 +549,22 @@ class DograhOpenAILiveLLMService(LLMService[OpenAILiveLLMAdapter]):
     # server events
     # ------------------------------------------------------------------
 
+    def _log_once(self, key: str, message: str):
+        if key in self._logged_audio_milestones:
+            return
+        self._logged_audio_milestones.add(key)
+        logger.info(f"{self}: {message}")
+
     async def _handle_server_event(self, evt: events.ServerEvent):
+        if evt.type not in self._seen_event_types:
+            self._seen_event_types.add(evt.type)
+            if isinstance(evt, events.UnknownServerEvent):
+                logger.warning(
+                    f"{self}: unhandled GPT-Live server event {evt.type!r}: "
+                    f"{str(evt.model_dump())[:500]}"
+                )
+            else:
+                logger.info(f"{self}: first server event {evt.type!r}")
         if isinstance(evt, events.SessionStartedEvent):
             await self._handle_session_started(evt)
         elif isinstance(evt, events.OutputAudioDeltaEvent):
@@ -604,8 +624,19 @@ class DograhOpenAILiveLLMService(LLMService[OpenAILiveLLMAdapter]):
     # ------------------------------------------------------------------
 
     async def _send_user_audio(self, frame: InputAudioRawFrame):
-        if not self._session_started or self._user_is_muted or self._disconnecting:
+        if self._disconnecting:
             return
+        if not self._session_started:
+            self._log_once(
+                "audio_before_session", "dropping caller audio until session starts"
+            )
+            return
+        if self._user_is_muted:
+            self._log_once("audio_muted", "dropping caller audio while caller is muted")
+            return
+        self._log_once(
+            "audio_in", f"sending caller audio to GPT-Live ({frame.sample_rate}Hz in)"
+        )
         audio = frame.audio
         if self._wire_format.type == "audio/pcmu":
             audio = await pcm_to_ulaw(
@@ -626,8 +657,12 @@ class DograhOpenAILiveLLMService(LLMService[OpenAILiveLLMAdapter]):
 
     async def _handle_audio_delta(self, evt: events.OutputAudioDeltaEvent):
         if not self._output_allowed():
+            self._log_once(
+                "audio_out_suppressed", "dropping model audio: output suppressed"
+            )
             self._output_gate.record_suppressed()
             return
+        self._log_once("audio_out", "receiving model audio from GPT-Live")
         self._opening_handled = True
         raw = base64.b64decode(evt.delta)
         if self._wire_format.type == "audio/pcmu":
@@ -790,6 +825,7 @@ class DograhOpenAILiveLLMService(LLMService[OpenAILiveLLMAdapter]):
         self._opening_handled = True
         if not self._output_allowed():
             return
+        logger.info(f"{self}: requesting generated call opening")
         if self._session_started:
             await self._send_context_append(None, OPENING_PROMPT, spoken=True)
         else:

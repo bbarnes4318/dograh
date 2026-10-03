@@ -284,3 +284,32 @@ def test_workflow_config_can_override_user_turn_stop_timeout():
         )
         == 12.5
     )
+
+
+def _has_first_bot_mute(strategies):
+    from pipecat.turns.user_mute import MuteUntilFirstBotCompleteUserMuteStrategy
+
+    return any(
+        isinstance(s, MuteUntilFirstBotCompleteUserMuteStrategy) for s in strategies
+    )
+
+
+def test_openai_live_does_not_mute_caller_before_first_bot_turn():
+    from unittest.mock import Mock
+
+    from api.services.pipecat.run_pipeline import _create_user_mute_strategies
+
+    engine = Mock()
+    assert not _has_first_bot_mute(
+        _create_user_mute_strategies(
+            engine, realtime_provider=ServiceProviders.OPENAI_LIVE.value
+        )
+    )
+    assert _has_first_bot_mute(
+        _create_user_mute_strategies(
+            engine, realtime_provider=ServiceProviders.OPENAI_REALTIME.value
+        )
+    )
+    assert _has_first_bot_mute(
+        _create_user_mute_strategies(engine, realtime_provider=None)
+    )

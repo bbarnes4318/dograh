@@ -267,6 +267,19 @@ def _create_realtime_user_turn_config(provider: str):
     return local_vad_turn_config(enable_interruptions=True)
 
 
+def _create_user_mute_strategies(engine, *, realtime_provider: str | None):
+    strategies = [
+        FunctionCallUserMuteStrategy(),
+        CallbackUserMuteStrategy(should_mute_callback=engine.should_mute_user),
+    ]
+    # GPT-Live owns turn-taking and only hears the caller through the audio we
+    # forward. Muting the caller until the bot's first turn would leave the
+    # call silent whenever the model waits for the caller to speak first.
+    if realtime_provider != ServiceProviders.OPENAI_LIVE.value:
+        strategies.insert(0, MuteUntilFirstBotCompleteUserMuteStrategy())
+    return strategies
+
+
 async def run_pipeline_telephony(
     websocket,
     *,
@@ -909,11 +922,10 @@ async def _run_pipeline_impl(
         correct_aggregation_callback=engine.create_aggregation_correction_callback(),
     )
 
-    user_mute_strategies = [
-        MuteUntilFirstBotCompleteUserMuteStrategy(),
-        FunctionCallUserMuteStrategy(),
-        CallbackUserMuteStrategy(should_mute_callback=engine.should_mute_user),
-    ]
+    user_mute_strategies = _create_user_mute_strategies(
+        engine,
+        realtime_provider=user_config.realtime.provider if is_realtime else None,
+    )
     user_vad_analyzer = SileroVADAnalyzer(params=VADParams(stop_secs=0.2))
 
     # Configure turn strategies based on STT provider, model, and workflow configuration
