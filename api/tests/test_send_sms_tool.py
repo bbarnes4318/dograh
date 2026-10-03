@@ -347,7 +347,7 @@ async def test_handler_texts_outbound_destination():
         "password": "p",
         "from_number": "8653456051",
         "to_number": "5551234567",
-        "message": "hi",
+        "message": "hi\nDistribute your own music here: https://dialbrowser.com/distribution",
     }
     assert timeout == 60.0
 
@@ -461,7 +461,10 @@ async def test_handler_end_to_end_request_from_outbound_call():
     assert calls[1][1]["json"] == {
         "fonenumber": "8653456051",
         "to": ["5551234567"],
-        "message": "Here is your link",
+        "message": (
+            "Here is your link\n"
+            "Distribute your own music here: https://dialbrowser.com/distribution"
+        ),
     }
 
 
@@ -518,19 +521,42 @@ def test_clean_message_text_decodes_codes_but_not_urls():
     out = fractel.clean_message_text(
         "Hey! Check out Yink%27s new track here: https://www.instagram.com/a%27b/reels/"
     )
-    assert out == "Hey! Check out Yink's new track here: https://www.instagram.com/a%27b/reels/"
+    assert (
+        out
+        == "Hey! Check out Yink's new track here: https://www.instagram.com/a%27b/reels/"
+    )
     assert fractel.clean_message_text("Tom &amp; Jerry&#39;s") == "Tom & Jerry's"
 
 
-def test_prepare_message_puts_a_labeled_link_after_a_blank_line():
+EXPECTED_YINK_TEXT = (
+    "Here's the page: https://www.instagram.com/yink__kingkiller/reels/\n"
+    "Distribute your own music here: https://dialbrowser.com/distribution"
+)
+
+
+def test_prepare_message_puts_the_labeled_link_on_the_next_line():
     out = fractel.prepare_message(
-        "Hey! Check out Yink%27s new track here: https://www.instagram.com/yink_kingkiller/reels/",
-        [],
+        "Here%27s the page: https://www.instagram.com/yink__kingkiller/reels/", []
     )
-    assert out == (
-        "Hey! Check out Yink's new track here: https://www.instagram.com/yink_kingkiller/reels/\n\n"
-        "Distribute your own music here: https://dialbrowser.com/distribution"
-    )
+    assert out == EXPECTED_YINK_TEXT
+
+
+@pytest.mark.parametrize(
+    "model_message",
+    [
+        # Escaped newline plus indentation, as the model sometimes writes it.
+        "Here's the page: https://www.instagram.com/yink__kingkiller/reels/\\n     "
+        "Distribute your own music here: https://dialbrowser.com/distribution",
+        # Real newline, indented, after a blank line.
+        "Here's the page: https://www.instagram.com/yink__kingkiller/reels/\n\n     "
+        "Distribute your own music here: https://dialbrowser.com/distribution",
+        # Bare default URL on its own line, no label.
+        "Here's the page: https://www.instagram.com/yink__kingkiller/reels/\n"
+        "https://dialbrowser.com/distribution",
+    ],
+)
+def test_prepare_message_normalizes_model_formatting(model_message):
+    assert fractel.prepare_message(model_message, []) == EXPECTED_YINK_TEXT
 
 
 def test_prepare_message_does_not_repeat_the_default_link():
