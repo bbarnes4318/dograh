@@ -1,0 +1,73 @@
+{
+  "name": "Transfer Final Expense",
+  "description": "Transfer a qualified Final Expense caller to an available licensed insurance agent.",
+  "category": "transfer_call",
+  "icon": "phone-forwarded",
+  "icon_color": "#10B981",
+  "definition": {
+    "schema_version": 1,
+    "type": "transfer_call",
+    "config": {
+      "destination_source": "dynamic",
+      "destination": "",
+      "messageType": "none",
+      "timeout": 30,
+      "resolver": {
+        "type": "http",
+        "url": "https://YOUR-DOMAIN.com/api/voice/final-expense/route",
+        "timeout_ms": 2500,
+        "parameters": [],
+        "preset_parameters": [
+          {
+            "name": "first_name",
+            "type": "string",
+            "value_template": "{{initial_context.first_name}}",
+            "required": true
+          },
+          {
+            "name": "state",
+            "type": "string",
+            "value_template": "{{initial_context.state}}",
+            "required": true
+          },
+          {
+            "name": "prospect_phone",
+            "type": "string",
+            "value_template": "{{initial_context.called_number}}",
+            "required": false
+          },
+          {
+            "name": "coverage_status",
+            "type": "string",
+            "value_template": "{{gathered_context.coverage_status}}",
+            "required": false
+          },
+          {
+            "name": "family_responsible",
+            "type": "string",
+            "value_template": "{{gathered_context.family_responsible}}",
+            "required": false
+          },
+          {
+            "name": "age",
+            "type": "number",
+            "value_template": "{{gathered_context.age}}",
+            "required": false
+          },
+          {
+            "name": "living_status",
+            "type": "string",
+            "value_template": "{{gathered_context.living_status}}",
+            "required": false
+          },
+          {
+            "name": "campaign",
+            "type": "string",
+            "value_template": "final_expense",
+            "required": true
+          }
+        ]
+      }
+    }
+  }
+}

@@ -62,3 +62,32 @@ description.
 - **Open item:** TCPA artificial-voice rules require the call to state a
   callback number for the business. Add it to the Exit node's closing lines
   before going live.
+
+## `fe_outbound_4_node_v2.json`: Final Expense outbound, 4-node v2
+
+Same 4-node shape, built around one rule per node: Opening doesn't qualify,
+Discovery doesn't sell, Transfer doesn't discover, and Exit doesn't recover.
+
+```
+Opening ──engaged_coverage_answered──▶ Discovery ──qualified_or_requests_agent──▶ Live Transfer
+   │ requests_agent ─────────────────────────────────────────────────────────────▲      │
+   │ wrong_number_dnc_decline        │ ineligible_decline_dnc     transfer_not_completed │
+   └────────────────────────────────▶ Exit ◀──────────────────────────────────────────────┘
+```
+
+Discovery asks three things in order: who handles arrangements, age, then
+living situation. Ages fifty through eighty-five go to transfer, and anything
+outside that range exits. Nursing home or hospice residence is captured but
+does not disqualify.
+
+### After import
+
+1. Create the transfer tool from `fe_outbound_4_node_v2.transfer_tool.json`.
+   Change the resolver `url` to your routing endpoint first. Keep the name
+   **Transfer Final Expense**, because the prompt calls it as
+   `transfer_final_expense`.
+2. Attach that tool to the **LIVE TRANSFER** node.
+3. Your resolver returns `{"transfer_context": {"destination": "+1..."}}`,
+   or a `PJSIP/...` endpoint for Asterisk.
+4. Turn on the Post-Call Webhook and route `dnc_request = true` to
+   suppression. The DNC closing line promises this.
