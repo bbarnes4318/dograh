@@ -1,7 +1,7 @@
 import "./globals.css";
 
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist_Mono, Inter } from "next/font/google";
 import { Suspense } from "react";
 
 import AppLayout from "@/components/layout/AppLayout";
@@ -15,11 +15,15 @@ import { OnboardingProvider } from "@/context/OnboardingContext";
 import { OrgConfigProvider } from "@/context/OrgConfigContext";
 import { TelephonyConfigWarningsProvider } from "@/context/TelephonyConfigWarningsContext";
 import { AuthProvider } from "@/lib/auth";
+import { BRAND_BOOT_SCRIPT, DEFAULT_BRAND } from "@/lib/brand";
 
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+// Inter, as the agency portal sets it, so the embedded app reads as part of
+// the same product. Geist Mono stays for code and IDs.
+const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin"],
+  display: "swap",
 });
 
 const geistMono = Geist_Mono({
@@ -28,8 +32,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Hopwhistle AI Voice",
-  description: "Open Source Voice Assistant Workflow Builder",
+  title: "Voice Agents",
+  description: "AI voice agents that answer, qualify and transfer live callers.",
 };
 
 export default function RootLayout({
@@ -39,32 +43,16 @@ export default function RootLayout({
 }) {
 
   return (
-    <html lang="en" className="dark" suppressHydrationWarning>
+    // Light only: the app is embedded in the agency portal, which is a light
+    // workspace, and is skinned to match it (see lib/brand.ts). `data-brand`
+    // is server-rendered as the default and corrected before first paint.
+    <html lang="en" data-brand={DEFAULT_BRAND} suppressHydrationWarning>
       <head>
-        {/* Inline script to prevent flash of light theme - runs before React hydrates.
-            Dark is the locked default: only an explicit stored 'light' opts out. */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              (function() {
-                try {
-                  var theme = localStorage.getItem('theme');
-                  if (theme === 'light') {
-                    document.documentElement.classList.remove('dark');
-                  } else {
-                    document.documentElement.classList.add('dark');
-                  }
-                } catch (e) {
-                  document.documentElement.classList.add('dark');
-                }
-              })();
-            `,
-          }}
-        />
+        <script dangerouslySetInnerHTML={{ __html: BRAND_BOOT_SCRIPT }} />
       </head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false} disableTransitionOnChange>
+        className={`${inter.variable} ${geistMono.variable} antialiased`}>
+        <ThemeProvider attribute="class" defaultTheme="light" forcedTheme="light" enableSystem={false} disableTransitionOnChange>
           <SentryErrorBoundary>
             <AuthProvider>
               <AppConfigProvider>

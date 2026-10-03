@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useAppConfig } from "@/context/AppConfigContext";
+import { useBrand } from "@/hooks/useBrand";
 import { useAuth } from "@/lib/auth";
 
 import { CaptchaChallenge } from "./CaptchaChallenge";
@@ -44,6 +45,7 @@ interface OnboardingModalProps {
 }
 
 export function OnboardingModal({ open, onComplete }: OnboardingModalProps) {
+  const brand = useBrand();
   const { user } = useAuth(); // logged-in identity → onboarding email (sent silently)
   const { config } = useAppConfig();
   // Deployment provenance (analytics only).
@@ -190,7 +192,7 @@ export function OnboardingModal({ open, onComplete }: OnboardingModalProps) {
       }}
       icon={Rocket}
       eyebrow="Welcome"
-      title="Welcome to Hopwhistle AI Voice"
+      title={`Welcome to ${brand.name} Voice Agents`}
       description="A few quick questions so we can tailor your experience. Takes ~20 seconds."
       primary={{ label: "Get started", onClick: handleSubmit, disabled: !canSubmit, loading: submitting }}
       overlay={captchaActive ? <CaptchaChallenge onVerified={submitWithOnPrem} onCancel={() => setCaptchaActive(false)} /> : undefined}

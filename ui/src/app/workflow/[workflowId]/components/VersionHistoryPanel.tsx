@@ -37,8 +37,8 @@ const statusLabel: Record<string, string> = {
 
 const statusColor: Record<string, string> = {
     draft: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
-    published: "bg-green-500/20 text-green-400 border-green-500/30",
-    archived: "bg-gray-500/20 text-gray-400 border-gray-500/30",
+    published: "bg-green-500/20 text-green-700 border-green-500/30",
+    archived: "bg-gray-500/20 text-muted-foreground border-gray-500/30",
 };
 
 export const VersionHistoryPanel = ({
@@ -64,20 +64,20 @@ export const VersionHistoryPanel = ({
 
     return (
         <div
-            className={`fixed z-51 right-0 top-0 h-full w-80 bg-[#1a1a1a] border-l border-[#2a2a2a] shadow-lg transform transition-transform duration-300 ease-in-out ${
+            className={`fixed z-51 right-0 top-0 h-full w-80 bg-card border-l border-border shadow-lg transform transition-transform duration-300 ease-in-out ${
                 isOpen ? "translate-x-0" : "translate-x-full"
             }`}
         >
             <div className="p-4 h-full overflow-y-auto">
                 <div className="flex justify-between items-center mb-6">
-                    <h2 className="text-lg font-semibold text-white">
+                    <h2 className="text-lg font-semibold text-foreground">
                         Version History
                     </h2>
                     <Button
                         variant="ghost"
                         size="icon"
                         onClick={onClose}
-                        className="text-gray-400 hover:text-white hover:bg-[#2a2a2a]"
+                        className="text-muted-foreground hover:text-foreground hover:bg-accent"
                     >
                         <X className="w-5 h-5" />
                     </Button>
@@ -85,10 +85,10 @@ export const VersionHistoryPanel = ({
 
                 {loading ? (
                     <div className="flex items-center justify-center py-12">
-                        <LoaderCircle className="w-6 h-6 text-gray-400 animate-spin" />
+                        <LoaderCircle className="w-6 h-6 text-muted-foreground animate-spin" />
                     </div>
                 ) : versions.length === 0 ? (
-                    <p className="text-sm text-gray-500 text-center py-8">
+                    <p className="text-sm text-muted-foreground text-center py-8">
                         No versions found.
                     </p>
                 ) : (
@@ -102,14 +102,14 @@ export const VersionHistoryPanel = ({
                                     onClick={() => onSelectVersion(version)}
                                     className={`w-full text-left p-3 rounded-lg border transition-colors cursor-pointer ${
                                         isActive
-                                            ? "border-teal-500/50 bg-teal-500/10"
-                                            : "border-[#2a2a2a] bg-[#222] hover:bg-[#2a2a2a]"
+                                            ? "border-primary/50 bg-primary/10"
+                                            : "border-border bg-muted/40 hover:bg-accent"
                                     }`}
                                 >
                                     <div className="flex items-center justify-between mb-1.5">
                                         <div className="flex items-center gap-2">
-                                            <FileText className="w-4 h-4 text-gray-400" />
-                                            <span className="text-sm font-medium text-white">
+                                            <FileText className="w-4 h-4 text-muted-foreground" />
+                                            <span className="text-sm font-medium text-foreground">
                                                 v{version.version_number}
                                             </span>
                                         </div>
@@ -123,7 +123,7 @@ export const VersionHistoryPanel = ({
                                             </span>
                                         )}
                                     </div>
-                                    <p className="text-xs text-gray-500">
+                                    <p className="text-xs text-muted-foreground">
                                         {formatDistanceToNow(new Date(date), {
                                             addSuffix: true,
                                         })}
@@ -136,7 +136,7 @@ export const VersionHistoryPanel = ({
                                 variant="ghost"
                                 onClick={onLoadMore}
                                 disabled={loadingMore}
-                                className="w-full text-sm text-gray-300 hover:text-white hover:bg-[#2a2a2a]"
+                                className="w-full text-sm text-muted-foreground hover:text-foreground hover:bg-accent"
                             >
                                 {loadingMore ? (
                                     <LoaderCircle className="w-4 h-4 animate-spin" />
