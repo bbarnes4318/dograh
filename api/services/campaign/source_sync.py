@@ -2,9 +2,41 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Set
 
+import re
+
 from loguru import logger
 
 from api.utils.telephony_address import is_dialable_pstn
+
+PHONE_COLUMN = "phone_number"
+
+# Header spellings (after lowercasing and collapsing separators to "_") that are
+# treated as the phone column when no literal ``phone_number`` header exists.
+# Spreadsheets exported from CRMs / lead vendors rarely use our exact name.
+PHONE_COLUMN_ALIASES = (
+    "phone",
+    "phonenumber",
+    "phone_no",
+    "phone_num",
+    "phone_#",
+    "primary_phone",
+    "mobile",
+    "mobile_number",
+    "mobile_phone",
+    "cell",
+    "cell_phone",
+    "cell_number",
+    "telephone",
+    "telephone_number",
+    "tel",
+    "number",
+    "contact_number",
+    "home_phone",
+)
+
+_HEADER_SEP_RE = re.compile(r"[\s\-\.]+")
+_NON_DIGIT_RE = re.compile(r"\D")
+_EXCEL_FLOAT_RE = re.compile(r"^\+?\d+\.0+$")
 
 
 @dataclass
@@ -30,8 +62,65 @@ class CampaignSourceSyncService(ABC):
 
     @staticmethod
     def normalize_headers(headers: List[str]) -> List[str]:
-        """Normalize headers by stripping whitespace and lowercasing."""
-        return [h.strip().lower() for h in headers]
+        """Normalize headers by stripping whitespace/BOM and lowercasing.
+
+        If no ``phone_number`` header is present, the first header matching a
+        known phone alias (``Phone``, ``Phone Number``, ``Mobile``...) is renamed
+        to ``phone_number`` so the rest of the pipeline can find it.
+        """
+        normalized = [h.replace("\ufeff", "").strip().lower() for h in headers]
+        if PHONE_COLUMN in normalized:
+            return normalized
+
+        collapsed = [_HEADER_SEP_RE.sub("_", h).strip("_") for h in normalized]
+        if PHONE_COLUMN in collapsed:
+            normalized[collapsed.index(PHONE_COLUMN)] = PHONE_COLUMN
+            return normalized
+        for alias in PHONE_COLUMN_ALIASES:
+            if alias in collapsed:
+                normalized[collapsed.index(alias)] = PHONE_COLUMN
+                return normalized
+        return normalized
+
+    @staticmethod
+    def normalize_phone_number(raw: str) -> str:
+        """Best-effort conversion of a spreadsheet phone value to E.164.
+
+        Bare 10-digit and 1-prefixed 11-digit numbers are assumed to be NANP
+        (US/Canada) and get a ``+1`` prefix; formatting characters are removed.
+        Anything else is returned stripped so validation can reject it.
+        """
+        value = (raw or "").strip()
+        if not value or value.lower().startswith(("sip:", "sips:")):
+            return value
+        # Excel often turns 5551234567 into "5551234567.0"
+        if _EXCEL_FLOAT_RE.match(value):
+            value = value.split(".", 1)[0]
+
+        digits = _NON_DIGIT_RE.sub("", value)
+        if value.startswith("+"):
+            return f"+{digits}" if digits else value
+        if len(digits) == 10:
+            return f"+1{digits}"
+        if len(digits) == 11 and digits.startswith("1"):
+            return f"+{digits}"
+        return value
+
+    @staticmethod
+    def normalize_rows(
+        normalized_headers: List[str], rows: List[List[str]]
+    ) -> List[List[str]]:
+        """Return rows with the phone column normalized to E.164 where possible."""
+        if PHONE_COLUMN not in normalized_headers:
+            return rows
+        idx = normalized_headers.index(PHONE_COLUMN)
+        out = []
+        for row in rows:
+            if len(row) > idx:
+                row = list(row)
+                row[idx] = CampaignSourceSyncService.normalize_phone_number(row[idx])
+            out.append(row)
+        return out
 
     @staticmethod
     def validate_source_data(
@@ -50,15 +139,19 @@ class CampaignSourceSyncService(ABC):
         normalized_headers = CampaignSourceSyncService.normalize_headers(headers)
 
         # Check for phone_number column
-        if "phone_number" not in normalized_headers:
+        if PHONE_COLUMN not in normalized_headers:
+            found = ", ".join(f"'{h}'" for h in normalized_headers if h) or "none"
             return ValidationResult(
                 is_valid=False,
                 error=ValidationError(
-                    message="Source must contain a 'phone_number' column"
+                    message="Source must contain a 'phone_number' column (or a "
+                    "column named 'phone', 'phone number', 'mobile', 'cell'). "
+                    f"Columns found: {found}"
                 ),
             )
 
-        phone_number_idx = normalized_headers.index("phone_number")
+        rows = CampaignSourceSyncService.normalize_rows(normalized_headers, rows)
+        phone_number_idx = normalized_headers.index(PHONE_COLUMN)
 
         # Validate phone numbers in all data rows
         invalid_rows = []

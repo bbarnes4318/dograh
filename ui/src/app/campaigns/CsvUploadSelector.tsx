@@ -119,7 +119,7 @@ export default function CsvUploadSelector({ onFileUploaded, selectedFileName }: 
         )}
       </div>
       <p className="text-sm text-muted-foreground">
-        Upload a CSV file with contact data. Must include phone_number column.
+        Upload a CSV file with contact data. Must include a phone column (phone_number, phone, mobile, cell). US 10-digit numbers are auto-prefixed with +1.
         The columns can be accessed as initial_context in the workflow nodes. <br/>
         Max 10MB.
       </p>
