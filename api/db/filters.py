@@ -5,8 +5,24 @@ from typing import Any, Dict, List, Optional
 
 from sqlalchemy import Float, Text, and_, cast, func
 from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.orm import defer
 
 from api.db.models import WorkflowRunModel
+
+
+def workflow_run_list_load_options():
+    """Loader options for run *list* queries.
+
+    ``logs`` (the full event transcript), ``transcript_text`` and
+    ``annotations`` can each be hundreds of KB per call and no list row uses
+    them. Fetching them for 50 rows per page is what made the run tables slow
+    to load; leave them to the single-run endpoint.
+    """
+    return (
+        defer(WorkflowRunModel.logs),
+        defer(WorkflowRunModel.transcript_text),
+        defer(WorkflowRunModel.annotations),
+    )
 
 
 def get_workflow_run_order_clause(

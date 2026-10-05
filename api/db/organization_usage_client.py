@@ -5,10 +5,10 @@ from zoneinfo import ZoneInfo
 from dateutil.relativedelta import relativedelta
 from sqlalchemy import Date, and_, cast, func, select
 from sqlalchemy.dialects.postgresql import insert
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import contains_eager
 
 from api.db.base_client import BaseDBClient
-from api.db.filters import apply_workflow_run_filters
+from api.db.filters import apply_workflow_run_filters, workflow_run_list_load_options
 from api.db.models import (
     OrganizationConfigurationModel,
     OrganizationModel,
@@ -140,7 +140,6 @@ class OrganizationUsageClient(BaseDBClient):
                     WorkflowModel.organization_id == organization_id,
                     WorkflowRunModel.usage_info.isnot(None),
                 )
-                .order_by(WorkflowRunModel.created_at.desc())
             )
 
             # Apply date filters if provided
@@ -173,14 +172,26 @@ class OrganizationUsageClient(BaseDBClient):
             # Apply filters using the common filter function
             query = apply_workflow_run_filters(query, sanitized_filters)
 
-            # Get total count
+            # Count only the run ids. Wrapping the full query in a subquery
+            # here used to drag every column of every org run through a sort.
             count_result = await session.execute(
-                select(func.count()).select_from(query.subquery())
+                query.with_only_columns(func.count(WorkflowRunModel.id))
             )
             total_count = count_result.scalar()
 
+            # NULLS LAST matches idx_workflow_runs_created_at, so the top page
+            # is read off the index instead of sorting the org's whole history.
+            # The workflow is already joined for the org filter; reuse that
+            # join for workflow.name rather than joinedload-ing full workflow
+            # rows (definition JSON included) a second time.
             results = await session.execute(
-                query.options(joinedload(WorkflowRunModel.workflow))
+                query.options(
+                    *workflow_run_list_load_options(),
+                    contains_eager(WorkflowRunModel.workflow).load_only(
+                        WorkflowModel.id, WorkflowModel.name
+                    ),
+                )
+                .order_by(WorkflowRunModel.created_at.desc().nullslast())
                 .limit(limit)
                 .offset(offset)
             )
