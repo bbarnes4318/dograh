@@ -13,7 +13,6 @@ from api.schemas.workflow_configurations import (
     DEFAULT_MAX_USER_IDLE_TIMEOUT_SECONDS,
     DEFAULT_PROVISIONAL_VAD_PAUSE_SECS,
     DEFAULT_SMART_TURN_STOP_SECS,
-    DEFAULT_SPEAK_DURING_TRANSITION,
     DEFAULT_TURN_START_MIN_WORDS,
     DEFAULT_TURN_START_STRATEGY,
     DTMFConfiguration,
@@ -81,6 +80,7 @@ from api.services.pipecat.tracing_config import (
     ensure_tracing,
 )
 from api.services.pipecat.transcript_log_coordinator import TranscriptLogCoordinator
+from api.services.pipecat.transition_speech import resolve_speak_during_transition
 from api.services.pipecat.transport_setup import create_webrtc_transport
 from api.services.pipecat.worker_runner import run_pipeline_worker
 from api.services.pipecat.ws_sender_registry import get_ws_sender
@@ -883,8 +883,9 @@ async def _run_pipeline_impl(
         has_recordings=has_recordings,
         context_compaction_enabled=context_compaction_enabled,
         tool_filler=tool_filler,
-        speak_during_transition=bool(
-            run_configs.get("speak_during_transition", DEFAULT_SPEAK_DURING_TRANSITION)
+        speak_during_transition=resolve_speak_during_transition(
+            run_configs,
+            realtime_provider=user_config.realtime.provider if is_realtime else None,
         ),
         send_dtmf_enabled=bool(
             (run_configs.get("dtmf") or {}).get("send_enabled", False)
