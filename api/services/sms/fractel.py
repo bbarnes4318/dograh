@@ -25,6 +25,11 @@ from loguru import logger
 
 FRACTEL_BASE_URL = "https://api.fonestorm.com/v2"
 REQUEST_TIMEOUT_SECS = 10.0
+# A caller is on the line waiting for the agent to confirm the text, so an
+# unreachable FracTEL must fail fast: short connects and a total budget for
+# retries, after which the agent tells the caller it didn't go through.
+CONNECT_TIMEOUT_SECS = 3.0
+SEND_DEADLINE_SECS = 8.0
 MAX_RETRIES = 3
 TOKEN_TTL_SECS = 23.5 * 3600
 TOKEN_EXPIRES_SECS = 86400
@@ -370,10 +375,15 @@ async def send_sms(
         payload["media"] = media_url
 
     last_error: Optional[FracTelError] = None
-    async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT_SECS) as client:
+    started = time.monotonic()
+    timeout = httpx.Timeout(REQUEST_TIMEOUT_SECS, connect=CONNECT_TIMEOUT_SECS)
+    async with httpx.AsyncClient(timeout=timeout) as client:
         for attempt in range(MAX_RETRIES + 1):
             if attempt:
-                await asyncio.sleep(2 ** (attempt - 1))
+                backoff = 2 ** (attempt - 1)
+                if time.monotonic() - started + backoff >= SEND_DEADLINE_SECS:
+                    break
+                await asyncio.sleep(backoff)
             try:
                 token = await _get_token(client, username, password)
                 resp = await client.post(

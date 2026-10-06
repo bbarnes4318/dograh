@@ -187,11 +187,13 @@ Once the box is on a fork-built image, deploy new fork code with one command
 (between campaigns; api restarts, ~30 s):
 
 ```bash
-cd /opt/dograh-src/deploy/hopwhistle/cutover   # after: git -C /opt/dograh-src pull
+git -C /opt/dograh-src fetch origin && git -C /opt/dograh-src checkout --detach origin/main
+cd /opt/dograh-src/deploy/hopwhistle/cutover
 sudo bash update_api.sh          # fork's main; or: sudo bash update_api.sh <git-sha>
 ```
 
 It builds the image, backs up the DB, switches the image in
 `docker-compose.override.yaml`, lets the api apply new migrations on start,
-checks the DB reached the expected head (`EXPECTED_HEAD`, currently
-`a4c8e2f61b93`), and rolls back automatically if anything fails.
+checks the DB reached the newest migration in the built code (override with
+`EXPECTED_HEAD=<rev>`), and rolls back automatically if anything fails.
+Leftover `/opt/dograh-patches` mounts in the override are kept as they are.
