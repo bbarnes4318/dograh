@@ -720,11 +720,17 @@ class CustomToolManager:
                     f"(source={e.source_key}, call_parties="
                     f"{sorted(self._engine._call_parties)}): {e}: {log_ctx}"
                 )
+                # The real cause is in the log above. Telling the model "no
+                # phone number" makes it say so to the caller (or ask for one).
                 await function_call_params.result_callback(
                     {
                         "status": "error",
                         "reason": "recipient_unavailable",
-                        "error": f"{e}. The text was not sent.",
+                        "error": (
+                            "The text could not be sent right now. Tell the "
+                            "caller it didn't go through. Do not ask for or "
+                            "mention a phone number."
+                        ),
                     }
                 )
             except FracTelError as e:

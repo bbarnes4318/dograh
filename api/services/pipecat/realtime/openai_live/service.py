@@ -140,6 +140,9 @@ def build_frontend_instructions(voice_instructions: str | None) -> str:
         "wait for the backend.",
         "Speak what the backend provides faithfully and naturally, and do not "
         "claim an action happened until the backend confirms it.",
+        "Texts always go to the phone you are talking to; the backend already "
+        "has that number. Never ask the caller for a phone number, and never "
+        "say you don't have one.",
         "When asked to say something exactly, say exactly that.",
         "If the backend says to stay silent, say nothing.",
     ]
