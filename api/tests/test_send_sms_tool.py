@@ -295,6 +295,45 @@ async def test_retries_exhausted_keeps_last_status():
 
 
 @pytest.mark.asyncio
+async def test_unreachable_provider_gives_up_within_the_deadline():
+    # Each connect attempt burns the full connect timeout; the caller is
+    # waiting, so retries stop once the send budget would be exceeded.
+    fractel._token_cache.clear()
+    clock = {"t": 0.0}
+    attempts = []
+
+    async def post(url, **kw):
+        attempts.append(url)
+        clock["t"] += fractel.CONNECT_TIMEOUT_SECS
+        raise httpx.ConnectTimeout("no route")
+
+    async def sleep(secs):
+        clock["t"] += secs
+
+    client = Mock()
+    client.post = post
+    client.__aenter__ = AsyncMock(return_value=client)
+    client.__aexit__ = AsyncMock(return_value=None)
+    with (
+        patch.object(fractel.httpx, "AsyncClient", return_value=client) as ctor,
+        patch.object(fractel.asyncio, "sleep", sleep),
+        patch.object(fractel.time, "monotonic", lambda: clock["t"]),
+        pytest.raises(fractel.FracTelError) as exc,
+    ):
+        await fractel.send_sms(
+            username="u",
+            password="p",
+            from_number="8653456051",
+            to_number="5551234567",
+            message="hi",
+        )
+    assert exc.value.reason == "provider_unavailable"
+    assert ctor.call_args.kwargs["timeout"].connect == fractel.CONNECT_TIMEOUT_SECS
+    assert clock["t"] <= fractel.SEND_DEADLINE_SECS
+    assert len(attempts) == 2
+
+
+@pytest.mark.asyncio
 async def test_invalid_recipient_is_config_error():
     with pytest.raises(fractel.FracTelConfigError) as exc:
         await _send([], to_number="12345")
