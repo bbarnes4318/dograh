@@ -80,7 +80,7 @@ class CSVSyncService(CampaignSourceSyncService):
             return 0
 
         headers = self.normalize_headers(csv_data[0])
-        rows = csv_data[1:]
+        rows = self.normalize_rows(headers, csv_data[1:])
 
         # Create hash of file_key for consistent source_uuid prefix
         file_hash = hashlib.md5(file_key.encode()).hexdigest()[:8]
