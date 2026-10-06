@@ -13,16 +13,15 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=common.sh
 . "$HERE/common.sh"
 
-# Head the new code migrates to (latest file in api/alembic/versions).
-EXPECTED_HEAD="${EXPECTED_HEAD:-a4c8e2f61b93}"
+# Head the new code migrates to. Read from the built source when unset.
+EXPECTED_HEAD="${EXPECTED_HEAD:-}"
 
 require_root
 [[ -f "$OVERRIDE_FILE" ]] || die "no $OVERRIDE_FILE"
-if grep -q "/opt/dograh-patches/" "$OVERRIDE_FILE"; then
-    die "this box still runs the patched stock image. Run 1_build_image.sh and 2_cutover.sh first (see README.md). Nothing changed."
-fi
+# A box still on the stock image has no fork image line. Leftover
+# /opt/dograh-patches mounts on a fork image are kept as they are.
 grep -qE "image:[[:space:]]*\"?${NEW_IMAGE_REPO}:" "$OVERRIDE_FILE" \
-    || die "$OVERRIDE_FILE has no '${NEW_IMAGE_REPO}:<sha>' image line. Nothing changed."
+    || die "$OVERRIDE_FILE has no '${NEW_IMAGE_REPO}:<sha>' image line; this box still runs the stock image. Run 1_build_image.sh and 2_cutover.sh first (see README.md). Nothing changed."
 
 SHA="${1:-$(git ls-remote "$REPO_URL" refs/heads/main | cut -f1)}"
 [[ -n "$SHA" ]] || die "could not resolve the fork's main; pass a git sha"
@@ -34,6 +33,16 @@ log "deploying $SHA"
 bash "$HERE/1_build_image.sh" "$SHA"
 SHORT_SHA="$(git -C "$SRC_DIR" rev-parse --short=8 HEAD)"
 NEW_IMAGE="$NEW_IMAGE_REPO:$SHORT_SHA"
+if [[ -z "$EXPECTED_HEAD" ]]; then
+    # The head is the one revision no other migration names as its parent.
+    versions="$SRC_DIR/api/alembic/versions"
+    EXPECTED_HEAD="$(comm -23 \
+        <(sed -nE 's/^revision = "([0-9a-f]+)"/\1/p' "$versions"/*.py | sort -u) \
+        <(grep -hoE '"[0-9a-f]{12}"' <(grep -h '^down_revision' "$versions"/*.py) | tr -d '"' | sort -u))"
+    [[ "$(wc -w <<<"$EXPECTED_HEAD")" == "1" ]] \
+        || die "could not find a single migration head (got: ${EXPECTED_HEAD:-none}); set EXPECTED_HEAD"
+fi
+log "expected migration head: $EXPECTED_HEAD"
 docker image inspect "$NEW_IMAGE" >/dev/null 2>&1 || die "image $NEW_IMAGE missing after build"
 docker run --rm --entrypoint sh "$NEW_IMAGE" -c "ls /app/api/alembic/versions | grep -q '^${EXPECTED_HEAD}_'" \
     || die "image $NEW_IMAGE does not contain migration $EXPECTED_HEAD; is the fork's main up to date?"
