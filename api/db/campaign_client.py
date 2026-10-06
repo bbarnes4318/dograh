@@ -6,7 +6,11 @@ from sqlalchemy import func, or_, text, update
 from sqlalchemy.future import select
 
 from api.db.base_client import BaseDBClient
-from api.db.filters import apply_workflow_run_filters, get_workflow_run_order_clause
+from api.db.filters import (
+    apply_workflow_run_filters,
+    get_workflow_run_order_clause,
+    workflow_run_list_load_options,
+)
 from api.db.models import CampaignModel, QueuedRunModel, WorkflowRunModel
 from api.schemas.workflow import WorkflowRunResponseSchema
 from api.services.workflow.run_usage_response import format_public_cost_info
@@ -205,7 +209,10 @@ class CampaignClient(BaseDBClient):
             # Get paginated results with filters and sorting
             order_clause = get_workflow_run_order_clause(sort_by, sort_order)
             result = await session.execute(
-                base_query.order_by(order_clause).limit(limit).offset(offset)
+                base_query.options(*workflow_run_list_load_options())
+                .order_by(order_clause)
+                .limit(limit)
+                .offset(offset)
             )
 
             runs = [

@@ -431,7 +431,9 @@ class WorkflowModel(Base):
     )
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     user = relationship("UserModel", back_populates="workflows")
-    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=True)
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id"), nullable=True, index=True
+    )
     organization = relationship("OrganizationModel")
     # Optional folder for grouping in the agents list. NULL = "Uncategorized".
     # ON DELETE SET NULL: deleting a folder un-files its agents, never deletes them.
@@ -591,6 +593,18 @@ class WorkflowRunModel(Base):
         ),
         Index("idx_workflow_runs_workflow_id", "workflow_id"),
         Index("idx_workflow_runs_campaign_id", "campaign_id"),
+        # Run lists are "newest first" scoped to a workflow / campaign / org.
+        Index(
+            "idx_workflow_runs_workflow_id_created_at",
+            "workflow_id",
+            text("created_at DESC NULLS LAST"),
+        ),
+        Index(
+            "idx_workflow_runs_campaign_id_created_at",
+            "campaign_id",
+            text("created_at DESC NULLS LAST"),
+        ),
+        Index("idx_workflow_runs_created_at", text("created_at DESC NULLS LAST")),
     )
 
 

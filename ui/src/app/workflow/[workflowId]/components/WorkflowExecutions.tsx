@@ -130,6 +130,7 @@ export function WorkflowExecutions({ workflowId, searchParams }: WorkflowExecuti
             setError("Failed to load workflow runs");
         } finally {
             setLoading(false);
+            setIsExecutingFilters(false);
         }
     }, [workflowId, isAuthenticated]);
 
@@ -162,11 +163,12 @@ export function WorkflowExecutions({ workflowId, searchParams }: WorkflowExecuti
     const handleApplyFilters = useCallback(async () => {
         setIsExecutingFilters(true);
         setCurrentPage(1); // Reset to first page when applying filters
-        setAppliedFilters(activeFilters);
+        // The effect on appliedFilters does the fetch (and clears
+        // isExecutingFilters); calling fetchWorkflowRuns here too ran every query twice.
+        // A fresh array so re-applying unchanged filters still refetches.
+        setAppliedFilters([...activeFilters]);
         updatePageInUrl(1, activeFilters, sortBy, sortOrder);
-        await fetchWorkflowRuns(1, activeFilters, sortBy, sortOrder);
-        setIsExecutingFilters(false);
-    }, [activeFilters, fetchWorkflowRuns, updatePageInUrl, sortBy, sortOrder]);
+    }, [activeFilters, updatePageInUrl, sortBy, sortOrder]);
 
     const handleFiltersChange = useCallback((filters: ActiveFilter[]) => {
         setActiveFilters(filters);
@@ -178,9 +180,7 @@ export function WorkflowExecutions({ workflowId, searchParams }: WorkflowExecuti
         setActiveFilters([]);
         setAppliedFilters([]);
         updatePageInUrl(1, [], sortBy, sortOrder); // Clear filters from URL
-        await fetchWorkflowRuns(1, [], sortBy, sortOrder); // Fetch all workflows without filters
-        setIsExecutingFilters(false);
-    }, [fetchWorkflowRuns, updatePageInUrl, sortBy, sortOrder]);
+    }, [updatePageInUrl, sortBy, sortOrder]);
 
     const handlePageChange = useCallback((page: number) => {
         setCurrentPage(page);

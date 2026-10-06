@@ -132,6 +132,7 @@ export function CampaignRuns({ campaignId, workflowId, searchParams }: CampaignR
             setError("Failed to load campaign runs");
         } finally {
             setLoading(false);
+            setIsExecutingFilters(false);
         }
     }, [campaignId, isAuthenticated]);
 
@@ -166,11 +167,12 @@ export function CampaignRuns({ campaignId, workflowId, searchParams }: CampaignR
     const handleApplyFilters = useCallback(async () => {
         setIsExecutingFilters(true);
         setCurrentPage(1);
-        setAppliedFilters(activeFilters);
+        // The effect on appliedFilters does the fetch (and clears
+        // isExecutingFilters); calling fetchCampaignRuns here too ran every query twice.
+        // A fresh array so re-applying unchanged filters still refetches.
+        setAppliedFilters([...activeFilters]);
         updatePageInUrl(1, activeFilters, sortBy, sortOrder);
-        await fetchCampaignRuns(1, activeFilters, sortBy, sortOrder);
-        setIsExecutingFilters(false);
-    }, [activeFilters, fetchCampaignRuns, updatePageInUrl, sortBy, sortOrder]);
+    }, [activeFilters, updatePageInUrl, sortBy, sortOrder]);
 
     const handleFiltersChange = useCallback((filters: ActiveFilter[]) => {
         setActiveFilters(filters);
@@ -182,9 +184,7 @@ export function CampaignRuns({ campaignId, workflowId, searchParams }: CampaignR
         setActiveFilters([]);
         setAppliedFilters([]);
         updatePageInUrl(1, [], sortBy, sortOrder);
-        await fetchCampaignRuns(1, [], sortBy, sortOrder);
-        setIsExecutingFilters(false);
-    }, [fetchCampaignRuns, updatePageInUrl, sortBy, sortOrder]);
+    }, [updatePageInUrl, sortBy, sortOrder]);
 
     const handlePageChange = useCallback((page: number) => {
         setCurrentPage(page);
