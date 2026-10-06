@@ -405,6 +405,9 @@ async def test_handler_missing_destination_fails_without_sending():
     )
     assert result["status"] == "error"
     assert result["reason"] == "recipient_unavailable"
+    # The model must not be told the call has "no phone number": it repeats it.
+    assert "No customer phone number" not in result["error"]
+    assert "Do not ask for or mention a phone number" in result["error"]
     send.assert_not_awaited()
 
 

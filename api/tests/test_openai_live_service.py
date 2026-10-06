@@ -231,6 +231,11 @@ def test_frontend_instructions_contain_no_workflow_logic():
     assert "delegate" in text and "Voice delivery" not in text
 
 
+def test_frontend_instructions_never_ask_for_a_phone_number():
+    text = build_frontend_instructions(None)
+    assert "Never ask the caller for a phone number" in text
+
+
 # ── audio path ──────────────────────────────────────────────────────
 
 
