@@ -91,3 +91,17 @@ does not disqualify.
    or a `PJSIP/...` endpoint for Asterisk.
 4. Turn on the Post-Call Webhook and route `dnc_request = true` to
    suppression. The DNC closing line promises this.
+
+## `final_expense_alex_live_transfer_corrected.json`: Final Expense - Alex (Live Transfer)
+
+Replacement graph for the production **Final Expense - Alex (Live Transfer)**
+agent. Nodes: Global, Greeting, Opening & Qualify, Wrap Up, and Transfer Failed
+- Callback. The file's `name` is "... - Corrected Conversion Test"; rename it to
+`Final Expense - Alex (Live Transfer)` after import.
+
+Nodes reference two tool UUIDs that must exist in the target instance:
+`71f1d90f-c8af-4326-9a70-5eca2be629c8` (all nodes except Global and Wrap Up;
+presumably end_call) and `2c883edd-8ce6-42ae-99b6-b8914c6a071f` (Opening &
+Qualify; presumably transfer_call). Re-attach the tools by hand if they differ.
+Upload imports the graph only; voice, call hygiene and webhook settings stay as
+configured on the agent.
