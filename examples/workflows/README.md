@@ -96,7 +96,7 @@ does not disqualify.
 
 Replacement graph for the production **Final Expense - Alex (Live Transfer)**
 agent. Nodes: Global, Greeting, Opening & Qualify, Wrap Up, and Transfer Failed
-- Callback. The file's `name` is "... - Corrected Conversion Test"; rename it to
+- Callback. The file's `name` is "... - Short Decision Opener Test" (opens with "Do you usually handle your own insurance decisions?"); rename it to
 `Final Expense - Alex (Live Transfer)` after import.
 
 Nodes reference two tool UUIDs that must exist in the target instance:
