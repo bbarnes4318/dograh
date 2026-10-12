@@ -319,9 +319,12 @@ class TestThinkingCue:
 class TestToolFillerConfiguration:
     def test_sensible_defaults(self):
         config = ToolFillerConfiguration()
-        assert config.enabled is True
+        assert config.enabled is False
         assert config.delay_seconds == 1.2
         assert config.phrases
+
+    def test_explicit_opt_in_still_works(self):
+        assert ToolFillerConfiguration.model_validate({"enabled": True}).enabled is True
 
     @pytest.mark.parametrize("delay", [0, -1, 11])
     def test_rejects_an_out_of_range_delay(self, delay):

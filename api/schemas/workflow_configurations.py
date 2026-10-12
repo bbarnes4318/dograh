@@ -15,7 +15,7 @@ DEFAULT_PROVISIONAL_VAD_PAUSE_SECS = 1.5
 DEFAULT_TURN_STOP_STRATEGY = "transcription"
 DEFAULT_CONTEXT_COMPACTION_ENABLED = False
 DEFAULT_BUFFER_MUTED_SPEECH = True
-DEFAULT_SPEAK_DURING_TRANSITION = True
+DEFAULT_SPEAK_DURING_TRANSITION = False
 
 
 class ExternalPBXFieldMapping(BaseModel):
@@ -54,7 +54,7 @@ class ToolFillerConfiguration(BaseModel):
 
     model_config = ConfigDict(extra="allow")
 
-    enabled: bool = True
+    enabled: bool = False
     # Below roughly a second, callers read a pause as normal conversational
     # rhythm rather than dead air.
     delay_seconds: float = Field(default=1.2, gt=0, le=10)

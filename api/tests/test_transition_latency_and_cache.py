@@ -11,6 +11,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from api.schemas.workflow_configurations import WorkflowConfigurationDefaults
 from api.services.workflow.pipecat_engine import (
     MAX_TRANSITION_MESSAGE_CHARS,
     PROMPT_CACHE_KEY_PROVIDERS,
@@ -21,6 +22,30 @@ from api.services.workflow.pipecat_engine_context_composer import (
     TRANSITION_MESSAGE_ARG,
     compose_functions_for_node,
 )
+
+FILLER_LINES = [
+    "got it, one sec",
+    "Got it, one sec.",
+    "got it, thanks",
+    "got it",
+    "Gotcha.",
+    "sorry, one second",
+    "Okay, sorry for cutting in",
+    "Sorry",
+    "Sorry about that,",
+    "One moment.",
+    "Just a second.",
+    "Hold on.",
+    "Let me check that.",
+    "Okay, let me pull that up.",
+    "Alright.",
+]
+
+REAL_LINES = [
+    "Great, three quick questions.",
+    "Sure, it's coverage for funeral and burial costs.",
+    "No problem, I caught you at a bad time.",
+]
 
 
 def _edge(name: str, condition: str, transition_speech=None):
@@ -91,7 +116,10 @@ class TestCleanTransitionMessage:
         assert _clean_transition_message(value) is None
 
     def test_trims_whitespace(self):
-        assert _clean_transition_message("  got it, one sec  ") == "got it, one sec"
+        assert (
+            _clean_transition_message("  Great, three quick questions.  ")
+            == "Great, three quick questions."
+        )
 
     def test_drops_an_overlong_line(self):
         # A paragraph would delay the very generation the line exists to cover.
@@ -102,6 +130,19 @@ class TestCleanTransitionMessage:
     def test_keeps_a_line_at_the_limit(self):
         text = "x" * MAX_TRANSITION_MESSAGE_CHARS
         assert _clean_transition_message(text) == text
+
+    @pytest.mark.parametrize("line", FILLER_LINES)
+    def test_drops_filler_lines(self, line):
+        # Holding phrases spoken between real sentences sound like stalling.
+        assert _clean_transition_message(line) is None
+
+    @pytest.mark.parametrize("line", REAL_LINES)
+    def test_keeps_real_lines(self, line):
+        assert _clean_transition_message(line) == line
+
+
+def test_speak_during_transition_is_off_by_default():
+    assert WorkflowConfigurationDefaults().speak_during_transition is False
 
 
 def _engine(provider=None, namespace=None, extra=None):
@@ -188,16 +229,29 @@ class TestTransitionSpeaksTheModelsLine:
 
     async def test_speaks_the_line_the_model_supplied(self):
         engine = await self._run_transition(
-            arguments={TRANSITION_MESSAGE_ARG: "Got it, one sec."}
+            arguments={TRANSITION_MESSAGE_ARG: "Great, three quick questions."}
         )
-        assert self._spoken(engine) == ["Got it, one sec."]
+        assert self._spoken(engine) == ["Great, three quick questions."]
 
     async def test_configured_speech_wins_over_the_models_line(self):
         engine = await self._run_transition(
-            arguments={TRANSITION_MESSAGE_ARG: "Got it, one sec."},
+            arguments={TRANSITION_MESSAGE_ARG: "Great, three quick questions."},
             transition_speech="Configured line.",
         )
         assert self._spoken(engine) == ["Configured line."]
+
+    async def test_configured_speech_is_never_filtered(self):
+        # Only the model's line is filtered; a line someone typed into the
+        # workflow is spoken as written, even if it reads like filler.
+        engine = await self._run_transition(
+            arguments={}, transition_speech="Got it, one sec."
+        )
+        assert self._spoken(engine) == ["Got it, one sec."]
+
+    @pytest.mark.parametrize("line", FILLER_LINES)
+    async def test_drops_filler_lines(self, line):
+        engine = await self._run_transition(arguments={TRANSITION_MESSAGE_ARG: line})
+        assert self._spoken(engine) == []
 
     async def test_says_nothing_when_the_model_offered_nothing(self):
         engine = await self._run_transition(arguments={})
@@ -211,7 +265,7 @@ class TestTransitionSpeaksTheModelsLine:
 
     async def test_marks_the_transition_in_flight(self):
         engine = await self._run_transition(
-            arguments={TRANSITION_MESSAGE_ARG: "one sec"}
+            arguments={TRANSITION_MESSAGE_ARG: "Great, three quick questions."}
         )
         # Still held: the generation this transition queues hasn't started, so
         # anything else touching the context should ride it rather than race.

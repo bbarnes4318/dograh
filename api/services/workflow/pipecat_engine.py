@@ -40,6 +40,7 @@ if TYPE_CHECKING:
     LLMService = Union[OpenAILLMService, AnthropicLLMService, GoogleLLMService]
 
 import asyncio
+import re
 
 from loguru import logger
 
@@ -53,6 +54,28 @@ PROMPT_CACHE_KEY_PROVIDERS = frozenset({"openai", "azure"})
 # exists to cover.
 MAX_TRANSITION_MESSAGE_CHARS = 120
 
+# Holding phrases and bare acknowledgments ("got it, one sec", "sorry",
+# "one moment") that models put in transition_message. Spoken between real
+# sentences they sound like stalling, so they are dropped. Matched against the
+# normalized line: lowercase, punctuation (except apostrophes) removed,
+# whitespace collapsed.
+FILLER_LINE_PATTERN = re.compile(
+    r"^((okay|ok|alright|all right|great|perfect|sure|so|um|uh|got it|gotcha"
+    r"|sorry|thanks|thank you)\s*)*"
+    r"(got it|gotcha|got it thanks|one sec|one second|a sec|a second|just a sec"
+    r"|just a second|one moment|just a moment|a moment|give me a sec"
+    r"|give me a second|hold on|hang on|bear with me|let me check"
+    r"|let me check that|let me see|let me look|let me pull that up|sorry"
+    r"|sorry about that|sorry one second|sorry for cutting in|okay|ok|alright"
+    r"|sure|thanks|thank you)?$"
+)
+
+
+def _is_filler_line(text: str) -> bool:
+    normalized = re.sub(r"[^\w\s']|_", "", text.lower().strip())
+    normalized = re.sub(r"\s+", " ", normalized).strip()
+    return not normalized or FILLER_LINE_PATTERN.fullmatch(normalized) is not None
+
 
 def _clean_transition_message(value: object) -> Optional[str]:
     """Normalize a model-supplied transition line, or None if unusable."""
@@ -65,6 +88,9 @@ def _clean_transition_message(value: object) -> Optional[str]:
         logger.debug(
             f"Transition line over {MAX_TRANSITION_MESSAGE_CHARS} chars, dropping it"
         )
+        return None
+    if _is_filler_line(text):
+        logger.debug(f"Dropping filler transition line: {text!r}")
         return None
     return text
 
@@ -115,7 +141,7 @@ class PipecatEngine:
         has_recordings: bool = False,
         context_compaction_enabled: bool = False,
         tool_filler: Optional["ToolFillerConfiguration"] = None,
-        speak_during_transition: bool = True,
+        speak_during_transition: bool = False,
         send_dtmf_enabled: bool = False,
         llm_provider: Optional[str] = None,
         prompt_cache_namespace: Optional[str] = None,
