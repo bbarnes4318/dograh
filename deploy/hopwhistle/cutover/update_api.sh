@@ -13,8 +13,10 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=common.sh
 . "$HERE/common.sh"
 
-# Head the new code migrates to (latest file in api/alembic/versions).
-EXPECTED_HEAD="${EXPECTED_HEAD:-a4c8e2f61b93}"
+# Head the new code migrates to. Read from the built image (`alembic heads`)
+# after the build; set it in the environment to override:
+#   sudo EXPECTED_HEAD=<rev> bash update_api.sh
+EXPECTED_HEAD="${EXPECTED_HEAD:-}"
 
 require_root
 [[ -f "$OVERRIDE_FILE" ]] || die "no $OVERRIDE_FILE"
@@ -35,6 +37,18 @@ bash "$HERE/1_build_image.sh" "$SHA"
 SHORT_SHA="$(git -C "$SRC_DIR" rev-parse --short=8 HEAD)"
 NEW_IMAGE="$NEW_IMAGE_REPO:$SHORT_SHA"
 docker image inspect "$NEW_IMAGE" >/dev/null 2>&1 || die "image $NEW_IMAGE missing after build"
+if [[ -z "$EXPECTED_HEAD" ]]; then
+    # `alembic heads` only reads the migration files; it does not touch the DB.
+    heads="$(docker run --rm --entrypoint sh "$NEW_IMAGE" -c 'alembic -c /app/api/alembic.ini heads' | awk 'NF {print $1}')" \
+        || die "could not run 'alembic heads' in $NEW_IMAGE; set EXPECTED_HEAD=<rev> to override"
+    head_count="$(grep -c . <<<"$heads" || true)"
+    [[ "$head_count" == "1" ]] \
+        || die "$NEW_IMAGE has $head_count alembic heads (${heads//$'\n'/ }); expected exactly one. Merge them in the fork, or set EXPECTED_HEAD=<rev>. Nothing changed."
+    EXPECTED_HEAD="$heads"
+    log "expected migration head (from $NEW_IMAGE): $EXPECTED_HEAD"
+else
+    log "expected migration head (EXPECTED_HEAD override): $EXPECTED_HEAD"
+fi
 docker run --rm --entrypoint sh "$NEW_IMAGE" -c "ls /app/api/alembic/versions | grep -q '^${EXPECTED_HEAD}_'" \
     || die "image $NEW_IMAGE does not contain migration $EXPECTED_HEAD; is the fork's main up to date?"
 
