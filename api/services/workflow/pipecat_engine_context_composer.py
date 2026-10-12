@@ -89,10 +89,11 @@ TRANSITION_MESSAGE_PROPERTY = {
     TRANSITION_MESSAGE_ARG: {
         "type": "string",
         "description": (
-            "A short, natural line to say out loud right now while the "
-            "conversation moves on — for example 'got it, one sec' or 'okay, "
-            "let me pull that up'. Under ten words. Leave empty if nothing "
-            "needs saying."
+            "Leave this empty unless the caller must hear something specific "
+            "right now. Never use it for a filler or holding phrase: no 'got "
+            "it', 'one sec', 'one moment', 'hold on', 'let me check', 'sorry', "
+            "or any acknowledgment on its own. If you do fill it, it must be a "
+            "full sentence with real content, under ten words."
         ),
     }
 }
