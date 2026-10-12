@@ -193,5 +193,12 @@ sudo bash update_api.sh          # fork's main; or: sudo bash update_api.sh <git
 
 It builds the image, backs up the DB, switches the image in
 `docker-compose.override.yaml`, lets the api apply new migrations on start,
-checks the DB reached the expected head (`EXPECTED_HEAD`, currently
-`a4c8e2f61b93`), and rolls back automatically if anything fails.
+checks the DB reached the expected head, and rolls back automatically if
+anything fails. The expected head is read from the newly built image with
+`alembic heads`, so it always matches the commit being deployed; the update
+stops before touching anything if that commit has more than one head. To pin
+it by hand, set `EXPECTED_HEAD`:
+
+```bash
+sudo EXPECTED_HEAD=<revision> bash update_api.sh
+```
