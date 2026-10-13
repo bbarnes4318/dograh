@@ -112,6 +112,15 @@ class UserIdleHandler:
             UserIdleTimeoutUpdateFrame(timeout=restore_to)
         )
 
+    async def mark_user_spoke(self):
+        """Record that the caller spoke without a user turn starting.
+
+        Speech swallowed while muted never fires ``on_user_turn_started``, so
+        ``reset()`` is never called for it and the first-response timer would
+        treat the caller as silent.
+        """
+        await self.reset()
+
     async def handle_idle(self, aggregator):
         """Handle a user-idle event by firing the next nudge in the ladder."""
         if not self._enabled:

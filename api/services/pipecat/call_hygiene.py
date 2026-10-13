@@ -68,7 +68,8 @@ MACHINE_TERMINAL_PATTERNS = [
     r"\bvoice messag(e|ing) system\b",
     r"\bat the tone\b",
     r"\bafter the (tone|beep)\b",
-    r"\b(record|leave) (your|a) (message|name)\b",
+    r"\b(record|leave) (your|a) message\b",
+    r"\bleave (your|a) name\b",
     r"\bplease leave (your|a|me)\b",
     r"\bleave me (your|a)\b",
     r"\bleave (your|a) (phone number|number|brief message|detailed message)\b",
@@ -115,6 +116,8 @@ SCREENER_PATTERNS = [
     r"\bwhat is this regarding\b",
     r"\bcompany youre (calling from|with)\b",
     r"\bget the person youre trying to reach\b",
+    r"\brecord your name\b",
+    r"\bsee if this person is available\b",
 ]
 # Only counts as screener while already in screener hold.
 SCREENER_HOLD_ONLY_PATTERNS = [r"^(thanks|thank you)$"]

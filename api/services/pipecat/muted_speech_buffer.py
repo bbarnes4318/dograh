@@ -67,6 +67,9 @@ class MutedSpeechBufferProcessor(FrameProcessor):
             of asking for a second one.
         on_replay: Optional async callback invoked with the replayed text, so
             callers can record it in the transcript the aggregator never saw.
+        on_capture: Optional async callback invoked each time caller speech is
+            swallowed while muted, so callers can tell the caller did speak
+            (e.g. the first-response idle timer).
         max_buffered_chars: Cap on retained text.
         max_buffer_age_seconds: Drop buffered text older than this.
     """
@@ -78,6 +81,7 @@ class MutedSpeechBufferProcessor(FrameProcessor):
         mute_reason: Callable[[], Optional[str]],
         suppress_generation: Optional[Callable[[], bool]] = None,
         on_replay: Optional[Callable[[str], Awaitable[None]]] = None,
+        on_capture: Optional[Callable[[], Awaitable[None]]] = None,
         max_buffered_chars: int = DEFAULT_MAX_BUFFERED_CHARS,
         max_buffer_age_seconds: float = DEFAULT_MAX_BUFFER_AGE_SECONDS,
         **kwargs,
@@ -87,6 +91,7 @@ class MutedSpeechBufferProcessor(FrameProcessor):
         self._mute_reason = mute_reason
         self._suppress_generation = suppress_generation
         self._on_replay = on_replay
+        self._on_capture = on_capture
         self._max_buffered_chars = max_buffered_chars
         self._max_buffer_age_seconds = max_buffer_age_seconds
 
@@ -118,6 +123,11 @@ class MutedSpeechBufferProcessor(FrameProcessor):
             and self._should_buffer()
         ):
             self._capture(frame)
+            if self._on_capture is not None:
+                try:
+                    await self._on_capture()
+                except Exception as exc:  # bookkeeping must not break the pipeline
+                    logger.warning(f"Muted-speech capture callback failed: {exc}")
             # Swallow it: the aggregator would drop it anyway, and letting it
             # through would only log a suppressed frame.
             return

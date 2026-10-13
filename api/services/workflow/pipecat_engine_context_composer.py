@@ -89,11 +89,8 @@ TRANSITION_MESSAGE_PROPERTY = {
     TRANSITION_MESSAGE_ARG: {
         "type": "string",
         "description": (
-            "Leave this empty unless the caller must hear something specific "
-            "right now. Never use it for a filler or holding phrase: no 'got "
-            "it', 'one sec', 'one moment', 'hold on', 'let me check', 'sorry', "
-            "or any acknowledgment on its own. If you do fill it, it must be a "
-            "full sentence with real content, under ten words."
+            "A short line to say out loud while the conversation moves on. "
+            "Leave empty unless the caller needs to hear something."
         ),
     }
 }
