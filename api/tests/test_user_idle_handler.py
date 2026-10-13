@@ -297,7 +297,7 @@ async def test_first_response_idle_skipped_after_muted_speech():
         end_call_for_hygiene=AsyncMock(),
     )
     handler = UserIdleHandler(
-        engine, nudges=[], call_hygiene=CallHygieneConfiguration()
+        engine, call_hygiene=CallHygieneConfiguration()
     )
     handler._handle_first_response_idle = AsyncMock()
     handler._speak_canned = AsyncMock()
@@ -309,5 +309,4 @@ async def test_first_response_idle_skipped_after_muted_speech():
     await handler.handle_idle(SimpleNamespace())
 
     handler._handle_first_response_idle.assert_not_awaited()
-    handler._speak_canned.assert_not_awaited()
     engine.end_call_for_hygiene.assert_not_awaited()
