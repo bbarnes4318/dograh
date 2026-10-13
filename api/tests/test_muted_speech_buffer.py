@@ -107,6 +107,46 @@ def _transcriptions(frames) -> list[TranscriptionFrame]:
 
 
 class TestMutedSpeechBuffer:
+    async def test_on_capture_fires_once_per_muted_transcription(self):
+        state = _MuteState()
+        calls: list[None] = []
+
+        async def on_capture() -> None:
+            calls.append(None)
+
+        processor = _MuteStateProcessor(state, on_capture=on_capture)
+
+        await run_test(
+            processor,
+            frames_to_send=_in_order(
+                BotStartedSpeakingFrame(),
+                _transcription("Yeah. I hear you."),
+                BotStoppedSpeakingFrame(),
+                _transcription("hello"),
+            ),
+        )
+
+        assert len(calls) == 1
+
+    async def test_on_capture_failure_does_not_break_replay(self):
+        state = _MuteState()
+
+        async def on_capture() -> None:
+            raise RuntimeError("boom")
+
+        processor = _MuteStateProcessor(state, on_capture=on_capture)
+
+        down, _ = await run_test(
+            processor,
+            frames_to_send=_in_order(
+                BotStartedSpeakingFrame(),
+                _transcription("okay"),
+                BotStoppedSpeakingFrame(),
+            ),
+        )
+
+        assert len(_appended(down)) == 1
+
     async def test_passes_transcriptions_through_when_unmuted(self):
         state = _MuteState()
         processor = _MuteStateProcessor(state)

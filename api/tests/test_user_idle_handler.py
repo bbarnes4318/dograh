@@ -280,3 +280,34 @@ class TestUserIdleHandler:
         assert user_idle_handler._retry_count == 0, (
             "User idle handler should not trigger during active conversation"
         )
+
+
+@pytest.mark.asyncio
+async def test_first_response_idle_skipped_after_muted_speech():
+    """A caller who spoke over a muted opener is not treated as silent."""
+    from types import SimpleNamespace
+
+    from api.schemas.workflow_configurations import CallHygieneConfiguration
+    from api.services.workflow.pipecat_engine_callbacks import UserIdleHandler
+
+    engine = SimpleNamespace(
+        task=None,
+        call_hygiene=None,
+        end_call_with_reason=AsyncMock(),
+        end_call_for_hygiene=AsyncMock(),
+    )
+    handler = UserIdleHandler(
+        engine, nudges=[], call_hygiene=CallHygieneConfiguration()
+    )
+    handler._handle_first_response_idle = AsyncMock()
+    handler._speak_canned = AsyncMock()
+
+    await handler.mark_user_spoke()
+    assert handler._user_has_spoken is True
+    assert handler._retry_count == 0
+
+    await handler.handle_idle(SimpleNamespace())
+
+    handler._handle_first_response_idle.assert_not_awaited()
+    handler._speak_canned.assert_not_awaited()
+    engine.end_call_for_hygiene.assert_not_awaited()

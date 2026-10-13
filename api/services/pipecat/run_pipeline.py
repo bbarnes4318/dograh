@@ -1059,6 +1059,7 @@ async def _run_pipeline_impl(
             mute_reason=engine.get_mute_reason,
             suppress_generation=engine.is_transition_in_progress,
             on_replay=_log_replayed_speech,
+            on_capture=user_idle_handler.mark_user_spoke,
         )
 
     # Keypad handling. Capture is on by default — a caller who presses keys

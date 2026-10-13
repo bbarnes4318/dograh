@@ -87,6 +87,8 @@ def _pushed(processor) -> list:
 # ---------------------------------------------------------------------------
 
 MACHINE_UTTERANCES = [
+    "I'm sorry. This person is not available. If you would like to leave an additional message, please reply after the tone.",
+    "At the tone, please record your message.",
     "Your call has been forwarded to an automated voice messaging system. is not available. At the tone, please record your message. When you've finished recording, you may hang up or press one for more options.",
     "call has been forwarded to voice mail. The person you're trying to reach is not available. At the tone, please record your message.",
     "Sorry. Mailbox is full. To send an SMS notification, press five.",
@@ -103,6 +105,8 @@ MACHINE_UTTERANCES = [
 ]
 
 SCREENER_UTTERANCES = [
+    "Hi. If you record your name and reason for calling, I'll see if this person is available.",
+    "If you record your name and reason for calling, I'll see if this person is available.",
     "Thanks. Please stay on the line.",
     "I'm a call assistant recording this call for the person you're trying to reach. Please say who you are and why you're calling.",
     "Hi. You've reached Sharon. Can I please get your name?",
