@@ -24,6 +24,7 @@ aggregator's turn strategies own turn boundaries, and synthesising a turn from
 outside would fight them.
 """
 
+import asyncio
 import time
 from typing import Awaitable, Callable, Optional
 
@@ -47,6 +48,10 @@ DEFAULT_MAX_BUFFERED_CHARS = 600
 # replaying it would confuse more than it helps.
 DEFAULT_MAX_BUFFER_AGE_SECONDS = 45.0
 
+# After a replay, how long to wait for the LLM to start generating before
+# forcing a run. Appending a user message only helps if something runs the LLM.
+DEFAULT_REPLAY_GENERATION_TIMEOUT_SECONDS = 1.5
+
 # Prefix that tells the model this text arrived while it was talking, so it can
 # react to it rather than treat it as a fresh, well-timed turn.
 REPLAY_PREFIX = "[The caller said this while you were still speaking] "
@@ -65,6 +70,11 @@ class MutedSpeechBufferProcessor(FrameProcessor):
         suppress_generation: Returns True when a generation is already on its
             way (a node transition queues one), so the replay rides it instead
             of asking for a second one.
+        generation_count: Optional callable returning how many LLM generations
+            have started. When given, a replay that is not followed by a new
+            generation within ``replay_generation_timeout_seconds`` forces an
+            LLM run so the caller isn't left in silence.
+        replay_generation_timeout_seconds: How long to wait for that generation.
         on_replay: Optional async callback invoked with the replayed text, so
             callers can record it in the transcript the aggregator never saw.
         on_capture: Optional async callback invoked each time caller speech is
@@ -80,6 +90,10 @@ class MutedSpeechBufferProcessor(FrameProcessor):
         is_muted: Callable[[], bool],
         mute_reason: Callable[[], Optional[str]],
         suppress_generation: Optional[Callable[[], bool]] = None,
+        generation_count: Optional[Callable[[], int]] = None,
+        replay_generation_timeout_seconds: float = (
+            DEFAULT_REPLAY_GENERATION_TIMEOUT_SECONDS
+        ),
         on_replay: Optional[Callable[[str], Awaitable[None]]] = None,
         on_capture: Optional[Callable[[], Awaitable[None]]] = None,
         max_buffered_chars: int = DEFAULT_MAX_BUFFERED_CHARS,
@@ -90,6 +104,9 @@ class MutedSpeechBufferProcessor(FrameProcessor):
         self._is_muted = is_muted
         self._mute_reason = mute_reason
         self._suppress_generation = suppress_generation
+        self._generation_count = generation_count
+        self._replay_generation_timeout = replay_generation_timeout_seconds
+        self._replay_check_task: Optional[asyncio.Task] = None
         self._on_replay = on_replay
         self._on_capture = on_capture
         self._max_buffered_chars = max_buffered_chars
@@ -114,6 +131,7 @@ class MutedSpeechBufferProcessor(FrameProcessor):
         if isinstance(frame, (EndFrame, CancelFrame)):
             self._ended = True
             self._discard()
+            self._cancel_replay_check()
             await self.push_frame(frame, direction)
             return
 
@@ -205,8 +223,46 @@ class MutedSpeechBufferProcessor(FrameProcessor):
             FrameDirection.DOWNSTREAM,
         )
 
+        self._schedule_replay_check()
+
         if self._on_replay is not None:
             try:
                 await self._on_replay(text)
             except Exception as exc:
                 logger.error(f"Muted-speech replay callback failed: {exc}")
+
+    def _cancel_replay_check(self) -> None:
+        task = self._replay_check_task
+        self._replay_check_task = None
+        if task is not None and not task.done():
+            task.cancel()
+
+    def _schedule_replay_check(self) -> None:
+        if self._generation_count is None or self._ended:
+            return
+        try:
+            baseline = self._generation_count()
+        except Exception as exc:
+            logger.warning(
+                f"Muted-speech buffer could not read generation count: {exc}"
+            )
+            return
+        self._cancel_replay_check()
+        self._replay_check_task = asyncio.create_task(
+            self._force_run_if_no_generation(baseline)
+        )
+
+    async def _force_run_if_no_generation(self, baseline: int) -> None:
+        """Run the LLM if the replayed message never led to a generation."""
+        try:
+            await asyncio.sleep(self._replay_generation_timeout)
+            if self._ended or self._generation_count() > baseline:
+                return
+            logger.warning("Replay generation never started; forcing LLM run")
+            await self.push_frame(
+                LLMMessagesAppendFrame([], run_llm=True), FrameDirection.DOWNSTREAM
+            )
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            logger.error(f"Replay generation check failed: {exc}")

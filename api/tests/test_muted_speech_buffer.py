@@ -303,3 +303,88 @@ class TestMutedSpeechBuffer:
         )
 
         assert _appended(down) == []
+
+
+class _Generations:
+    def __init__(self):
+        self.count = 0
+
+    def __call__(self) -> int:
+        return self.count
+
+
+def _forced_runs(frames) -> list[LLMMessagesAppendFrame]:
+    return [f for f in _appended(frames) if not f.messages and f.run_llm]
+
+
+class TestReplayGenerationSafetyNet:
+    """A replay that never leads to a generation must not leave the caller in silence."""
+
+    def _processor(self, state, generations, timeout=0.3):
+        return _MuteStateProcessor(
+            state,
+            generation_count=generations,
+            replay_generation_timeout_seconds=timeout,
+        )
+
+    async def test_forces_run_when_no_generation_starts(self):
+        state, generations = _MuteState(), _Generations()
+        down, _ = await run_test(
+            self._processor(state, generations),
+            frames_to_send=_in_order(
+                BotStartedSpeakingFrame(),
+                _transcription("Hello?"),
+                BotStoppedSpeakingFrame(),
+                SleepFrame(0.6),
+            ),
+        )
+
+        assert len(_forced_runs(down)) == 1
+        # The original replay is still there, ahead of the forced run.
+        assert len(_appended(down)) == 2
+
+    async def test_no_forced_run_when_generation_starts_in_time(self):
+        import asyncio
+
+        state, generations = _MuteState(), _Generations()
+
+        class _StartsGeneration(_MuteStateProcessor):
+            async def process_frame(self, frame, direction):
+                if isinstance(frame, BotStoppedSpeakingFrame):
+                    # The engine starts a generation 0.1 s after the unmute.
+                    asyncio.get_running_loop().call_later(0.1, self._bump)
+                await super().process_frame(frame, direction)
+
+            def _bump(self):
+                generations.count += 1
+
+        down, _ = await run_test(
+            _StartsGeneration(
+                state,
+                generation_count=generations,
+                replay_generation_timeout_seconds=0.3,
+            ),
+            frames_to_send=_in_order(
+                BotStartedSpeakingFrame(),
+                _transcription("Hello?"),
+                BotStoppedSpeakingFrame(),
+                SleepFrame(0.6),
+            ),
+        )
+
+        assert len(_appended(down)) == 1
+        assert _forced_runs(down) == []
+
+    async def test_end_frame_cancels_pending_check(self):
+        state, generations = _MuteState(), _Generations()
+        down, _ = await run_test(
+            self._processor(state, generations, timeout=0.5),
+            frames_to_send=_in_order(
+                BotStartedSpeakingFrame(),
+                _transcription("Hello?"),
+                BotStoppedSpeakingFrame(),
+            ),
+        )
+
+        # run_test ends the pipeline right away, well before the 0.5 s check.
+        assert _forced_runs(down) == []

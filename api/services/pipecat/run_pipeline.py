@@ -267,7 +267,12 @@ def _create_realtime_user_turn_config(provider: str):
     return local_vad_turn_config(enable_interruptions=True)
 
 
-def _create_user_mute_strategies(engine, *, realtime_provider: str | None):
+def _create_user_mute_strategies(
+    engine,
+    *,
+    realtime_provider: str | None,
+    start_allow_interrupt: bool = False,
+):
     strategies = [
         FunctionCallUserMuteStrategy(),
         CallbackUserMuteStrategy(should_mute_callback=engine.should_mute_user),
@@ -275,7 +280,14 @@ def _create_user_mute_strategies(engine, *, realtime_provider: str | None):
     # GPT-Live owns turn-taking and only hears the caller through the audio we
     # forward. Muting the caller until the bot's first turn would leave the
     # call silent whenever the model waits for the caller to speak first.
-    if realtime_provider != ServiceProviders.OPENAI_LIVE.value:
+    #
+    # A start node with allow_interrupt=True has opted in to being talked over,
+    # so the caller's first words ("Hello?") must be a live turn that the start
+    # node answers, not text muted and replayed after the greeting.
+    if (
+        realtime_provider != ServiceProviders.OPENAI_LIVE.value
+        and not start_allow_interrupt
+    ):
         strategies.insert(0, MuteUntilFirstBotCompleteUserMuteStrategy())
     return strategies
 
@@ -925,6 +937,9 @@ async def _run_pipeline_impl(
     user_mute_strategies = _create_user_mute_strategies(
         engine,
         realtime_provider=user_config.realtime.provider if is_realtime else None,
+        start_allow_interrupt=bool(
+            workflow_graph.nodes[workflow_graph.start_node_id].allow_interrupt
+        ),
     )
     user_vad_analyzer = SileroVADAnalyzer(params=VADParams(stop_secs=0.2))
 
@@ -1058,6 +1073,7 @@ async def _run_pipeline_impl(
             ),
             mute_reason=engine.get_mute_reason,
             suppress_generation=engine.is_transition_in_progress,
+            generation_count=engine.get_generation_count,
             on_replay=_log_replayed_speech,
             on_capture=user_idle_handler.mark_user_spoke,
         )
