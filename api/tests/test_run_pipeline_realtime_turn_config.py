@@ -313,3 +313,23 @@ def test_openai_live_does_not_mute_caller_before_first_bot_turn():
     assert _has_first_bot_mute(
         _create_user_mute_strategies(engine, realtime_provider=None)
     )
+
+
+def test_start_node_allow_interrupt_controls_first_bot_mute():
+    from unittest.mock import Mock
+
+    from api.services.pipecat.run_pipeline import _create_user_mute_strategies
+    from pipecat.turns.user_mute import MuteUntilFirstBotCompleteUserMuteStrategy
+
+    engine = Mock()
+    interruptible = _create_user_mute_strategies(
+        engine, realtime_provider=None, start_allow_interrupt=True
+    )
+    assert not _has_first_bot_mute(interruptible)
+
+    blocking = _create_user_mute_strategies(
+        engine, realtime_provider=None, start_allow_interrupt=False
+    )
+    assert isinstance(blocking[0], MuteUntilFirstBotCompleteUserMuteStrategy)
+    # The engine-driven strategies stay either way.
+    assert len(blocking) == len(interruptible) + 1

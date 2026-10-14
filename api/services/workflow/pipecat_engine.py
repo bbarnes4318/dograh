@@ -192,6 +192,10 @@ class PipecatEngine:
         # Track current LLM reference text for TTS aggregation correction
         self._current_llm_generation_reference_text: str = ""
 
+        # Number of LLM generations started so far. Lets observers tell whether
+        # a context append actually led to a generation.
+        self._generation_count: int = 0
+
         # Controls whether user input should be muted
         self._mute_pipeline: bool = False
 
@@ -1189,6 +1193,10 @@ class PipecatEngine:
             last_phrase=self._last_filler_phrase,
             on_spoken=_remember,
         )
+
+    def get_generation_count(self) -> int:
+        """Number of LLM generations started so far in this call."""
+        return self._generation_count
 
     def is_transition_in_progress(self) -> bool:
         """True while a node transition is mid-flight.
