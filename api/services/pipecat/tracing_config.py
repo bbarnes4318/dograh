@@ -49,6 +49,10 @@ class _OrgRoutingExporter(SpanExporter):
         self._default_exporter = default_exporter
         self._org_exporters = {}
         self._org_hosts = {}
+        # (endpoint, auth) each org's exporter was built with. Kept here rather
+        # than read back off the exporter, whose private attributes (_headers,
+        # _endpoint) change between opentelemetry releases.
+        self._org_settings = {}
 
     def get_org_host(self, org_id):
         return self._org_hosts.get(str(org_id))
@@ -62,17 +66,16 @@ class _OrgRoutingExporter(SpanExporter):
         # Skip if already registered with identical settings
         if key in self._org_exporters:
             existing = self._org_exporters[key]
-            if (
-                self._org_hosts.get(key) == normalized_host
-                and getattr(existing, "_endpoint", None) == endpoint
-                and existing._headers.get("Authorization") == f"Basic {auth}"
-            ):
+            if self._org_hosts.get(key) == normalized_host and self._org_settings.get(
+                key
+            ) == (endpoint, auth):
                 return
             # Credentials changed — shut down the old exporter
             logger.info(f"Updating OTEL exporter for org {org_id}")
             existing.shutdown()
 
         self._org_hosts[key] = normalized_host
+        self._org_settings[key] = (endpoint, auth)
         exporter = OTLPSpanExporter(
             endpoint=endpoint,
             headers={"Authorization": f"Basic {auth}"},
@@ -84,6 +87,7 @@ class _OrgRoutingExporter(SpanExporter):
         key = str(org_id)
         exporter = self._org_exporters.pop(key, None)
         self._org_hosts.pop(key, None)
+        self._org_settings.pop(key, None)
         if exporter:
             exporter.shutdown()
             logger.info(f"Unregistered OTEL exporter for org {org_id}")
