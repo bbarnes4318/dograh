@@ -192,6 +192,12 @@ class PipecatEngine:
         # Track current LLM reference text for TTS aggregation correction
         self._current_llm_generation_reference_text: str = ""
 
+        # Start-node opening bookkeeping. A caller who speaks before the opening
+        # greeting is queued gets a live turn answered by the start prompt, so
+        # the static greeting would only make the agent introduce itself twice.
+        self._caller_spoke_before_opening: bool = False
+        self._opening_queued: bool = False
+
         # Number of LLM generations started so far. Lets observers tell whether
         # a context append actually led to a generation.
         self._generation_count: int = 0
@@ -882,6 +888,30 @@ class PipecatEngine:
             "llm" when an initial LLM generation was queued,
             "none" when nothing was queued.
         """
+        is_start_opening = (
+            previous_node_id is None and node_id == self.workflow.start_node_id
+        )
+        if is_start_opening and self._caller_spoke_before_opening:
+            logger.info("Caller spoke before greeting; letting the live turn answer")
+            self._opening_queued = True
+            return "none"
+
+        result = await self._queue_node_opening(
+            node_id=node_id,
+            previous_node_id=previous_node_id,
+            generate_if_no_greeting=generate_if_no_greeting,
+        )
+        if is_start_opening and result != "none":
+            self._opening_queued = True
+        return result
+
+    async def _queue_node_opening(
+        self,
+        *,
+        node_id: str,
+        previous_node_id: Optional[str],
+        generate_if_no_greeting: bool,
+    ) -> Literal["none", "greeting", "llm"]:
         if previous_node_id != node_id:
             greeting_info = self.get_node_greeting(node_id)
             if greeting_info:
@@ -1193,6 +1223,15 @@ class PipecatEngine:
             last_phrase=self._last_filler_phrase,
             on_spoken=_remember,
         )
+
+    def mark_caller_turn_started(self) -> None:
+        """Record that the caller began a turn.
+
+        Only matters until the start-node opening has been queued; a turn that
+        starts after the greeting is queued is an ordinary interruption.
+        """
+        if not self._opening_queued:
+            self._caller_spoke_before_opening = True
 
     def get_generation_count(self) -> int:
         """Number of LLM generations started so far in this call."""
