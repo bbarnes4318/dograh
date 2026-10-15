@@ -1034,6 +1034,7 @@ async def _run_pipeline_impl(
 
     @user_context_aggregator.event_handler("on_user_turn_started")
     async def on_user_turn_started(aggregator, strategy):
+        engine.mark_caller_turn_started()
         await user_idle_handler.reset()
 
     # Hold caller speech that the aggregator would drop while muted (a
