@@ -370,8 +370,20 @@ async def search_transcripts(
 # result per run in Redis so live polling stays cheap.
 # ---------------------------------------------------------------------------
 
-_CLS_CACHE_PREFIX = "insights:v3:"
+_CLS_CACHE_PREFIX = "insights:v4:"
 _CLS_CACHE_TTL = 60 * 60 * 24 * 30  # 30 days
+
+# What the live call pipeline persisted when it hung up on a machine. These are
+# the platform's own verdict (voicemail detector, call hygiene guards, blocked
+# transfer) and are authoritative: a call carrying one never reached a person,
+# whatever the transcript, the LLM judgment or the heuristics say. Keep in sync
+# with the dispositions/tags passed to ``end_call_for_hygiene`` and the
+# voicemail detector's ``EndTaskReason.VOICEMAIL_DETECTED``.
+_MACHINE_DISPOSITIONS = frozenset({"voicemail_detected", "answering_bot"})
+_MACHINE_TAGS = frozenset({
+    "voicemail_detected", "answering_bot", "vm_keyword_guard", "vm_after_screener",
+    "call_screener_no_pickup", "transfer_blocked_machine",
+})
 
 _VM_PHRASES = [
     "leave a message", "leave your message", "please leave", "at the tone",
@@ -402,6 +414,23 @@ _AUDIO_PHRASES = [
     "i can't hear you", "sound the same", "you're breaking up", "bad connection",
 ]
 _BUSY_PHRASES = ["at work right now", "i'm at work", "busy right now", "in the middle of"]
+
+
+def _json_list(raw: Any) -> List[Any]:
+    """A JSON array column as a list, whether the driver hands back text or a list."""
+    if isinstance(raw, str):
+        try:
+            raw = _json.loads(raw)
+        except Exception:
+            return []
+    return raw if isinstance(raw, list) else []
+
+
+def _is_machine_answer(dispo: Optional[str], call_tags: Optional[List[str]]) -> bool:
+    """True when the live pipeline itself ended the call on a machine."""
+    return dispo in _MACHINE_DISPOSITIONS or any(
+        t in _MACHINE_TAGS for t in (call_tags or []) if isinstance(t, str)
+    )
 
 
 def _parse_turns(txt: str):
@@ -494,8 +523,9 @@ async def _llm_category(txt: str, client, cfg: Dict[str, str], sem: asyncio.Sema
         return None
 
 
-def _classify_run(txt: str, dispo: Optional[str], nodes_visited: List[str], transfer_state: Optional[str], category_override: Optional[str] = None) -> Dict[str, Any]:
+def _classify_run(txt: str, dispo: Optional[str], nodes_visited: List[str], transfer_state: Optional[str], category_override: Optional[str] = None, call_tags: Optional[List[str]] = None) -> Dict[str, Any]:
     """Classify one call transcript. Returns a JSON-serializable summary dict."""
+    machine_answer = _is_machine_answer(dispo, call_tags)
     turns = _parse_turns(txt or "")
     users = [t[2].strip() for t in turns if t[1] == "user" and t[2].strip()]
     asst = [t[2].strip() for t in turns if t[1] == "assistant"]
@@ -511,8 +541,12 @@ def _classify_run(txt: str, dispo: Optional[str], nodes_visited: List[str], tran
     except Exception:
         dur = 0
 
-    # category — VM phrases are high precision (win); else trust the LLM judgment; else heuristic
-    if not turns or not asst:
+    # category — a machine hang-up recorded by the pipeline always wins (the call
+    # was answered, by a machine); else VM phrases are high precision; else trust
+    # the LLM judgment; else heuristic
+    if machine_answer:
+        category = "voicemail"
+    elif not turns or not asst:
         category = "no_answer"
     elif any(p in low_all_users for p in _VM_PHRASES):
         category = "voicemail"
@@ -531,8 +565,12 @@ def _classify_run(txt: str, dispo: Optional[str], nodes_visited: List[str], tran
     reached_offer = "Offer Transfer" in (nodes_visited or []) or (
         "bring a licensed agent on" in low_full or "is it okay if i bring" in low_full
     )
-    fired_transfer = dispo == "transfer_call" or any(p in low_full for p in _XFER_PHRASES)
-    transfer_answered = transfer_state in ("terminated", "completed")
+    # The transfer tool refuses to dial a buyer for a machine, so an offer line
+    # the agent read to a mailbox is not an interested prospect.
+    fired_transfer = not machine_answer and (
+        dispo == "transfer_call" or any(p in low_full for p in _XFER_PHRASES)
+    )
+    transfer_answered = not machine_answer and transfer_state in ("terminated", "completed")
 
     dnc = any(k in low_all_users for k in _DNC_PHRASES)
     not_interested = any(k in low_all_users for k in _NOT_INTERESTED_PHRASES)
@@ -599,6 +637,7 @@ def _classify_run(txt: str, dispo: Optional[str], nodes_visited: List[str], tran
 
     return {
         "category": category,
+        "machine_answer": machine_answer,
         "result": result,
         "reason": reason,
         "duration": dur,
@@ -670,6 +709,7 @@ async def get_campaign_insights(
                    r.gathered_context->>'call_disposition' as dispo,
                    r.gathered_context->>'transfer_state' as transfer_state,
                    r.gathered_context->'nodes_visited' as nodes_visited,
+                   r.gathered_context->'call_tags' as call_tags,
                    r.campaign_id,
                    r.recording_url as recording_url,
                    r.transcript_url as transcript_url,
@@ -717,7 +757,13 @@ async def get_campaign_insights(
             )
             llm_cfg = await _get_llm_cfg(org_id)
             if llm_cfg:
-                targets = [r for r in to_classify if _needs_llm(texts.get(r["id"], ""))][:_MAX_LLM_PER_REQ]
+                # A machine hang-up recorded by the pipeline is already decided;
+                # keep the per-request LLM budget for the genuinely ambiguous calls.
+                targets = [
+                    r for r in to_classify
+                    if _needs_llm(texts.get(r["id"], ""))
+                    and not _is_machine_answer(r["dispo"], _json_list(r["call_tags"]))
+                ][:_MAX_LLM_PER_REQ]
                 if targets:
                     llm_sem = asyncio.Semaphore(8)
                     res = await asyncio.gather(
@@ -726,13 +772,42 @@ async def get_campaign_insights(
                     cats = {r["id"]: c for r, c in zip(targets, res)}
         pipe = redis.pipeline()
         for r in to_classify:
-            nodes = r["nodes_visited"]
-            if isinstance(nodes, str):
-                try:
-                    nodes = _json.loads(nodes)
-                except Exception:
-                    nodes = []
-            cls = _classify_run(texts.get(r["id"], ""), r["dispo"], nodes or [], r["transfer_state"], category_override=cats.get(r["id"]))
+            cls = _classify_run(
+                texts.get(r["id"], ""),
+                r["dispo"],
+                _json_list(r["nodes_visited"]),
+                r["transfer_state"],
+                category_override=cats.get(r["id"]),
+                call_tags=_json_list(r["call_tags"]),
+            )
+            cached[r["id"]] = cls
+            pipe.set(f"{_CLS_CACHE_PREFIX}{r['id']}", _json.dumps(cls), ex=_CLS_CACHE_TTL)
+        try:
+            await pipe.execute()
+        except Exception as e:
+            logger.warning(f"insights cache write failed: {e}")
+
+    # ---- a machine hang-up recorded after a run was first classified
+    # The cached classification can predate the run's final disposition/tags
+    # (or the rule that reads them). A run the pipeline ended on a machine is
+    # re-derived from its cached transcript so it can never stay counted as a
+    # human, with no transcript refetch.
+    restale = [
+        r for r in completed_rows
+        if r["id"] in cached
+        and not cached[r["id"]].get("machine_answer")
+        and _is_machine_answer(r["dispo"], _json_list(r["call_tags"]))
+    ]
+    if restale:
+        pipe = redis.pipeline()
+        for r in restale:
+            cls = _classify_run(
+                cached[r["id"]].get("transcript") or "",
+                r["dispo"],
+                _json_list(r["nodes_visited"]),
+                r["transfer_state"],
+                call_tags=_json_list(r["call_tags"]),
+            )
             cached[r["id"]] = cls
             pipe.set(f"{_CLS_CACHE_PREFIX}{r['id']}", _json.dumps(cls), ex=_CLS_CACHE_TTL)
         try:
