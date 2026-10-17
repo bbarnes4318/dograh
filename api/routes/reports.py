@@ -665,6 +665,149 @@ async def _fetch_transcript(run_id: int, sem: asyncio.Semaphore, client: _httpx.
             return run_id, ""
 
 
+def _direction(r) -> str:
+    """The side of the call a run belongs to; anything that is not inbound is outbound."""
+    return "inbound" if str(r["direction"] or "").lower() == "inbound" else "outbound"
+
+
+def _summarize_runs(rows, cached: Dict[int, Dict[str, Any]], tz, inbound: bool = False) -> Dict[str, Any]:
+    """Status, funnel, KPIs, outcome/reason breakdowns and coaching insights
+    for one set of runs. Called once for every call, and once per direction."""
+    total = len(rows)
+    active = sum(1 for r in rows if r["state"] == "running")
+    completed_rows = [r for r in rows if r["state"] not in ("running", "queued")]
+
+    # ---- aggregate
+    def _cnt(pred) -> int:
+        return sum(1 for r in completed_rows if r["id"] in cached and pred(cached[r["id"]]))
+
+    connected = _cnt(lambda c: c["category"] != "no_answer")
+    humans = _cnt(lambda c: c["category"] == "human")
+    voicemails = _cnt(lambda c: c["category"] in ("voicemail", "echo"))
+    offers = _cnt(lambda c: c["category"] == "human" and c["reached_offer"])
+    transfers = _cnt(lambda c: c["fired_transfer"])
+    transfers_answered = _cnt(lambda c: c["transfer_answered"])
+
+    outcome_counts: Dict[str, int] = {}
+    reason_counts: Dict[str, int] = {}
+    talk_seconds = 0
+    for r in completed_rows:
+        c = cached.get(r["id"])
+        if not c:
+            continue
+        talk_seconds += c["duration"]
+        if c["category"] == "human":
+            outcome_counts[c["result"]] = outcome_counts.get(c["result"], 0) + 1
+            if c["reason"]:
+                reason_counts[c["reason"]] = reason_counts.get(c["reason"], 0) + 1
+
+    opener_drops = _cnt(lambda c: c["opener_drop"])
+    audio_losses = _cnt(lambda c: c["category"] == "human" and c["audio_issue"])
+    vm_leaks = _cnt(lambda c: c["voicemail_leak"])
+    warm_drops = _cnt(lambda c: c["warm_drop"])
+    silent = _cnt(lambda c: c["category"] == "human" and c["result"] == "Went silent / dead air")
+
+    insights: List[Dict[str, Any]] = []
+    if transfers > 0 and transfers_answered == 0:
+        insights.append({
+            "severity": "critical",
+            "title": "Buyers are not answering transfers",
+            "detail": f"{transfers} interested prospect(s) said YES and were transferred, but 0 were picked up by a buyer. Every transfer is currently lost at the handoff. Staff the buyer lines before the next run.",
+            "count": transfers,
+        })
+    elif transfers > 0 and transfers_answered / transfers < 0.5:
+        insights.append({
+            "severity": "critical",
+            "title": "Most transfers are going unanswered",
+            "detail": f"Only {transfers_answered} of {transfers} transfers were picked up by a buyer. Interested prospects are being lost at the handoff - check buyer line staffing.",
+            "count": transfers - transfers_answered,
+        })
+    elif transfers > 0:
+        insights.append({
+            "severity": "good",
+            "title": "Transfers are connecting",
+            "detail": f"{transfers_answered} of {transfers} transfers were answered by a buyer.",
+            "count": transfers_answered,
+        })
+    if opener_drops:
+        insights.append({
+            "severity": "warn",
+            "title": "Hang-ups during the opener",
+            "detail": f"{opener_drops} human(s) hung up in the first 20 seconds. The conversational opener (workflow v4+) targets exactly this - watch whether this number falls on the next run.",
+            "count": opener_drops,
+        })
+    if audio_losses:
+        insights.append({
+            "severity": "warn",
+            "title": "Audio / connection losses",
+            "detail": f"{audio_losses} human call(s) showed \"can't hear you\" or hello-loops. The instant greeting (v4) removes pickup dead-air; remaining cases point at line quality.",
+            "count": audio_losses,
+        })
+    if warm_drops:
+        insights.append({
+            "severity": "info",
+            "title": "Warm prospects worth a re-dial",
+            "detail": f"{warm_drops} engaged human(s) (30s+ of real conversation, no refusal) dropped mid-call. These are recoverable leads.",
+            "count": warm_drops,
+        })
+    if vm_leaks:
+        insights.append({
+            "severity": "info",
+            "title": "Talking to answering machines",
+            "detail": f"Alex kept talking on {vm_leaks} voicemail(s)/screening bot(s). Tightening machine detection saves talk-time and caller-ID reputation.",
+            "count": vm_leaks,
+        })
+    if silent:
+        insights.append({
+            "severity": "info",
+            "title": "Dead-air endings",
+            "detail": f"{silent} human call(s) ended in silence (prospect stopped responding).",
+            "count": silent,
+        })
+
+    last_call_at = (
+        max(r["created_at"] for r in rows).astimezone(tz).isoformat() if rows else None
+    )
+
+    return {
+        "status": {
+            "active_calls": active,
+            "total_dials": total,
+            "last_call_at": last_call_at,
+        },
+        "funnel": [
+            {"stage": "Calls received" if inbound else "Dials", "count": total},
+            {"stage": "Answered", "count": connected},
+            {"stage": "Humans reached", "count": humans},
+            {"stage": "Reached the offer", "count": offers},
+            {"stage": "Interested (transferred)", "count": transfers},
+            {"stage": "Buyer answered", "count": transfers_answered},
+        ],
+        "kpis": {
+            "dials": total,
+            "answered": connected,
+            "voicemails": voicemails,
+            "humans": humans,
+            "offers": offers,
+            "transfers": transfers,
+            "transfers_answered": transfers_answered,
+            "talk_minutes": round(talk_seconds / 60),
+            "human_rate": round(humans / connected * 100, 1) if connected else 0.0,
+            "offer_rate": round(offers / humans * 100, 1) if humans else 0.0,
+            "transfer_rate": round(transfers / humans * 100, 1) if humans else 0.0,
+        },
+        "outcomes": [
+            {"result": k, "count": v}
+            for k, v in sorted(outcome_counts.items(), key=lambda kv: -kv[1])
+        ],
+        "reasons": [
+            {"reason": k, "count": v}
+            for k, v in sorted(reason_counts.items(), key=lambda kv: -kv[1])
+        ],
+        "insights": insights,
+    }
+
+
 @router.get("/campaign-insights")
 async def get_campaign_insights(
     date: Optional[str] = Query(None, description="Single date YYYY-MM-DD (legacy; use start_date/end_date for a range)"),
@@ -727,8 +870,6 @@ async def get_campaign_insights(
         q += " order by r.created_at"
         rows = (await session.execute(_sql_text(q), params)).mappings().all()
 
-    total = len(rows)
-    active = sum(1 for r in rows if r["state"] == "running")
     completed_rows = [r for r in rows if r["state"] not in ("running", "queued")]
 
     # ---- classification with Redis cache
@@ -831,94 +972,6 @@ async def get_campaign_insights(
         if stored > 0:
             cached[r["id"]] = {**c, "duration": int(round(stored))}
 
-    # ---- aggregate
-    def _cnt(pred) -> int:
-        return sum(1 for r in completed_rows if r["id"] in cached and pred(cached[r["id"]]))
-
-    connected = _cnt(lambda c: c["category"] != "no_answer")
-    humans = _cnt(lambda c: c["category"] == "human")
-    voicemails = _cnt(lambda c: c["category"] in ("voicemail", "echo"))
-    offers = _cnt(lambda c: c["category"] == "human" and c["reached_offer"])
-    transfers = _cnt(lambda c: c["fired_transfer"])
-    transfers_answered = _cnt(lambda c: c["transfer_answered"])
-
-    outcome_counts: Dict[str, int] = {}
-    reason_counts: Dict[str, int] = {}
-    talk_seconds = 0
-    for r in completed_rows:
-        c = cached.get(r["id"])
-        if not c:
-            continue
-        talk_seconds += c["duration"]
-        if c["category"] == "human":
-            outcome_counts[c["result"]] = outcome_counts.get(c["result"], 0) + 1
-            if c["reason"]:
-                reason_counts[c["reason"]] = reason_counts.get(c["reason"], 0) + 1
-
-    opener_drops = _cnt(lambda c: c["opener_drop"])
-    audio_losses = _cnt(lambda c: c["category"] == "human" and c["audio_issue"])
-    vm_leaks = _cnt(lambda c: c["voicemail_leak"])
-    warm_drops = _cnt(lambda c: c["warm_drop"])
-    silent = _cnt(lambda c: c["category"] == "human" and c["result"] == "Went silent / dead air")
-
-    insights: List[Dict[str, Any]] = []
-    if transfers > 0 and transfers_answered == 0:
-        insights.append({
-            "severity": "critical",
-            "title": "Buyers are not answering transfers",
-            "detail": f"{transfers} interested prospect(s) said YES and were transferred, but 0 were picked up by a buyer. Every transfer is currently lost at the handoff. Staff the buyer lines before the next run.",
-            "count": transfers,
-        })
-    elif transfers > 0 and transfers_answered / transfers < 0.5:
-        insights.append({
-            "severity": "critical",
-            "title": "Most transfers are going unanswered",
-            "detail": f"Only {transfers_answered} of {transfers} transfers were picked up by a buyer. Interested prospects are being lost at the handoff - check buyer line staffing.",
-            "count": transfers - transfers_answered,
-        })
-    elif transfers > 0:
-        insights.append({
-            "severity": "good",
-            "title": "Transfers are connecting",
-            "detail": f"{transfers_answered} of {transfers} transfers were answered by a buyer.",
-            "count": transfers_answered,
-        })
-    if opener_drops:
-        insights.append({
-            "severity": "warn",
-            "title": "Hang-ups during the opener",
-            "detail": f"{opener_drops} human(s) hung up in the first 20 seconds. The conversational opener (workflow v4+) targets exactly this - watch whether this number falls on the next run.",
-            "count": opener_drops,
-        })
-    if audio_losses:
-        insights.append({
-            "severity": "warn",
-            "title": "Audio / connection losses",
-            "detail": f"{audio_losses} human call(s) showed \"can't hear you\" or hello-loops. The instant greeting (v4) removes pickup dead-air; remaining cases point at line quality.",
-            "count": audio_losses,
-        })
-    if warm_drops:
-        insights.append({
-            "severity": "info",
-            "title": "Warm prospects worth a re-dial",
-            "detail": f"{warm_drops} engaged human(s) (30s+ of real conversation, no refusal) dropped mid-call. These are recoverable leads.",
-            "count": warm_drops,
-        })
-    if vm_leaks:
-        insights.append({
-            "severity": "info",
-            "title": "Talking to answering machines",
-            "detail": f"Alex kept talking on {vm_leaks} voicemail(s)/screening bot(s). Tightening machine detection saves talk-time and caller-ID reputation.",
-            "count": vm_leaks,
-        })
-    if silent:
-        insights.append({
-            "severity": "info",
-            "title": "Dead-air endings",
-            "detail": f"{silent} human call(s) ended in silence (prospect stopped responding).",
-            "count": silent,
-        })
-
     # ---- per-call rows
     calls: List[Dict[str, Any]] = []
     for r in completed_rows:
@@ -947,9 +1000,15 @@ async def get_campaign_insights(
             "transfer": bool(c["fired_transfer"]),
         })
 
-    last_call_at = (
-        max(r["created_at"] for r in rows).astimezone(tz).isoformat() if rows else None
-    )
+    # The top-level numbers cover every call, as before; each direction also
+    # gets its own full set so inbound is never blended into outbound.
+    summary = _summarize_runs(rows, cached, tz)
+    by_direction = {
+        d: _summarize_runs(
+            [r for r in rows if _direction(r) == d], cached, tz, inbound=(d == "inbound")
+        )
+        for d in ("outbound", "inbound")
+    }
 
     return {
         "date": e_str,
@@ -957,40 +1016,7 @@ async def get_campaign_insights(
         "end_date": e_str,
         "timezone": timezone,
         "generated_at": datetime.now(ZoneInfo("UTC")).isoformat(),
-        "status": {
-            "active_calls": active,
-            "total_dials": total,
-            "last_call_at": last_call_at,
-        },
-        "funnel": [
-            {"stage": "Dials", "count": total},
-            {"stage": "Answered", "count": connected},
-            {"stage": "Humans reached", "count": humans},
-            {"stage": "Reached the offer", "count": offers},
-            {"stage": "Interested (transferred)", "count": transfers},
-            {"stage": "Buyer answered", "count": transfers_answered},
-        ],
-        "kpis": {
-            "dials": total,
-            "answered": connected,
-            "voicemails": voicemails,
-            "humans": humans,
-            "offers": offers,
-            "transfers": transfers,
-            "transfers_answered": transfers_answered,
-            "talk_minutes": round(talk_seconds / 60),
-            "human_rate": round(humans / connected * 100, 1) if connected else 0.0,
-            "offer_rate": round(offers / humans * 100, 1) if humans else 0.0,
-            "transfer_rate": round(transfers / humans * 100, 1) if humans else 0.0,
-        },
-        "outcomes": [
-            {"result": k, "count": v}
-            for k, v in sorted(outcome_counts.items(), key=lambda kv: -kv[1])
-        ],
-        "reasons": [
-            {"reason": k, "count": v}
-            for k, v in sorted(reason_counts.items(), key=lambda kv: -kv[1])
-        ],
-        "insights": insights,
+        **summary,
+        "by_direction": by_direction,
         "calls": calls,
     }
