@@ -212,7 +212,7 @@ class _FakeRedis:
         return _FakePipeline(self.store)
 
 
-def _row(run_id, *, dispo, tags, nodes=None, transfer_state=None):
+def _row(run_id, *, dispo, tags, nodes=None, transfer_state=None, direction="outbound"):
     from datetime import UTC, datetime
 
     return {
@@ -221,7 +221,7 @@ def _row(run_id, *, dispo, tags, nodes=None, transfer_state=None):
         "is_completed": True,
         "created_at": datetime(2026, 10, 16, 14, 0, tzinfo=UTC),
         "phone": f"+1555000{run_id:04d}",
-        "direction": "outbound",
+        "direction": direction,
         "dispo": dispo,
         "transfer_state": transfer_state,
         "nodes_visited": nodes,
@@ -371,3 +371,102 @@ async def test_llm_budget_is_not_spent_on_machine_hangups(insights, monkeypatch)
     assert len(judged) == 1
     assert result["kpis"]["humans"] == 1
     assert result["kpis"]["voicemails"] == 1
+
+
+# ---------------------------------------------------------------------------
+# Inbound and outbound are reported apart
+# ---------------------------------------------------------------------------
+
+
+async def test_inbound_and_outbound_stats_are_reported_apart(insights):
+    rows = [
+        _row(20, dispo="user_hangup", tags=["user_speech"]),
+        _row(21, dispo="user_hangup", tags=["user_speech"]),
+        _row(22, dispo="voicemail_detected", tags=["voicemail_detected"]),
+        _row(23, dispo="user_hangup", tags=["user_speech"], direction="inbound"),
+        _row(
+            24,
+            dispo="transfer_call",
+            tags=[],
+            direction="inbound",
+            transfer_state="completed",
+        ),
+        _row(
+            25,
+            dispo="voicemail_detected",
+            tags=["vm_keyword_guard"],
+            direction="inbound",
+        ),
+    ]
+    texts = {r["id"]: HUMAN_SOUNDING for r in rows}
+    texts[24] = TRANSFER_OFFER_TO_MACHINE
+
+    result = await insights(rows, texts)
+
+    out = result["by_direction"]["outbound"]
+    inb = result["by_direction"]["inbound"]
+
+    assert out["kpis"]["dials"] == 3
+    assert (out["kpis"]["humans"], out["kpis"]["voicemails"]) == (2, 1)
+    assert out["kpis"]["transfers"] == 0
+
+    assert inb["kpis"]["dials"] == 3
+    assert (inb["kpis"]["humans"], inb["kpis"]["voicemails"]) == (2, 1)
+    assert inb["kpis"]["transfers"] == 1
+    assert inb["kpis"]["transfers_answered"] == 1
+
+    # An inbound call is received, not dialed.
+    assert out["funnel"][0] == {"stage": "Dials", "count": 3}
+    assert inb["funnel"][0] == {"stage": "Calls received", "count": 3}
+
+    # Neither side's breakdown sees the other's calls.
+    assert {o["result"] for o in out["outcomes"]} == {"Hung up during convo"}
+    assert sum(o["count"] for o in inb["outcomes"]) == inb["kpis"]["humans"]
+    assert "voicemail_detected" not in json.dumps([out["outcomes"], inb["outcomes"]])
+
+    # The top-level numbers still cover every call, and add up to the two sides.
+    assert result["kpis"]["dials"] == 6
+    for key in (
+        "dials",
+        "answered",
+        "humans",
+        "voicemails",
+        "transfers",
+        "transfers_answered",
+    ):
+        assert result["kpis"][key] == out["kpis"][key] + inb["kpis"][key], key
+    assert result["funnel"][0] == {"stage": "Dials", "count": 6}
+
+    # Each call row says which side it was on.
+    assert {c["run_id"]: c["direction"] for c in result["calls"]} == {
+        20: "Outbound",
+        21: "Outbound",
+        22: "Outbound",
+        23: "Inbound",
+        24: "Inbound",
+        25: "Inbound",
+    }
+
+
+async def test_a_direction_with_no_calls_reports_zeros(insights):
+    result = await insights(
+        [_row(30, dispo="user_hangup", tags=["user_speech"])], {30: HUMAN_SOUNDING}
+    )
+
+    inb = result["by_direction"]["inbound"]
+
+    assert inb["kpis"]["dials"] == 0 and inb["kpis"]["humans"] == 0
+    assert inb["kpis"]["human_rate"] == 0.0
+    assert inb["status"]["last_call_at"] is None
+    assert inb["outcomes"] == [] and inb["insights"] == []
+    assert result["by_direction"]["outbound"]["kpis"]["humans"] == 1
+
+
+@pytest.mark.parametrize("direction", [None, "", "OUTBOUND"])
+async def test_a_call_with_no_clear_direction_counts_as_outbound(insights, direction):
+    rows = [_row(31, dispo="user_hangup", tags=["user_speech"], direction=direction)]
+
+    result = await insights(rows, {31: HUMAN_SOUNDING})
+
+    assert result["by_direction"]["outbound"]["kpis"]["dials"] == 1
+    assert result["by_direction"]["inbound"]["kpis"]["dials"] == 0
