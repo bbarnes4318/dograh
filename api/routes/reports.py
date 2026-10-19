@@ -1,12 +1,16 @@
 import asyncio
+import csv as _csv
+import io as _io
 import json as _json
 import re as _re
+import uuid as _uuid
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 from zoneinfo import ZoneInfo
 
 import httpx as _httpx
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from loguru import logger
 from pydantic import BaseModel
 
@@ -21,6 +25,7 @@ from api.services.reports.conversion_analytics import (
 from api.services.campaign.rate_limiter import rate_limiter
 from api.services.reports import DailyReportService
 from api.services.storage import storage_fs
+from api.utils.artifacts import artifact_url
 
 router = APIRouter(prefix="/organizations/reports")
 
@@ -842,6 +847,7 @@ async def get_campaign_insights(
     org_id = user.selected_organization_id
 
     # ---- pull the day's runs (raw SQL via the async engine already configured)
+    from sqlalchemy import bindparam as _bindparam
     from sqlalchemy import text as _sql_text
 
     async with db_client.async_session() as session:
@@ -856,6 +862,7 @@ async def get_campaign_insights(
                    r.campaign_id,
                    r.recording_url as recording_url,
                    r.transcript_url as transcript_url,
+                   r.public_access_token as public_token,
                    r.usage_info->>'call_duration_seconds' as stored_duration
             from workflow_runs r
             join workflows w on w.id = r.workflow_id
@@ -972,6 +979,39 @@ async def get_campaign_insights(
         if stored > 0:
             cached[r["id"]] = {**c, "duration": int(round(stored))}
 
+    # ---- shareable recording links for transfers
+    # A transfer is the call people want to hand to a buyer or a manager, so
+    # each one with a recording gets a public token (the same login-free link
+    # the run reports use). Other calls keep whatever token they already have.
+    tokens: Dict[int, str] = {r["id"]: r["public_token"] for r in completed_rows if r["public_token"]}
+    to_mint = [
+        r["id"] for r in completed_rows
+        if r["recording_url"]
+        and r["id"] not in tokens
+        and cached.get(r["id"], {}).get("fired_transfer")
+    ]
+    if to_mint:
+        minted = {rid: str(_uuid.uuid4()) for rid in to_mint}
+        try:
+            async with db_client.async_session() as session:
+                await session.execute(
+                    _sql_text(
+                        "update workflow_runs set public_access_token = :tok "
+                        "where id = :id and public_access_token is null"
+                    ),
+                    [{"id": rid, "tok": tok} for rid, tok in minted.items()],
+                )
+                await session.commit()
+                stored = await session.execute(
+                    _sql_text(
+                        "select id, public_access_token from workflow_runs where id in :ids"
+                    ).bindparams(_bindparam("ids", expanding=True)),
+                    {"ids": to_mint},
+                )
+                tokens.update({row[0]: row[1] for row in stored if row[1]})
+        except Exception as e:
+            logger.warning(f"insights recording-link token mint failed: {e}")
+
     # ---- per-call rows
     calls: List[Dict[str, Any]] = []
     for r in completed_rows:
@@ -995,6 +1035,9 @@ async def get_campaign_insights(
             "result": c["result"],
             "reason": c["reason"],
             "recording_url": r["recording_url"],
+            "recording_link": (
+                artifact_url(tokens.get(r["id"]), "recording") if r["recording_url"] else None
+            ),
             "transcript_url": r["transcript_url"],
             "transcript": txt,
             "transfer": bool(c["fired_transfer"]),
@@ -1020,3 +1063,44 @@ async def get_campaign_insights(
         "by_direction": by_direction,
         "calls": calls,
     }
+
+
+@router.get("/campaign-insights/transfers.csv")
+async def download_transfer_calls_csv(
+    start_date: str = Query(..., description="Range start YYYY-MM-DD (inclusive)"),
+    end_date: str = Query(..., description="Range end YYYY-MM-DD (inclusive)"),
+    timezone: str = Query("America/New_York", description="IANA timezone"),
+    workflow_id: Optional[int] = Query(None),
+    user: UserModel = Depends(get_user),
+) -> StreamingResponse:
+    """The transferred calls for a date range as a CSV, each with a recording
+    link that plays without a login, ready to hand to someone else."""
+    data = await get_campaign_insights(
+        date=None,
+        start_date=start_date,
+        end_date=end_date,
+        timezone=timezone,
+        workflow_id=workflow_id,
+        user=user,
+    )
+    output = _io.StringIO()
+    writer = _csv.writer(output)
+    writer.writerow([
+        "run_id", "time", "phone", "direction", "duration_sec",
+        "who_answered", "result", "reason", "recording_link", "transcript",
+    ])
+    for c in data["calls"]:
+        if not c["transfer"]:
+            continue
+        writer.writerow([
+            c["run_id"], c["time"], c["phone"], c["direction"], c["duration"],
+            c["category"], c["result"], c["reason"] or "", c["recording_link"] or "",
+            c["transcript"],
+        ])
+    output.seek(0)
+    filename = f"calls_{start_date}_to_{end_date}_transfers.csv"
+    return StreamingResponse(
+        output,
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
