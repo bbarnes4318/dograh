@@ -33,7 +33,11 @@ def _start(ws, session_id: str):
             "session_id": session_id,
             "model": "native-fast",
             "voice_id": "test",
-            "output": {"encoding": "pcm_s16le", "sample_rate": 8000, "channels": 1},
+            "output": {
+                "encoding": "pcm_s16le",
+                "sample_rate": 8000,
+                "channels": 1,
+            },
         }
     )
     assert ws.receive_json()["type"] == "ready"
@@ -59,35 +63,48 @@ def test_websocket_queues_multiple_tts_chunks_in_order(tmp_path):
 
 def test_cancel_all_drops_active_and_queued_speech(tmp_path, monkeypatch):
     app = create_app(settings(tmp_path))
-    original = app.state.backend.synthesize
+    original = app.state.backend.stream_synthesize
 
-    def slow_synthesize(**kwargs):
-        time_module.sleep(0.08)
-        return original(**kwargs)
+    def slow_stream_synthesize(**kwargs):
+        for chunk in original(**kwargs):
+            time_module.sleep(0.03)
+            yield chunk
 
-    monkeypatch.setattr(app.state.backend, "synthesize", slow_synthesize)
+    monkeypatch.setattr(app.state.backend, "stream_synthesize", slow_stream_synthesize)
 
     with TestClient(app) as client:
         with client.websocket_connect(
             "/v1/tts/ws", headers={"Authorization": "Bearer secret"}
         ) as ws:
             _start(ws, "call-cancel")
-            ws.send_json({"type": "text", "turn_id": "old-active", "text": "Old active."})
-            ws.send_json({"type": "text", "turn_id": "old-queued", "text": "Old queued."})
+            ws.send_json(
+                {"type": "text", "turn_id": "old-active", "text": "Old active response long enough."}
+            )
+            ws.send_json(
+                {"type": "text", "turn_id": "old-queued", "text": "Old queued."}
+            )
 
             while True:
                 event = ws.receive_json()
-                if event.get("type") == "turn_started" and event.get("turn_id") == "old-active":
+                if (
+                    event.get("type") == "turn_started"
+                    and event.get("turn_id") == "old-active"
+                ):
                     break
 
             ws.send_json({"type": "cancel_all"})
             while True:
-                event = ws.receive_json()
+                message = ws.receive()
+                if message.get("bytes") is not None:
+                    continue
+                event = json.loads(message["text"])
                 if event.get("type") == "cancelled_all":
                     assert event["count"] >= 1
                     break
 
-            ws.send_json({"type": "text", "turn_id": "fresh", "text": "Fresh response."})
+            ws.send_json(
+                {"type": "text", "turn_id": "fresh", "text": "Fresh response."}
+            )
             events, _ = _recv_events_until(ws, "turn_done", "fresh")
             assert not any(
                 e.get("type") == "turn_started" and e.get("turn_id") == "old-queued"
@@ -97,3 +114,20 @@ def test_cancel_all_drops_active_and_queued_speech(tmp_path, monkeypatch):
                 e.get("type") == "turn_done" and e.get("turn_id") == "old-active"
                 for e in events
             )
+
+
+def test_metrics_record_streaming_first_audio(tmp_path):
+    app = create_app(settings(tmp_path))
+    with TestClient(app) as client:
+        with client.websocket_connect(
+            "/v1/tts/ws", headers={"Authorization": "Bearer secret"}
+        ) as ws:
+            _start(ws, "metrics")
+            ws.send_json({"type": "text", "turn_id": "m1", "text": "Measure me."})
+            _recv_events_until(ws, "turn_done", "m1")
+
+        response = client.get("/metrics")
+        assert response.status_code == 200
+        body = response.text
+        assert "hopvoice_streaming_requests_total 1" in body
+        assert "hopvoice_first_audio_observations_total 1" in body

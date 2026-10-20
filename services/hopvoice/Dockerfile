@@ -11,7 +11,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 COPY pyproject.toml ./
 COPY hopvoice ./hopvoice
-RUN python3 -m pip install --break-system-packages --no-cache-dir ".[qwen]"
+
+# qwen-streaming is the reproducible low-TTFA runtime. Set
+# --build-arg HOPVOICE_QWEN_EXTRA=qwen to build against the official
+# full-waveform wrapper instead.
+ARG HOPVOICE_QWEN_EXTRA=qwen-streaming
+RUN python3 -m pip install --break-system-packages --no-cache-dir ".[${HOPVOICE_QWEN_EXTRA}]"
 
 RUN useradd --create-home --uid 10001 hopvoice
 USER hopvoice

@@ -21,6 +21,7 @@ def settings(tmp_path: Path) -> Settings:
         output_sample_rate=24000,
         audio_chunk_ms=20,
         max_concurrency=1,
+        streaming_enabled=True,
     )
 
 
@@ -34,7 +35,7 @@ def test_openai_compatible_pcm_endpoint(tmp_path):
                 "model": "native-fast",
                 "input": "Hello there.",
                 "voice": "test",
-                "response_format": "pcm"
+                "response_format": "pcm",
             },
         )
     assert response.status_code == 200
@@ -66,14 +67,28 @@ def test_websocket_protocol_streams_binary_pcm(tmp_path):
                     "session_id": "call-1",
                     "model": "native-fast",
                     "voice_id": "test",
-                    "output": {"encoding": "pcm_s16le", "sample_rate": 8000, "channels": 1},
+                    "output": {
+                        "encoding": "pcm_s16le",
+                        "sample_rate": 8000,
+                        "channels": 1,
+                    },
                 }
             )
-            assert ws.receive_json()["type"] == "ready"
+            ready = ws.receive_json()
+            assert ready["type"] == "ready"
+            assert ready["streaming_enabled"] is True
+            assert ready["streaming_available"] is True
+
             ws.send_json({"type": "text", "turn_id": "turn-1", "text": "Hello."})
             assert ws.receive_json()["type"] == "turn_started"
-            assert ws.receive_json()["type"] == "audio_meta"
+
+            meta = ws.receive_json()
+            assert meta["type"] == "audio_meta"
+            assert meta["streaming"] is True
+            assert meta["first_audio_ms"] is not None
+
             binary_frames = 0
+            done = None
             while True:
                 message = ws.receive()
                 if message.get("bytes") is not None:
@@ -84,5 +99,10 @@ def test_websocket_protocol_streams_binary_pcm(tmp_path):
                 assert payload is not None
                 event = json.loads(payload)
                 if event["type"] == "turn_done":
+                    done = event
                     break
+
             assert binary_frames > 0
+            assert done["streaming"] is True
+            assert done["generation_ms"] >= meta["first_audio_ms"]
+            assert done["generated_audio_ms"] > 0

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hopwhistle-hopvoice"
-version = "0.2.0"
+version = "0.3.0"
 description = "Hopwhistle first-party neural voice inference service"
 requires-python = ">=3.11"
 dependencies = [
@@ -17,6 +17,11 @@ dependencies = [
 [project.optional-dependencies]
 qwen = [
   "qwen-tts==0.1.1",
+  "torch>=2.6",
+  "torchaudio>=2.6",
+]
+qwen-streaming = [
+  "qwen-tts @ git+https://github.com/rekuenkdr/Qwen3-TTS-streaming.git@b8db6ff1cebc0d6554cf0977045850bcc796b383",
   "torch>=2.6",
   "torchaudio>=2.6",
 ]
