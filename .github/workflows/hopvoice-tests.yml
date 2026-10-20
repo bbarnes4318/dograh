@@ -1,0 +1,38 @@
+name: Hopvoice tests
+
+on:
+  pull_request:
+    paths:
+      - 'services/hopvoice/**'
+      - 'api/services/pipecat/hopvoice_tts.py'
+      - '.github/workflows/hopvoice-tests.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'services/hopvoice/**'
+      - 'api/services/pipecat/hopvoice_tts.py'
+      - '.github/workflows/hopvoice-tests.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  no-gpu-contract-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: services/hopvoice/pyproject.toml
+      - name: Install Hopvoice test dependencies
+        run: python -m pip install -e 'services/hopvoice[test]'
+      - name: Compile service and native adapter
+        run: |
+          python -m compileall -q services/hopvoice/hopvoice services/hopvoice/tests
+          python -m py_compile api/services/pipecat/hopvoice_tts.py
+      - name: Run Hopvoice no-GPU tests
+        working-directory: services/hopvoice
+        run: python -m pytest -q
