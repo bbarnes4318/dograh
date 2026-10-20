@@ -73,10 +73,10 @@ nice -n 10 docker buildx build \
     "$SRC_DIR"
 log "built $TAG in $(( ($(date +%s) - started) / 60 )) min"
 
-# ---- sanity: the image carries the expected migration head ------------------
-heads="$(docker run --rm --entrypoint sh "$TAG" -c \
-    'grep -l "down_revision = \"'"$OLD_ALEMBIC_HEAD"'\"" /app/api/alembic/versions/*.py | xargs -n1 basename')"
-[[ "$heads" == "${NEW_ALEMBIC_HEAD}_"* ]] || die "unexpected migration after $OLD_ALEMBIC_HEAD in $TAG: $heads"
-log "image migrations ok ($OLD_ALEMBIC_HEAD -> $NEW_ALEMBIC_HEAD)"
+# ---- sanity: the image's migrations form one valid graph -------------------
+# Read statically from a created-but-never-started container, so this cannot
+# run the image's startup migration. Which revision the database moves to is
+# decided per box by `cutover_plan.py plan`, from this same image.
+planner graph --image "$TAG" || die "$TAG has an invalid migration graph (see above)"
 echo
-echo "NEXT: sudo bash 2_cutover.sh $SHORT_SHA"
+echo "NEXT: sudo bash 2_cutover.sh $SHORT_SHA   (or update_api.sh on a box already cut over)"

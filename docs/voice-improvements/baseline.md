@@ -17,6 +17,15 @@ Paths are repository-relative: `dograh:` = `bbarnes4318/dograh`, `hw:` = `bbarne
 
 Redaction rule: this document records env var **names** and file paths only. It does not record secrets, phone numbers, IP addresses, customer data, or transcripts.
 
+> **Task 0A update (2026-10-20).** This baseline describes the source at `9bf1485`. Task 0A changes four things described here, in source only (nothing is deployed):
+>
+> - the cutover tooling (§10.5);
+> - ARI trunk/dial settings, ported from the patch kits (§10.4);
+> - an explicit transfer-destination policy (§3.1);
+> - a read-only inventory collector that replaces most of the §12 commands.
+>
+> See `implementation-status.md`, prerequisite 0A.
+
 ---
 
 ## 1. Revisions audited
@@ -620,7 +629,7 @@ All Hoppwhistle `deploy/dograh` kits and dograh `deploy/hopwhistle` scripts, com
 | dograh `apply_inception_patch.py` | in-place edit + `docker exec cat` seeding | registry, check_validity, service_factory, realtime_feedback_observer, qa/llm_config | Yes |
 | dograh `apply_insights_duration_patch.py`, `apply_machine_answer_patch.py` | staged `reports.py` mount | `api/routes/reports.py` | Yes |
 | hw `patches/{rate_limiter,campaign_call_dispatcher}.py` + `areacode_state.py` | scp + manual read-only mounts | `services/campaign/*` | Mostly. Source is **newer** (rate-limiter day cap, `allowed_numbers`). **The forced shared transfer DID is not in source.** A mount would hide newer source. |
-| hw `ari-trunk/apply_ari_trunk_patch.py`, `apply_caller_trunk_patch.py`, `vonage-trunk/setup_vonage.py` | `docker cp` out, patch, mount `provider.py` | `providers/ari/provider.py` | **No.** Source uses `ARI_PJSIP_DEFAULT_TRUNK` and has none of `DOGRAH_ARI_TRUNK`, `DOGRAH_ARI_TRANSFER_TRUNK`, `DOGRAH_ARI_DIAL_PREFIX`, `DOGRAH_ARI_DIAL_FORMAT`, `DOGRAH_ARI_CALLER_TRUNKS`, `Local/` passthrough, or markers `HOPWHISTLE_ARI_TRUNK_V1..V3` / `HOPWHISTLE_ARI_CALLER_TRUNK_V1`. |
+| hw `ari-trunk/apply_ari_trunk_patch.py`, `apply_caller_trunk_patch.py`, `vonage-trunk/setup_vonage.py` | `docker cp` out, patch, mount `provider.py` | `providers/ari/provider.py` | **No at `9bf1485`; ported by 0A** behind `ARI_PJSIP_TRANSFER_TRUNK`, `ARI_DIAL_ANY_TECHNOLOGY`, `ARI_DIAL_PREFIX`, `ARI_DIAL_FORMAT`, `ARI_CALLER_TRUNKS` (all off by default). At `9bf1485`, source used `ARI_PJSIP_DEFAULT_TRUNK` and had none of `DOGRAH_ARI_TRUNK`, `DOGRAH_ARI_TRANSFER_TRUNK`, `DOGRAH_ARI_DIAL_PREFIX`, `DOGRAH_ARI_DIAL_FORMAT`, `DOGRAH_ARI_CALLER_TRUNKS`, `Local/` passthrough, or markers `HOPWHISTLE_ARI_TRUNK_V1..V3` / `HOPWHISTLE_ARI_CALLER_TRUNK_V1`. |
 | hw `fish-tts` | staged files + 4 mounts | registry, service_factory, check_validity, new `fish_msgpack_shim.py` | Yes (`HOPWHISTLE_FISH_TTS_V1`) |
 | hw `transfer-duration-hotfix` | `docker cp` out, patch, mount | `pipecat_engine_callbacks.py`, `pipecat_engine_custom_tools.py` | Yes (`HOPWHISTLE_TRANSFER_DURATION_HOTFIX_V1`) |
 | hw `runs-page-speedup` | patch + mount; indexes via `docker exec` | `api/db/{workflow_run,campaign,organization_usage}_client.py` | Yes, done differently (`filters.workflow_run_list_load_options`; migration `c3f9a1d7e4b2`). The indexes have different names, so duplicates are possible if both were applied. |
@@ -638,7 +647,13 @@ TOOLING, not applied by this audit.
   2. fail its own head check (`2_cutover.sh:121`);
   3. auto-roll back the image while leaving the extra schema changes in place.
 - `gen_override.py` also drops the `provider.py` mount but keeps the `DOGRAH_ARI_*` env vars, which source ignores. Trunk prefixes and per-caller-ID trunk routing would silently stop.
-- **This must be fixed before any cutover.** It is tracked in the status document.
+- **This must be fixed before any cutover.** Task 0A fixes it in source (`deploy/hopwhistle/cutover/`):
+  - the head is read from the target image;
+  - mounts are checked against `mount_manifest.json`;
+  - patch-only ARI and transfer behavior is carried over as explicit settings;
+  - a failure after migrating holds instead of auto-rolling-back.
+
+  None of this has been run on the box.
 
 ### 10.6 Override layers, in order of effect
 
@@ -676,6 +691,8 @@ TOOLING, not applied by this audit.
 ---
 
 ## 12. Read-only server verification checklist (redacted)
+
+**Prefer the collector.** `deploy/hopwhistle/inventory/collect_inventory.py` (Task 0A) gathers sections A–G with allowlisted output. It reports secret parity as match/mismatch/missing, and it never prints values, hashes or cron command lines. The commands below remain for manual spot checks.
 
 **Rules for running these checks:**
 - Run them as an operator with read access.
@@ -807,18 +824,18 @@ for n in AIVOICE_URL AIVOICE_JWT_SECRET AIVOICE_COOKIE_DOMAIN AIVOICE_DEFAULT_US
          DOGRAH_QUALITY_INGEST_SECRET CALL_QUALITY_ENABLED CALL_QUALITY_PROVIDER CALL_QUALITY_MODEL; do
   docker exec hopwhistle-api sh -c "[ -n \"\${$n+x}\" ] && echo $n=set || echo $n=unset"
 done
-# JWT secret parity without revealing either value: compare sha256 on each box
-docker exec hopwhistle-api sh -c 'printf %s "$AIVOICE_JWT_SECRET" | sha256sum | cut -c1-12'
-docker exec dograh-api-1   sh -c 'printf %s "$OSS_JWT_SECRET"     | sha256sum | cut -c1-12'
-# Is the quality bridge scheduled?
-crontab -l 2>/dev/null | grep -n push_runs; systemctl list-timers 2>/dev/null | grep -i -E 'dograh|quality'
+# JWT secret parity: use the collector (prints only match/mismatch/missing; never a hash):
+#   sudo python3 deploy/hopwhistle/inventory/collect_inventory.py --hoppwhistle-api-container hopwhistle-api
+# Is the quality bridge scheduled? (counts only; never print cron command lines)
+crontab -l 2>/dev/null | grep -c push_runs; systemctl list-timers 2>/dev/null | grep -ci -E 'dograh|quality'
 ```
 
 ```sql
 -- Hoppwhistle DB (read-only)
-SELECT "sourceType", count(*) FROM "ExternalAgentBinding" GROUP BY 1;
-SELECT count(*) FROM "CallQualityQuarantine";
-SELECT max("createdAt") FROM "ExternalCallRecord";
+-- Prisma models map to snake_case tables (@@map); columns keep their camelCase names.
+SELECT "sourceType", active, count(*) FROM external_agent_bindings GROUP BY 1, 2;
+SELECT count(*) FROM call_quality_quarantine WHERE "resolvedAt" IS NULL;
+SELECT max("receivedAt")::date FROM external_call_records;
 ```
 
 ### G. Front door

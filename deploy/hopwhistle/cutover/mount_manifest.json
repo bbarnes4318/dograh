@@ -1,0 +1,941 @@
+{
+  "version": 1,
+  "about": "Compatibility manifest for files bind-mounted over the dograh-api image on the hopwhistle box. Every mount on the api service must have an entry here, or the cutover plan blocks. A variant is recognised when every 'detect' regex matches the mounted file. Each behavior it carries must be present in the target image ('evidence', checked in the image itself) and, where status is 'config', reproduced by the environment the planner derives. 'requires_ack' variants are recognised by heuristics only: the operator must review the diff (cutover_plan.py diff) and acknowledge the mounted file's sha256. See README.md, 'Mount compatibility'.",
+  "mounts": {
+    "/app/api/services/telephony/providers/ari/provider.py": {
+      "kits": [
+        "hoppwhistle deploy/dograh/ari-trunk",
+        "hoppwhistle deploy/dograh/vonage-trunk/setup_vonage.py",
+        "box-local edits read by the old 2_cutover.sh"
+      ],
+      "action": "remove_when_preserved",
+      "variants": [
+        {
+          "id": "ari_trunk_patch_v1",
+          "detect": [
+            "HOPWHISTLE_ARI_TRUNK_V1"
+          ],
+          "behaviors": [
+            "ari_trunk_from_patch_env",
+            "ari_any_technology"
+          ]
+        },
+        {
+          "id": "ari_dial_prefix_v2",
+          "detect": [
+            "HOPWHISTLE_ARI_DIAL_PREFIX_V2"
+          ],
+          "behaviors": [
+            "ari_dial_prefix"
+          ]
+        },
+        {
+          "id": "ari_dial_format_v3",
+          "detect": [
+            "HOPWHISTLE_ARI_DIAL_FORMAT_V3"
+          ],
+          "behaviors": [
+            "ari_dial_format"
+          ]
+        },
+        {
+          "id": "ari_caller_trunk_v1",
+          "detect": [
+            "HOPWHISTLE_ARI_CALLER_TRUNK_V1"
+          ],
+          "behaviors": [
+            "ari_caller_trunks"
+          ]
+        },
+        {
+          "id": "stock_hardcoded_trunk",
+          "detect": [
+            "f\"PJSIP/\\{to_number\\}@[A-Za-z0-9_.-]+\""
+          ],
+          "behaviors": [
+            "ari_literal_trunk"
+          ],
+          "requires_ack": true
+        },
+        {
+          "id": "fork_default_trunk",
+          "detect": [
+            "def _pjsip_endpoint\\(",
+            "ARI_PJSIP_DEFAULT_TRUNK"
+          ],
+          "behaviors": [
+            "ari_env_default_trunk"
+          ]
+        },
+        {
+          "id": "transfer_caller_id_literal",
+          "detect": [
+            "kwargs\\.get\\(\"caller_id\"\\)\\s*or\\s*\"\\+?\\d+\""
+          ],
+          "behaviors": [
+            "ari_transfer_caller_id_literal"
+          ],
+          "requires_ack": true
+        },
+        {
+          "id": "transfer_caller_id_env",
+          "detect": [
+            "ARI_TRANSFER_DEFAULT_CALLER_ID"
+          ],
+          "behaviors": [
+            "ari_transfer_caller_id_env"
+          ]
+        }
+      ],
+      "exclusive": [
+        [
+          "ari_trunk_patch_v1",
+          "fork_default_trunk"
+        ],
+        [
+          "ari_caller_trunk_v1",
+          "stock_hardcoded_trunk"
+        ],
+        [
+          "ari_caller_trunk_v1",
+          "ari_trunk_patch_v1"
+        ],
+        [
+          "ari_trunk_patch_v1",
+          "stock_hardcoded_trunk"
+        ]
+      ],
+      "require_one_of": [
+        "ari_trunk_patch_v1",
+        "stock_hardcoded_trunk",
+        "fork_default_trunk"
+      ]
+    },
+    "/app/api/services/campaign/campaign_call_dispatcher.py": {
+      "kits": [
+        "hoppwhistle deploy/dograh/patches/campaign_call_dispatcher.py",
+        "box-local edits read by the old 2_cutover.sh"
+      ],
+      "action": "remove_when_preserved",
+      "variants": [
+        {
+          "id": "forced_shared_did",
+          "detect": [
+            "SHARED_TRANSFER_DID\\s*="
+          ],
+          "behaviors": [
+            "transfer_forced_shared_did"
+          ]
+        },
+        {
+          "id": "context_then_literal",
+          "detect": [
+            "\"transfer_destination\":\\s*\\((?:[^\\n]*\\n){0,4}?[^\\n]*\"\\+?\\d{7,}\""
+          ],
+          "behaviors": [
+            "transfer_context_then_literal"
+          ],
+          "requires_ack": true
+        },
+        {
+          "id": "source_resolver",
+          "detect": [
+            "def resolve_transfer_destination\\("
+          ],
+          "behaviors": [
+            "transfer_context_first"
+          ]
+        },
+        {
+          "id": "state_caller_id_kit",
+          "detect": [
+            "NO_CALLER_ID_AVAILABLE_FOR_DESTINATION_STATE"
+          ],
+          "behaviors": [
+            "state_caller_id"
+          ]
+        }
+      ],
+      "exclusive": [
+        [
+          "forced_shared_did",
+          "context_then_literal"
+        ],
+        [
+          "forced_shared_did",
+          "source_resolver"
+        ]
+      ],
+      "require_one_of": [
+        "forced_shared_did",
+        "context_then_literal",
+        "source_resolver"
+      ]
+    },
+    "/app/api/services/campaign/rate_limiter.py": {
+      "kits": [
+        "hoppwhistle deploy/dograh/patches/rate_limiter.py"
+      ],
+      "action": "remove_when_preserved",
+      "variants": [
+        {
+          "id": "state_caller_id_kit",
+          "detect": [
+            "allowed_numbers"
+          ],
+          "behaviors": [
+            "caller_id_allowed_numbers"
+          ]
+        }
+      ],
+      "require_one_of": [
+        "state_caller_id_kit"
+      ]
+    },
+    "/app/api/services/campaign/areacode_state.py": {
+      "kits": [
+        "hoppwhistle deploy/dograh/areacode_state.py"
+      ],
+      "action": "remove_when_preserved",
+      "variants": [
+        {
+          "id": "areacode_map",
+          "detect": [
+            "def state_for_number\\("
+          ],
+          "behaviors": [
+            "areacode_state"
+          ]
+        }
+      ],
+      "require_one_of": [
+        "areacode_map"
+      ]
+    },
+    "/app/api/services/workflow/pipecat_engine_callbacks.py": {
+      "kits": [
+        "hoppwhistle deploy/dograh/transfer-duration-hotfix"
+      ],
+      "action": "remove_when_preserved",
+      "variants": [
+        {
+          "id": "transfer_duration_hotfix",
+          "detect": [
+            "HOPWHISTLE_TRANSFER_DURATION_HOTFIX_V1"
+          ],
+          "behaviors": [
+            "transfer_duration_hotfix_callbacks"
+          ]
+        }
+      ],
+      "require_one_of": [
+        "transfer_duration_hotfix"
+      ]
+    },
+    "/app/api/services/workflow/pipecat_engine_custom_tools.py": {
+      "kits": [
+        "hoppwhistle deploy/dograh/transfer-duration-hotfix"
+      ],
+      "action": "remove_when_preserved",
+      "variants": [
+        {
+          "id": "transfer_duration_hotfix",
+          "detect": [
+            "HOPWHISTLE_TRANSFER_DURATION_HOTFIX_V1"
+          ],
+          "behaviors": [
+            "transfer_duration_hotfix_tools"
+          ]
+        }
+      ],
+      "require_one_of": [
+        "transfer_duration_hotfix"
+      ]
+    },
+    "/app/api/services/configuration/registry.py": {
+      "kits": [
+        "hoppwhistle deploy/dograh/fish-tts",
+        "dograh deploy/hopwhistle/apply_inception_patch.py"
+      ],
+      "action": "remove_when_preserved",
+      "variants": [
+        {
+          "id": "fish_tts",
+          "detect": [
+            "HOPWHISTLE_FISH_TTS_V1"
+          ],
+          "behaviors": [
+            "fish_tts_registry"
+          ]
+        },
+        {
+          "id": "inception",
+          "detect": [
+            "InceptionLLMConfiguration"
+          ],
+          "behaviors": [
+            "inception_registry"
+          ]
+        }
+      ],
+      "require_one_of": [
+        "fish_tts",
+        "inception"
+      ]
+    },
+    "/app/api/services/pipecat/service_factory.py": {
+      "kits": [
+        "hoppwhistle deploy/dograh/fish-tts",
+        "dograh deploy/hopwhistle/apply_inception_patch.py"
+      ],
+      "action": "remove_when_preserved",
+      "variants": [
+        {
+          "id": "fish_tts",
+          "detect": [
+            "HOPWHISTLE_FISH_TTS_V1"
+          ],
+          "behaviors": [
+            "fish_tts_factory"
+          ]
+        },
+        {
+          "id": "inception",
+          "detect": [
+            "DograhInceptionLLMService"
+          ],
+          "behaviors": [
+            "inception_factory"
+          ]
+        }
+      ],
+      "require_one_of": [
+        "fish_tts",
+        "inception"
+      ]
+    },
+    "/app/api/services/configuration/check_validity.py": {
+      "kits": [
+        "hoppwhistle deploy/dograh/fish-tts",
+        "dograh deploy/hopwhistle/apply_inception_patch.py"
+      ],
+      "action": "remove_when_preserved",
+      "variants": [
+        {
+          "id": "fish_tts",
+          "detect": [
+            "HOPWHISTLE_FISH_TTS_V1"
+          ],
+          "behaviors": [
+            "fish_tts_validity"
+          ]
+        },
+        {
+          "id": "inception",
+          "detect": [
+            "_check_inception_api_key"
+          ],
+          "behaviors": [
+            "inception_validity"
+          ]
+        }
+      ],
+      "require_one_of": [
+        "fish_tts",
+        "inception"
+      ]
+    },
+    "/app/api/services/pipecat/fish_msgpack_shim.py": {
+      "kits": [
+        "hoppwhistle deploy/dograh/fish-tts"
+      ],
+      "action": "remove_when_preserved",
+      "variants": [
+        {
+          "id": "fish_shim",
+          "detect": [
+            "ormsgpack"
+          ],
+          "behaviors": [
+            "fish_tts_shim"
+          ]
+        }
+      ],
+      "require_one_of": [
+        "fish_shim"
+      ]
+    },
+    "/app/api/services/pipecat/realtime_feedback_observer.py": {
+      "kits": [
+        "dograh deploy/hopwhistle/apply_inception_patch.py"
+      ],
+      "action": "remove_when_preserved",
+      "variants": [
+        {
+          "id": "inception",
+          "detect": [
+            "LLM_TTFT_LOG_TAG"
+          ],
+          "behaviors": [
+            "inception_ttft_log"
+          ]
+        }
+      ],
+      "require_one_of": [
+        "inception"
+      ]
+    },
+    "/app/api/services/workflow/qa/llm_config.py": {
+      "kits": [
+        "dograh deploy/hopwhistle/apply_inception_patch.py"
+      ],
+      "action": "remove_when_preserved",
+      "variants": [
+        {
+          "id": "inception",
+          "detect": [
+            "INCEPTION"
+          ],
+          "behaviors": [
+            "inception_qa"
+          ]
+        }
+      ],
+      "require_one_of": [
+        "inception"
+      ]
+    },
+    "/app/api/db/workflow_run_client.py": {
+      "kits": [
+        "dograh deploy/hopwhistle/apply_call_duration_patch.py",
+        "hoppwhistle deploy/dograh/runs-page-speedup"
+      ],
+      "action": "remove_when_preserved",
+      "variants": [
+        {
+          "id": "call_duration",
+          "detect": [
+            "telephony_duration_from_callbacks|call_duration"
+          ],
+          "behaviors": [
+            "call_duration_client"
+          ]
+        },
+        {
+          "id": "runs_page_speedup",
+          "detect": [
+            "HOPWHISTLE_RUNS_PAGE_SPEEDUP_V1"
+          ],
+          "behaviors": [
+            "runs_page_deferred_columns"
+          ]
+        }
+      ],
+      "require_one_of": [
+        "call_duration",
+        "runs_page_speedup"
+      ]
+    },
+    "/app/api/services/workflow/call_duration.py": {
+      "kits": [
+        "dograh deploy/hopwhistle/apply_call_duration_patch.py"
+      ],
+      "action": "remove_when_preserved",
+      "variants": [
+        {
+          "id": "call_duration",
+          "detect": [
+            "telephony_duration"
+          ],
+          "behaviors": [
+            "call_duration_module"
+          ]
+        }
+      ],
+      "require_one_of": [
+        "call_duration"
+      ]
+    },
+    "/app/api/routes/reports.py": {
+      "kits": [
+        "dograh deploy/hopwhistle/apply_insights_duration_patch.py",
+        "dograh deploy/hopwhistle/apply_machine_answer_patch.py"
+      ],
+      "action": "remove_when_preserved",
+      "variants": [
+        {
+          "id": "insights_duration",
+          "detect": [
+            "stored_duration"
+          ],
+          "behaviors": [
+            "insights_duration"
+          ]
+        },
+        {
+          "id": "machine_answer",
+          "detect": [
+            "_is_machine_answer"
+          ],
+          "behaviors": [
+            "insights_machine_answer"
+          ]
+        }
+      ],
+      "require_one_of": [
+        "insights_duration",
+        "machine_answer"
+      ]
+    },
+    "/app/api/db/campaign_client.py": {
+      "kits": [
+        "hoppwhistle deploy/dograh/runs-page-speedup"
+      ],
+      "action": "remove_when_preserved",
+      "variants": [
+        {
+          "id": "runs_page_speedup",
+          "detect": [
+            "HOPWHISTLE_RUNS_PAGE_SPEEDUP_V1"
+          ],
+          "behaviors": [
+            "runs_page_deferred_columns"
+          ]
+        }
+      ],
+      "require_one_of": [
+        "runs_page_speedup"
+      ]
+    },
+    "/app/api/db/organization_usage_client.py": {
+      "kits": [
+        "hoppwhistle deploy/dograh/runs-page-speedup"
+      ],
+      "action": "remove_when_preserved",
+      "variants": [
+        {
+          "id": "runs_page_speedup",
+          "detect": [
+            "HOPWHISTLE_RUNS_PAGE_SPEEDUP_V1"
+          ],
+          "behaviors": [
+            "runs_page_deferred_columns"
+          ]
+        }
+      ],
+      "require_one_of": [
+        "runs_page_speedup"
+      ]
+    }
+  },
+  "behaviors": {
+    "ari_trunk_from_patch_env": {
+      "description": "Outbound trunk from DOGRAH_ARI_TRUNK (patch default 'fractel'); transfer trunk from DOGRAH_ARI_TRANSFER_TRUNK (default: the outbound trunk).",
+      "status": "config",
+      "env": [
+        "ARI_PJSIP_DEFAULT_TRUNK",
+        "ARI_PJSIP_TRANSFER_TRUNK"
+      ],
+      "source": "api/services/telephony/providers/ari/dialing.py",
+      "evidence": [
+        {
+          "path": "/app/api/services/telephony/providers/ari/dialing.py",
+          "pattern": "ARI_PJSIP_TRANSFER_TRUNK"
+        },
+        {
+          "path": "/app/api/services/telephony/providers/ari/provider.py",
+          "pattern": "transfer_endpoint\\("
+        }
+      ]
+    },
+    "ari_any_technology": {
+      "description": "Any Tech/... destination (Local/, IAX2/) is dialled as written; needed by the Local/ direct-transfer destination.",
+      "status": "config",
+      "env": [
+        "ARI_DIAL_ANY_TECHNOLOGY"
+      ],
+      "source": "api/services/telephony/providers/ari/dialing.py",
+      "evidence": [
+        {
+          "path": "/app/api/services/telephony/providers/ari/dialing.py",
+          "pattern": "ARI_DIAL_ANY_TECHNOLOGY"
+        }
+      ]
+    },
+    "ari_dial_prefix": {
+      "description": "DOGRAH_ARI_DIAL_PREFIX: tech prefix before outbound NANP numbers (Anveo Direct). Never on transfers.",
+      "status": "config",
+      "env": [
+        "ARI_DIAL_PREFIX"
+      ],
+      "source": "api/services/telephony/providers/ari/dialing.py",
+      "evidence": [
+        {
+          "path": "/app/api/services/telephony/providers/ari/dialing.py",
+          "pattern": "ARI_DIAL_PREFIX"
+        }
+      ]
+    },
+    "ari_dial_format": {
+      "description": "DOGRAH_ARI_DIAL_FORMAT: nanp11/nanp10 outbound number format (Vonage). Never on transfers.",
+      "status": "config",
+      "env": [
+        "ARI_DIAL_FORMAT"
+      ],
+      "source": "api/services/telephony/providers/ari/dialing.py",
+      "evidence": [
+        {
+          "path": "/app/api/services/telephony/providers/ari/dialing.py",
+          "pattern": "ARI_DIAL_FORMAT"
+        }
+      ]
+    },
+    "ari_caller_trunks": {
+      "description": "DOGRAH_ARI_CALLER_TRUNKS: per-caller-ID outbound trunk and number format.",
+      "status": "config",
+      "env": [
+        "ARI_CALLER_TRUNKS"
+      ],
+      "source": "api/services/telephony/providers/ari/dialing.py",
+      "evidence": [
+        {
+          "path": "/app/api/services/telephony/providers/ari/dialing.py",
+          "pattern": "ARI_CALLER_TRUNKS"
+        },
+        {
+          "path": "/app/api/services/telephony/providers/ari/provider.py",
+          "pattern": "outbound_caller_id\\("
+        }
+      ]
+    },
+    "ari_literal_trunk": {
+      "description": "Trunk names hard-coded in the mounted file (PJSIP/{to_number}@<trunk>, PJSIP/{destination}@<trunk>).",
+      "status": "config",
+      "env": [
+        "ARI_PJSIP_DEFAULT_TRUNK",
+        "ARI_PJSIP_TRANSFER_TRUNK"
+      ],
+      "source": "api/services/telephony/providers/ari/dialing.py",
+      "evidence": [
+        {
+          "path": "/app/api/services/telephony/providers/ari/dialing.py",
+          "pattern": "ARI_PJSIP_DEFAULT_TRUNK"
+        }
+      ]
+    },
+    "ari_env_default_trunk": {
+      "description": "Trunk from ARI_PJSIP_DEFAULT_TRUNK, as in source; carried by the existing environment.",
+      "status": "in_source",
+      "env": [],
+      "source": "api/services/telephony/providers/ari/dialing.py",
+      "evidence": [
+        {
+          "path": "/app/api/services/telephony/providers/ari/dialing.py",
+          "pattern": "ARI_PJSIP_DEFAULT_TRUNK"
+        }
+      ]
+    },
+    "ari_transfer_caller_id_literal": {
+      "description": "Transfer-leg caller ID hard-coded in the mounted file.",
+      "status": "config",
+      "env": [
+        "ARI_TRANSFER_DEFAULT_CALLER_ID"
+      ],
+      "source": "api/services/telephony/providers/ari/provider.py",
+      "evidence": [
+        {
+          "path": "/app/api/services/telephony/providers/ari/provider.py",
+          "pattern": "ARI_TRANSFER_DEFAULT_CALLER_ID"
+        }
+      ]
+    },
+    "ari_transfer_caller_id_env": {
+      "description": "Transfer-leg caller ID from ARI_TRANSFER_DEFAULT_CALLER_ID, as in source.",
+      "status": "in_source",
+      "env": [],
+      "source": "api/services/telephony/providers/ari/provider.py",
+      "evidence": [
+        {
+          "path": "/app/api/services/telephony/providers/ari/provider.py",
+          "pattern": "ARI_TRANSFER_DEFAULT_CALLER_ID"
+        }
+      ]
+    },
+    "transfer_forced_shared_did": {
+      "description": "Every live lead goes to one shared DID (DOGRAH_TRANSFER_DESTINATION, else the literal in the file); lead and campaign values are ignored.",
+      "status": "config",
+      "env": [
+        "CAMPAIGN_TRANSFER_DESTINATION_POLICY",
+        "CAMPAIGN_DEFAULT_TRANSFER_DESTINATION"
+      ],
+      "source": "api/services/campaign/campaign_call_dispatcher.py",
+      "evidence": [
+        {
+          "path": "/app/api/services/campaign/campaign_call_dispatcher.py",
+          "pattern": "forced_default"
+        }
+      ]
+    },
+    "transfer_context_then_literal": {
+      "description": "Lead's destination, then the campaign's, then a literal hard-coded in the mounted file.",
+      "status": "config",
+      "env": [
+        "CAMPAIGN_TRANSFER_DESTINATION_POLICY",
+        "CAMPAIGN_DEFAULT_TRANSFER_DESTINATION"
+      ],
+      "source": "api/services/campaign/campaign_call_dispatcher.py",
+      "evidence": [
+        {
+          "path": "/app/api/services/campaign/campaign_call_dispatcher.py",
+          "pattern": "def resolve_transfer_destination\\("
+        }
+      ]
+    },
+    "transfer_context_first": {
+      "description": "Lead's destination, then the campaign's, then CAMPAIGN_DEFAULT_TRANSFER_DESTINATION, as in source.",
+      "status": "config",
+      "env": [
+        "CAMPAIGN_TRANSFER_DESTINATION_POLICY"
+      ],
+      "source": "api/services/campaign/campaign_call_dispatcher.py",
+      "evidence": [
+        {
+          "path": "/app/api/services/campaign/campaign_call_dispatcher.py",
+          "pattern": "def resolve_transfer_destination\\("
+        }
+      ]
+    },
+    "state_caller_id": {
+      "description": "State-matched caller ID policy (DOGRAH_STATE_CID_POLICY / campaign state_cid_policy).",
+      "status": "in_source",
+      "env": [],
+      "source": "api/services/campaign/campaign_call_dispatcher.py",
+      "evidence": [
+        {
+          "path": "/app/api/services/campaign/campaign_call_dispatcher.py",
+          "pattern": "NO_CALLER_ID_AVAILABLE_FOR_DESTINATION_STATE"
+        },
+        {
+          "path": "/app/api/services/campaign/campaign_call_dispatcher.py",
+          "pattern": "DOGRAH_STATE_CID_POLICY"
+        }
+      ]
+    },
+    "caller_id_allowed_numbers": {
+      "description": "Caller-ID acquisition restricted to allowed_numbers (state pool).",
+      "status": "in_source",
+      "env": [],
+      "source": "api/services/campaign/rate_limiter.py",
+      "evidence": [
+        {
+          "path": "/app/api/services/campaign/rate_limiter.py",
+          "pattern": "allowed_numbers"
+        }
+      ]
+    },
+    "areacode_state": {
+      "description": "NPA to state map used by state-matched caller ID.",
+      "status": "in_source",
+      "env": [],
+      "source": "api/services/campaign/areacode_state.py",
+      "evidence": [
+        {
+          "path": "/app/api/services/campaign/areacode_state.py",
+          "pattern": "def state_for_number\\("
+        }
+      ]
+    },
+    "transfer_duration_hotfix_callbacks": {
+      "description": "Max-duration timer suspended during a transfer handoff.",
+      "status": "in_source",
+      "env": [],
+      "source": "api/services/workflow/pipecat_engine_callbacks.py",
+      "evidence": [
+        {
+          "path": "/app/api/services/workflow/pipecat_engine_callbacks.py",
+          "pattern": "HOPWHISTLE_TRANSFER_DURATION_HOTFIX_V1"
+        }
+      ]
+    },
+    "transfer_duration_hotfix_tools": {
+      "description": "Max-duration timer disarmed once the transfer destination answers.",
+      "status": "in_source",
+      "env": [],
+      "source": "api/services/workflow/pipecat_engine_custom_tools.py",
+      "evidence": [
+        {
+          "path": "/app/api/services/workflow/pipecat_engine_custom_tools.py",
+          "pattern": "HOPWHISTLE_TRANSFER_DURATION_HOTFIX_V1"
+        }
+      ]
+    },
+    "fish_tts_registry": {
+      "description": "Fish TTS provider registration.",
+      "status": "in_source",
+      "env": [],
+      "source": "api/services/configuration/registry.py",
+      "evidence": [
+        {
+          "path": "/app/api/services/configuration/registry.py",
+          "pattern": "HOPWHISTLE_FISH_TTS_V1"
+        }
+      ]
+    },
+    "fish_tts_factory": {
+      "description": "Fish TTS service construction.",
+      "status": "in_source",
+      "env": [],
+      "source": "api/services/pipecat/service_factory.py",
+      "evidence": [
+        {
+          "path": "/app/api/services/pipecat/service_factory.py",
+          "pattern": "HOPWHISTLE_FISH_TTS_V1"
+        }
+      ]
+    },
+    "fish_tts_validity": {
+      "description": "Fish API key check.",
+      "status": "in_source",
+      "env": [],
+      "source": "api/services/configuration/check_validity.py",
+      "evidence": [
+        {
+          "path": "/app/api/services/configuration/check_validity.py",
+          "pattern": "HOPWHISTLE_FISH_TTS_V1"
+        }
+      ]
+    },
+    "fish_tts_shim": {
+      "description": "msgpack stand-in for ormsgpack (the image omits the pipecat 'fish' extra).",
+      "status": "in_source",
+      "env": [],
+      "source": "api/services/pipecat/fish_msgpack_shim.py",
+      "evidence": [
+        {
+          "path": "/app/api/services/pipecat/fish_msgpack_shim.py",
+          "pattern": "ormsgpack"
+        }
+      ]
+    },
+    "inception_registry": {
+      "description": "Inception LLM provider registration.",
+      "status": "in_source",
+      "env": [],
+      "source": "api/services/configuration/registry.py",
+      "evidence": [
+        {
+          "path": "/app/api/services/configuration/registry.py",
+          "pattern": "InceptionLLMConfiguration"
+        }
+      ]
+    },
+    "inception_factory": {
+      "description": "Inception LLM service construction.",
+      "status": "in_source",
+      "env": [],
+      "source": "api/services/pipecat/service_factory.py",
+      "evidence": [
+        {
+          "path": "/app/api/services/pipecat/service_factory.py",
+          "pattern": "DograhInceptionLLMService"
+        }
+      ]
+    },
+    "inception_validity": {
+      "description": "Inception API key check.",
+      "status": "in_source",
+      "env": [],
+      "source": "api/services/configuration/check_validity.py",
+      "evidence": [
+        {
+          "path": "/app/api/services/configuration/check_validity.py",
+          "pattern": "_check_inception_api_key"
+        }
+      ]
+    },
+    "inception_ttft_log": {
+      "description": "LLM TTFT log tag.",
+      "status": "in_source",
+      "env": [],
+      "source": "api/services/pipecat/realtime_feedback_observer.py",
+      "evidence": [
+        {
+          "path": "/app/api/services/pipecat/realtime_feedback_observer.py",
+          "pattern": "LLM_TTFT_LOG_TAG"
+        }
+      ]
+    },
+    "inception_qa": {
+      "description": "Inception as a QA LLM.",
+      "status": "in_source",
+      "env": [],
+      "source": "api/services/workflow/qa/llm_config.py",
+      "evidence": [
+        {
+          "path": "/app/api/services/workflow/qa/llm_config.py",
+          "pattern": "INCEPTION"
+        }
+      ]
+    },
+    "call_duration_client": {
+      "description": "Carrier-reported duration kept on run updates.",
+      "status": "in_source",
+      "env": [],
+      "source": "api/db/workflow_run_client.py",
+      "evidence": [
+        {
+          "path": "/app/api/db/workflow_run_client.py",
+          "pattern": "call_duration"
+        }
+      ]
+    },
+    "call_duration_module": {
+      "description": "Duration helpers.",
+      "status": "in_source",
+      "env": [],
+      "source": "api/services/workflow/call_duration.py",
+      "evidence": [
+        {
+          "path": "/app/api/services/workflow/call_duration.py",
+          "pattern": "telephony_duration"
+        }
+      ]
+    },
+    "runs_page_deferred_columns": {
+      "description": "Runs listing defers logs/transcript/annotations (indexes come from migration c3f9a1d7e4b2 under different names).",
+      "status": "in_source",
+      "env": [],
+      "source": "api/db/filters.py",
+      "evidence": [
+        {
+          "path": "/app/api/db/filters.py",
+          "pattern": "workflow_run_list_load_options"
+        }
+      ]
+    },
+    "insights_duration": {
+      "description": "Campaign insights use the stored duration.",
+      "status": "in_source",
+      "env": [],
+      "source": "api/routes/reports.py",
+      "evidence": [
+        {
+          "path": "/app/api/routes/reports.py",
+          "pattern": "stored_duration"
+        }
+      ]
+    },
+    "insights_machine_answer": {
+      "description": "Campaign insights exclude machine answers.",
+      "status": "in_source",
+      "env": [],
+      "source": "api/routes/reports.py",
+      "evidence": [
+        {
+          "path": "/app/api/routes/reports.py",
+          "pattern": "_is_machine_answer"
+        }
+      ]
+    }
+  }
+}

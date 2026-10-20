@@ -35,7 +35,7 @@ sed -i -E "s/^(\s+CALL_HYGIENE_ENABLED:).*/\1 \"$VALUE\"/" "$OVERRIDE_FILE"
 log "CALL_HYGIENE_ENABLED=$VALUE (previous override: $OVERRIDE_FILE.bak-hygiene-$TS)"
 
 compose up -d --no-deps --force-recreate --pull never api
-wait_api_healthy
+wait_api_healthy || die "api did not become healthy; previous override: $OVERRIDE_FILE.bak-hygiene-$TS"
 
 actual="$(compose exec -T api printenv CALL_HYGIENE_ENABLED)"
 [[ "$actual" == "$VALUE" ]] || die "api sees CALL_HYGIENE_ENABLED='$actual'"
