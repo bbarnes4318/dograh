@@ -1,0 +1,20 @@
+FROM nvidia/cuda:12.8.1-cudnn-runtime-ubuntu24.04
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONUNBUFFERED=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      python3 python3-pip python3-venv libsndfile1 sox ffmpeg git ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY pyproject.toml ./
+COPY hopvoice ./hopvoice
+RUN python3 -m pip install --break-system-packages --no-cache-dir ".[qwen]"
+
+RUN useradd --create-home --uid 10001 hopvoice
+USER hopvoice
+
+EXPOSE 8787
+CMD ["python3", "-m", "uvicorn", "hopvoice.app:app", "--host", "0.0.0.0", "--port", "8787", "--workers", "1"]

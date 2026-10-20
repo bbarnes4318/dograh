@@ -1,0 +1,10 @@
+{
+  "voices": {
+    "alex_licensed_v1": {
+      "language": "English",
+      "ref_audio": "/voices/alex_licensed_v1/reference.wav",
+      "ref_text": "This exact transcript must match the licensed reference recording.",
+      "x_vector_only_mode": false
+    }
+  }
+}
