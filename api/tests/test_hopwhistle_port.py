@@ -18,7 +18,9 @@ from api.services.campaign.campaign_call_dispatcher import (
     resolve_transfer_destination,
 )
 from api.services.campaign.rate_limiter import RateLimiter
-from api.services.telephony.providers.ari.provider import _pjsip_endpoint
+from api.services.telephony.providers.ari.dialing import (
+    outbound_endpoint as _pjsip_endpoint,
+)
 from api.services.workflow.pipecat_engine_callbacks import (
     create_max_duration_callback,
 )

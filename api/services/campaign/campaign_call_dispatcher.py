@@ -84,16 +84,56 @@ def resolve_state_cid_policy(campaign) -> str:
     return policy if policy in ("off", "prefer", "strict") else "off"
 
 
+TRANSFER_POLICY_CONTEXT_FIRST = "context_first"
+TRANSFER_POLICY_FORCED_DEFAULT = "forced_default"
+TRANSFER_DESTINATION_POLICIES = (
+    TRANSFER_POLICY_CONTEXT_FIRST,
+    TRANSFER_POLICY_FORCED_DEFAULT,
+)
+
+
+def transfer_destination_policy() -> str:
+    """``CAMPAIGN_TRANSFER_DESTINATION_POLICY``, default ``context_first``.
+
+    An unrecognised value raises instead of falling back, so a typo cannot
+    quietly send live leads somewhere other than intended.
+    """
+    raw = os.environ.get("CAMPAIGN_TRANSFER_DESTINATION_POLICY", "").strip().lower()
+    policy = raw or TRANSFER_POLICY_CONTEXT_FIRST
+    if policy not in TRANSFER_DESTINATION_POLICIES:
+        raise ValueError(
+            f"CAMPAIGN_TRANSFER_DESTINATION_POLICY={raw!r} is not one of "
+            f"{', '.join(TRANSFER_DESTINATION_POLICIES)}"
+        )
+    return policy
+
+
 def resolve_transfer_destination(queued_run, campaign) -> Optional[str]:
-    """Transfer target for this call: the lead's, then the campaign's, then
-    the deployment default (``CAMPAIGN_DEFAULT_TRANSFER_DESTINATION``)."""
+    """Transfer target for this call.
+
+    ``context_first`` (default): the lead's, then the campaign's, then the
+    deployment default (``CAMPAIGN_DEFAULT_TRANSFER_DESTINATION``).
+
+    ``forced_default``: always the deployment default; a lead's or campaign's
+    own value is ignored. This is the behavior the hoppwhistle dispatcher patch
+    hard-coded, kept here as explicit configuration. It requires the default
+    to be set.
+    """
+    default = os.environ.get("CAMPAIGN_DEFAULT_TRANSFER_DESTINATION", "").strip()
+    if transfer_destination_policy() == TRANSFER_POLICY_FORCED_DEFAULT:
+        if not default:
+            raise ValueError(
+                "CAMPAIGN_TRANSFER_DESTINATION_POLICY=forced_default requires "
+                "CAMPAIGN_DEFAULT_TRANSFER_DESTINATION"
+            )
+        return default
     metadata = campaign.orchestrator_metadata
     return (
         queued_run.context_variables.get("transfer_destination")
         or (
             metadata.get("transfer_destination") if isinstance(metadata, dict) else None
         )
-        or os.environ.get("CAMPAIGN_DEFAULT_TRANSFER_DESTINATION")
+        or default
         or None
     )
 

@@ -21,20 +21,12 @@ from api.services.telephony.base import (
     NormalizedInboundData,
     TelephonyProvider,
 )
+from api.services.telephony.providers.ari.dialing import (
+    outbound_caller_id,
+    outbound_endpoint,
+    transfer_endpoint,
+)
 from api.services.telephony.providers.ari.external_pbx import create_adapter
-
-
-def _pjsip_endpoint(number: str) -> str:
-    """``PJSIP/<number>``, routed via ``ARI_PJSIP_DEFAULT_TRUNK`` when set.
-
-    Asterisk needs an ``@<endpoint>`` to know which trunk to dial out on; a
-    number that already names one is left alone.
-    """
-    trunk = os.environ.get("ARI_PJSIP_DEFAULT_TRUNK", "").strip()
-    if trunk and "@" not in number:
-        return f"PJSIP/{number}@{trunk}"
-    return f"PJSIP/{number}"
-
 
 if TYPE_CHECKING:
     from fastapi import WebSocket
@@ -97,13 +89,8 @@ class ARIProvider(TelephonyProvider):
 
         endpoint = f"{self.base_url}/channels"
 
-        # Build the SIP endpoint string
-        # to_number can be a SIP URI or extension
-        if to_number.startswith("SIP/") or to_number.startswith("PJSIP/"):
-            sip_endpoint = to_number
-        else:
-            # Default to PJSIP technology
-            sip_endpoint = _pjsip_endpoint(to_number)
+        # to_number can be a dial string, a SIP URI or an extension.
+        sip_endpoint = outbound_endpoint(to_number, from_number)
 
         # Prepare channel creation data
         params = {
@@ -121,7 +108,7 @@ class ARIProvider(TelephonyProvider):
         }
 
         if from_number:
-            params["callerId"] = from_number
+            params["callerId"] = outbound_caller_id(from_number)
 
         logger.info(
             f"[ARI] Initiating call to {sip_endpoint} "
@@ -469,11 +456,7 @@ class ARIProvider(TelephonyProvider):
         # Get call transfer manager for event correlation mapping
         call_transfer_manager = await get_call_transfer_manager()
 
-        # Build SIP endpoint
-        if destination.startswith("SIP/") or destination.startswith("PJSIP/"):
-            sip_endpoint = destination
-        else:
-            sip_endpoint = _pjsip_endpoint(destination)
+        sip_endpoint = transfer_endpoint(destination)
 
         # Build transfer appArgs for event correlation
         app_args = f"transfer,{transfer_id}"
