@@ -20,6 +20,7 @@ from api.schemas.workflow_configurations import (
 from api.services.pipecat.thinking_cue import ThinkingCue
 from api.services.workflow.pipecat_engine_callbacks import (
     DEFAULT_LLM_IDLE_INSTRUCTION,
+    NO_REPEAT_IDLE_SUFFIX,
     create_user_idle_handler,
 )
 
@@ -136,7 +137,9 @@ class TestIdleNudgeLadder:
 
         await handler.handle_idle(aggregator)
 
-        assert _llm_instructions(aggregator) == ["ask again in Spanish"]
+        assert _llm_instructions(aggregator) == [
+            "ask again in Spanish" + NO_REPEAT_IDLE_SUFFIX
+        ]
 
     async def test_llm_nudge_falls_back_to_the_default_instruction(
         self, engine, aggregator
@@ -145,7 +148,9 @@ class TestIdleNudgeLadder:
 
         await handler.handle_idle(aggregator)
 
-        assert _llm_instructions(aggregator) == [DEFAULT_LLM_IDLE_INSTRUCTION]
+        assert _llm_instructions(aggregator) == [
+            DEFAULT_LLM_IDLE_INSTRUCTION + NO_REPEAT_IDLE_SUFFIX
+        ]
 
     async def test_running_past_the_ladder_ends_the_call(self, engine, aggregator):
         handler = create_user_idle_handler(
@@ -181,7 +186,48 @@ class TestIdleNudgeLadder:
         await handler.reset()
         await handler.handle_idle(aggregator)
 
-        assert [frame.text for frame in _spoken(engine)] == ["first", "first"]
+        # The ladder restarts, but a canned line is never said twice on a
+        # call: the second quiet spell goes straight to the next step.
+        assert [frame.text for frame in _spoken(engine)] == ["first", "second"]
+
+    async def test_canned_line_is_said_once_per_call(self, engine, aggregator):
+        handler = create_user_idle_handler(engine, nudges=default_idle_nudges())
+
+        for _ in range(3):
+            await handler.handle_idle(aggregator)
+            await handler.reset()
+
+        assert [frame.text for frame in _spoken(engine)] == [
+            "Sorry, are you still there?"
+        ]
+
+    async def test_spent_ladder_ends_the_call_instead_of_repeating(
+        self, engine, aggregator
+    ):
+        handler = create_user_idle_handler(
+            engine, nudges=[IdleNudgeConfiguration(message="still there?")]
+        )
+
+        await handler.handle_idle(aggregator)
+        await handler.reset()
+        await handler.handle_idle(aggregator)
+
+        assert len(_spoken(engine)) == 1
+        engine.end_call_with_reason.assert_awaited_once_with(
+            EndTaskReason.USER_IDLE_MAX_DURATION_EXCEEDED.value
+        )
+
+    async def test_default_ladder_never_asks_the_model_to_re_ask(
+        self, engine, aggregator
+    ):
+        handler = create_user_idle_handler(engine, nudges=default_idle_nudges())
+
+        for _ in range(3):
+            await handler.handle_idle(aggregator)
+
+        for instruction in _llm_instructions(aggregator):
+            assert "re-ask" not in instruction
+            assert instruction.endswith(NO_REPEAT_IDLE_SUFFIX)
 
     async def test_canned_nudge_is_appended_to_context(self, engine, aggregator):
         handler = create_user_idle_handler(

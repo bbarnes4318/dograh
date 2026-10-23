@@ -41,6 +41,16 @@ DEFAULT_LLM_IDLE_INSTRUCTION = (
     "in the language that the user has been speaking so far."
 )
 
+# Added to every LLM-generated nudge: a nudge that re-asks or restates is the
+# loop the caller is already tuning out of.
+NO_REPEAT_IDLE_SUFFIX = (
+    " Never repeat a sentence or a question you have already said on this call."
+)
+
+
+def _canned_key(message: str) -> str:
+    return " ".join(re.sub(r"[^\w\s]", " ", message.lower()).split())
+
 
 class UserIdleHandler:
     """Escalate through configured nudges when the caller stops responding.
@@ -85,6 +95,10 @@ class UserIdleHandler:
         )
         self._user_has_spoken = False
         self._first_response_count = 0
+        # Canned lines already spoken on this call. The ladder restarts every
+        # time the caller speaks, so without this a caller who answers and
+        # goes quiet again hears the same "are you still there?" every time.
+        self._spoken_canned: set[str] = set()
         if self._first_response_active:
             self._timeout_overridden = True
 
@@ -152,7 +166,16 @@ class UserIdleHandler:
             return
 
         index = self._retry_count
-        self._retry_count += 1
+        # A canned line already said on this call is never said again: move
+        # up the ladder instead. The end-call step always runs.
+        while (
+            index < len(self._nudges)
+            and not self._nudges[index].end_call
+            and self._nudges[index].message
+            and _canned_key(self._nudges[index].message) in self._spoken_canned
+        ):
+            index += 1
+        self._retry_count = index + 1
         logger.debug(f"Handling user_idle, attempt: {self._retry_count}")
 
         if index >= len(self._nudges):
@@ -168,7 +191,9 @@ class UserIdleHandler:
             await self._speak_canned(nudge.message)
         else:
             await self._ask_llm(
-                aggregator, nudge.llm_instruction or DEFAULT_LLM_IDLE_INSTRUCTION
+                aggregator,
+                (nudge.llm_instruction or DEFAULT_LLM_IDLE_INSTRUCTION)
+                + NO_REPEAT_IDLE_SUFFIX,
             )
 
         if nudge.end_call:
@@ -206,6 +231,7 @@ class UserIdleHandler:
         if self._engine.task is None:
             logger.warning("No pipeline task available to speak idle nudge")
             return
+        self._spoken_canned.add(_canned_key(message))
         # append_to_context so the model knows it already prompted the caller
         # and doesn't repeat the question on its next turn.
         await self._engine.task.queue_frame(

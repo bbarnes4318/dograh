@@ -46,12 +46,20 @@ RULES:
 - *NEVER* mix modes in a single response, since we rely on the markers to decide whether to play using TTS or Pre-recorded audio."""
 
 
+NO_REPEAT_RULES = """\
+CONVERSATION MEMORY RULES (these override anything above):
+- Before every reply, read the whole conversation so far. Never ask a question the caller has already answered, even in other words; use their answer and go to the next step.
+- Never say a sentence you have already said on this call, and never restate an explanation you already gave. Move the conversation forward instead.
+- Only if the caller asks you to repeat something, or did not hear you, say it once more, briefly."""
+
+
 def compose_system_prompt_for_node(
     *,
     node: "Node",
     workflow: "WorkflowGraph",
     format_prompt: Callable[[str], str],
     has_recordings: bool,
+    include_no_repeat_rules: bool = False,
 ) -> str:
     """Compose the full system prompt text for a workflow node.
 
@@ -64,6 +72,7 @@ def compose_system_prompt_for_node(
         workflow: The full workflow graph (needed for global node prompt).
         format_prompt: Callable to render template variables in prompts.
         has_recordings: Whether any node in the workflow uses recordings.
+        include_no_repeat_rules: Append :data:`NO_REPEAT_RULES`.
 
     Returns:
         The composed system prompt text.
@@ -76,6 +85,9 @@ def compose_system_prompt_for_node(
     formatted_node_prompt = format_prompt(node.prompt)
 
     parts = [p for p in (global_prompt, formatted_node_prompt) if p]
+
+    if include_no_repeat_rules:
+        parts.append(NO_REPEAT_RULES)
 
     if has_recordings and "RECORDING_ID:" in formatted_node_prompt:
         parts.append(RECORDING_RESPONSE_MODE_INSTRUCTIONS)
