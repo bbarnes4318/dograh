@@ -296,9 +296,7 @@ async def test_first_response_idle_skipped_after_muted_speech():
         end_call_with_reason=AsyncMock(),
         end_call_for_hygiene=AsyncMock(),
     )
-    handler = UserIdleHandler(
-        engine, call_hygiene=CallHygieneConfiguration()
-    )
+    handler = UserIdleHandler(engine, call_hygiene=CallHygieneConfiguration())
     handler._handle_first_response_idle = AsyncMock()
     handler._speak_canned = AsyncMock()
 

@@ -47,11 +47,17 @@ class TestStateCallerIdPolicy:
 
     def test_env_applies_when_campaign_is_silent(self, monkeypatch):
         monkeypatch.setenv("DOGRAH_STATE_CID_POLICY", "prefer")
-        assert resolve_state_cid_policy(SimpleNamespace(orchestrator_metadata={})) == "prefer"
+        assert (
+            resolve_state_cid_policy(SimpleNamespace(orchestrator_metadata={}))
+            == "prefer"
+        )
 
     def test_defaults_to_off_and_rejects_junk(self, monkeypatch):
         monkeypatch.delenv("DOGRAH_STATE_CID_POLICY", raising=False)
-        assert resolve_state_cid_policy(SimpleNamespace(orchestrator_metadata=None)) == "off"
+        assert (
+            resolve_state_cid_policy(SimpleNamespace(orchestrator_metadata=None))
+            == "off"
+        )
         campaign = SimpleNamespace(orchestrator_metadata={"state_cid_policy": "maybe"})
         assert resolve_state_cid_policy(campaign) == "off"
 
@@ -67,7 +73,9 @@ class TestTransferDestination:
         campaign = SimpleNamespace(
             orchestrator_metadata={"transfer_destination": "+15550000002"}
         )
-        lead = SimpleNamespace(context_variables={"transfer_destination": "+15550000001"})
+        lead = SimpleNamespace(
+            context_variables={"transfer_destination": "+15550000001"}
+        )
         no_lead = SimpleNamespace(context_variables={})
         assert resolve_transfer_destination(lead, campaign) == "+15550000001"
         assert resolve_transfer_destination(no_lead, campaign) == "+15550000002"

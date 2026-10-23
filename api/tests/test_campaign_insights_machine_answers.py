@@ -228,6 +228,7 @@ def _row(run_id, *, dispo, tags, nodes=None, transfer_state=None, direction="out
         "call_tags": tags,
         "campaign_id": 1,
         "recording_url": None,
+        "public_token": None,
         "transcript_url": None,
         "stored_duration": "12",
     }

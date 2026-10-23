@@ -13,12 +13,12 @@ exception text or logs.
 from __future__ import annotations
 
 import asyncio
-import itertools
 import html
+import itertools
 import re
-from urllib.parse import unquote
 import time
 from typing import Any, Optional
+from urllib.parse import unquote
 
 import httpx
 from loguru import logger

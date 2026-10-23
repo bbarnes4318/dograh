@@ -19,6 +19,8 @@ def _engine():
     engine._audio_config = SimpleNamespace(pipeline_sample_rate=8000)
     engine._queued_speech_mute_state = "idle"
     engine._frames = []
+    # No edge waits on this node's playback, as on most nodes.
+    engine.playback_transition_edge = Mock(return_value=None)
 
     async def queue_frame(frame):
         engine._frames.append(frame)
