@@ -32,6 +32,7 @@ from pipecat.processors.aggregators.llm_response_universal import (
     LLMAssistantAggregatorParams,
     LLMContextAggregatorPair,
 )
+from pipecat.tests.mock_llm_service import ContextCapturingMockLLM
 from pipecat.tests.mock_transport import MockTransport
 from pipecat.transports.base_transport import TransportParams
 
@@ -41,7 +42,6 @@ from api.services.workflow.pipecat_engine import PipecatEngine
 from api.services.workflow.pipecat_engine_custom_tools import CustomToolManager
 from api.services.workflow.workflow_graph import WorkflowGraph
 from pipecat.tests import MockTTSService
-from pipecat.tests.mock_llm_service import ContextCapturingMockLLM
 
 FIXTURE = Path(__file__).parent / "fixtures" / "agent12_body_to_body_workflow.json"
 

@@ -17,13 +17,12 @@ from pydantic import BaseModel
 from api.db import db_client
 from api.db.models import UserModel
 from api.services.auth.depends import get_user
+from api.services.campaign.rate_limiter import rate_limiter
 from api.services.reports import ConversionReportService, DailyReportService
 from api.services.reports.conversion_analytics import (
     COHORT_DIMENSIONS,
     DEFAULT_CONVERSION_DISPOSITIONS,
 )
-from api.services.campaign.rate_limiter import rate_limiter
-from api.services.reports import DailyReportService
 from api.services.storage import storage_fs
 from api.utils.artifacts import artifact_url
 
@@ -368,6 +367,8 @@ async def search_transcripts(
         raise HTTPException(status_code=500, detail=str(e))
 
     return TranscriptSearchResponse(**found)
+
+
 # ---------------------------------------------------------------------------
 # Campaign Insights (Hopwhistle) — live funnel + per-call human breakdown.
 # Classifies each completed call's transcript (human / voicemail / echo /
@@ -385,20 +386,46 @@ _CLS_CACHE_TTL = 60 * 60 * 24 * 30  # 30 days
 # with the dispositions/tags passed to ``end_call_for_hygiene`` and the
 # voicemail detector's ``EndTaskReason.VOICEMAIL_DETECTED``.
 _MACHINE_DISPOSITIONS = frozenset({"voicemail_detected", "answering_bot"})
-_MACHINE_TAGS = frozenset({
-    "voicemail_detected", "answering_bot", "vm_keyword_guard", "vm_after_screener",
-    "call_screener_no_pickup", "transfer_blocked_machine",
-})
+_MACHINE_TAGS = frozenset(
+    {
+        "voicemail_detected",
+        "answering_bot",
+        "vm_keyword_guard",
+        "vm_after_screener",
+        "call_screener_no_pickup",
+        "transfer_blocked_machine",
+    }
+)
 
 _VM_PHRASES = [
-    "leave a message", "leave your message", "please leave", "at the tone",
-    "after the tone", "after the beep", "record your message", "please record",
-    "voicemail", "voice mail", "voice message", "not available", "unavailable",
-    "google voice", "google subscriber", "mailbox", "press 1", "press one",
-    "the person you are trying to reach", "cannot take your call",
-    "automated voice", "has been forwarded", "please try your call again",
-    "is not able to take", "you have reached", "cannot receive messages",
-    "i'll see if this person is available", "record your name",
+    "leave a message",
+    "leave your message",
+    "please leave",
+    "at the tone",
+    "after the tone",
+    "after the beep",
+    "record your message",
+    "please record",
+    "voicemail",
+    "voice mail",
+    "voice message",
+    "not available",
+    "unavailable",
+    "google voice",
+    "google subscriber",
+    "mailbox",
+    "press 1",
+    "press one",
+    "the person you are trying to reach",
+    "cannot take your call",
+    "automated voice",
+    "has been forwarded",
+    "please try your call again",
+    "is not able to take",
+    "you have reached",
+    "cannot receive messages",
+    "i'll see if this person is available",
+    "record your name",
 ]
 _XFER_PHRASES = [
     "bring the licensed agent onto the line",
@@ -406,19 +433,44 @@ _XFER_PHRASES = [
     "licensed agent onto the line",
 ]
 _DNC_PHRASES = [
-    "take me off", "do not call", "don't call", "remove me", "stop calling",
-    "off your list", "off your call", "quit calling", "leave me alone",
+    "take me off",
+    "do not call",
+    "don't call",
+    "remove me",
+    "stop calling",
+    "off your list",
+    "off your call",
+    "quit calling",
+    "leave me alone",
 ]
 _NOT_INTERESTED_PHRASES = [
-    "not interested", "don't want", "do not want", "already have",
-    "i have my own", "no thank", "not looking", "already got",
-    "already covered", "everything's already paid",
+    "not interested",
+    "don't want",
+    "do not want",
+    "already have",
+    "i have my own",
+    "no thank",
+    "not looking",
+    "already got",
+    "already covered",
+    "everything's already paid",
 ]
 _AUDIO_PHRASES = [
-    "can't hear", "cannot hear", "hardly hear", "can you hear me",
-    "i can't hear you", "sound the same", "you're breaking up", "bad connection",
+    "can't hear",
+    "cannot hear",
+    "hardly hear",
+    "can you hear me",
+    "i can't hear you",
+    "sound the same",
+    "you're breaking up",
+    "bad connection",
 ]
-_BUSY_PHRASES = ["at work right now", "i'm at work", "busy right now", "in the middle of"]
+_BUSY_PHRASES = [
+    "at work right now",
+    "i'm at work",
+    "busy right now",
+    "in the middle of",
+]
 
 
 def _json_list(raw: Any) -> List[Any]:
@@ -471,11 +523,21 @@ async def _get_llm_cfg(org_id: int) -> Optional[Dict[str, str]]:
     cfg = None
     try:
         from sqlalchemy import text as _t
+
         async with db_client.async_session() as session:
-            row = (await session.execute(_t(
-                "select value from organization_configurations "
-                "where organization_id=:o and key='MODEL_CONFIGURATION_V2' limit 1"
-            ), {"o": org_id})).mappings().first()
+            row = (
+                (
+                    await session.execute(
+                        _t(
+                            "select value from organization_configurations "
+                            "where organization_id=:o and key='MODEL_CONFIGURATION_V2' limit 1"
+                        ),
+                        {"o": org_id},
+                    )
+                )
+                .mappings()
+                .first()
+            )
         val = row["value"] if row else None
         if isinstance(val, str):
             val = _json.loads(val)
@@ -495,7 +557,9 @@ def _needs_llm(txt: str) -> bool:
     return bool(txt) and "] user:" in txt and "] assistant:" in txt
 
 
-async def _llm_category(txt: str, client, cfg: Dict[str, str], sem: asyncio.Semaphore) -> Optional[str]:
+async def _llm_category(
+    txt: str, client, cfg: Dict[str, str], sem: asyncio.Semaphore
+) -> Optional[str]:
     if not cfg or not txt:
         return None
     async with sem:
@@ -528,7 +592,14 @@ async def _llm_category(txt: str, client, cfg: Dict[str, str], sem: asyncio.Sema
         return None
 
 
-def _classify_run(txt: str, dispo: Optional[str], nodes_visited: List[str], transfer_state: Optional[str], category_override: Optional[str] = None, call_tags: Optional[List[str]] = None) -> Dict[str, Any]:
+def _classify_run(
+    txt: str,
+    dispo: Optional[str],
+    nodes_visited: List[str],
+    transfer_state: Optional[str],
+    category_override: Optional[str] = None,
+    call_tags: Optional[List[str]] = None,
+) -> Dict[str, Any]:
     """Classify one call transcript. Returns a JSON-serializable summary dict."""
     machine_answer = _is_machine_answer(dispo, call_tags)
     turns = _parse_turns(txt or "")
@@ -575,7 +646,10 @@ def _classify_run(txt: str, dispo: Optional[str], nodes_visited: List[str], tran
     fired_transfer = not machine_answer and (
         dispo == "transfer_call" or any(p in low_full for p in _XFER_PHRASES)
     )
-    transfer_answered = not machine_answer and transfer_state in ("terminated", "completed")
+    transfer_answered = not machine_answer and transfer_state in (
+        "terminated",
+        "completed",
+    )
 
     dnc = any(k in low_all_users for k in _DNC_PHRASES)
     not_interested = any(k in low_all_users for k in _NOT_INTERESTED_PHRASES)
@@ -586,7 +660,11 @@ def _classify_run(txt: str, dispo: Optional[str], nodes_visited: List[str], tran
 
     # outcome (mirrors the verified analysis rules)
     if fired_transfer:
-        result = "Transferred - buyer answered" if transfer_answered else "Transferred - buyer no-answer"
+        result = (
+            "Transferred - buyer answered"
+            if transfer_answered
+            else "Transferred - buyer no-answer"
+        )
     elif dnc:
         result = "DNC / remove request"
     elif reached_offer and category == "human":
@@ -651,19 +729,27 @@ def _classify_run(txt: str, dispo: Optional[str], nodes_visited: List[str], tran
         "fired_transfer": bool(fired_transfer),
         "transfer_answered": bool(transfer_answered),
         "audio_issue": bool(audio_issue),
-        "opener_drop": bool(category == "human" and dispo == "user_hangup" and dur <= 20),
+        "opener_drop": bool(
+            category == "human" and dispo == "user_hangup" and dur <= 20
+        ),
         "voicemail_leak": bool(voicemail_leak),
         "warm_drop": bool(warm_drop),
         "turns_user": len(users),
     }
 
 
-async def _fetch_transcript(run_id: int, sem: asyncio.Semaphore, client: _httpx.AsyncClient):
+async def _fetch_transcript(
+    run_id: int, sem: asyncio.Semaphore, client: _httpx.AsyncClient
+):
     async with sem:
         try:
+
             def _read_minio():
-                res = storage_fs.client.get_object(storage_fs.bucket_name, f"transcripts/{run_id}.txt")
-                return res.read().decode('utf-8')
+                res = storage_fs.client.get_object(
+                    storage_fs.bucket_name, f"transcripts/{run_id}.txt"
+                )
+                return res.read().decode("utf-8")
+
             txt = await asyncio.to_thread(_read_minio)
             return run_id, txt
         except Exception:
@@ -675,7 +761,9 @@ def _direction(r) -> str:
     return "inbound" if str(r["direction"] or "").lower() == "inbound" else "outbound"
 
 
-def _summarize_runs(rows, cached: Dict[int, Dict[str, Any]], tz, inbound: bool = False) -> Dict[str, Any]:
+def _summarize_runs(
+    rows, cached: Dict[int, Dict[str, Any]], tz, inbound: bool = False
+) -> Dict[str, Any]:
     """Status, funnel, KPIs, outcome/reason breakdowns and coaching insights
     for one set of runs. Called once for every call, and once per direction."""
     total = len(rows)
@@ -684,7 +772,9 @@ def _summarize_runs(rows, cached: Dict[int, Dict[str, Any]], tz, inbound: bool =
 
     # ---- aggregate
     def _cnt(pred) -> int:
-        return sum(1 for r in completed_rows if r["id"] in cached and pred(cached[r["id"]]))
+        return sum(
+            1 for r in completed_rows if r["id"] in cached and pred(cached[r["id"]])
+        )
 
     connected = _cnt(lambda c: c["category"] != "no_answer")
     humans = _cnt(lambda c: c["category"] == "human")
@@ -710,65 +800,83 @@ def _summarize_runs(rows, cached: Dict[int, Dict[str, Any]], tz, inbound: bool =
     audio_losses = _cnt(lambda c: c["category"] == "human" and c["audio_issue"])
     vm_leaks = _cnt(lambda c: c["voicemail_leak"])
     warm_drops = _cnt(lambda c: c["warm_drop"])
-    silent = _cnt(lambda c: c["category"] == "human" and c["result"] == "Went silent / dead air")
+    silent = _cnt(
+        lambda c: c["category"] == "human" and c["result"] == "Went silent / dead air"
+    )
 
     insights: List[Dict[str, Any]] = []
     if transfers > 0 and transfers_answered == 0:
-        insights.append({
-            "severity": "critical",
-            "title": "Buyers are not answering transfers",
-            "detail": f"{transfers} interested prospect(s) said YES and were transferred, but 0 were picked up by a buyer. Every transfer is currently lost at the handoff. Staff the buyer lines before the next run.",
-            "count": transfers,
-        })
+        insights.append(
+            {
+                "severity": "critical",
+                "title": "Buyers are not answering transfers",
+                "detail": f"{transfers} interested prospect(s) said YES and were transferred, but 0 were picked up by a buyer. Every transfer is currently lost at the handoff. Staff the buyer lines before the next run.",
+                "count": transfers,
+            }
+        )
     elif transfers > 0 and transfers_answered / transfers < 0.5:
-        insights.append({
-            "severity": "critical",
-            "title": "Most transfers are going unanswered",
-            "detail": f"Only {transfers_answered} of {transfers} transfers were picked up by a buyer. Interested prospects are being lost at the handoff - check buyer line staffing.",
-            "count": transfers - transfers_answered,
-        })
+        insights.append(
+            {
+                "severity": "critical",
+                "title": "Most transfers are going unanswered",
+                "detail": f"Only {transfers_answered} of {transfers} transfers were picked up by a buyer. Interested prospects are being lost at the handoff - check buyer line staffing.",
+                "count": transfers - transfers_answered,
+            }
+        )
     elif transfers > 0:
-        insights.append({
-            "severity": "good",
-            "title": "Transfers are connecting",
-            "detail": f"{transfers_answered} of {transfers} transfers were answered by a buyer.",
-            "count": transfers_answered,
-        })
+        insights.append(
+            {
+                "severity": "good",
+                "title": "Transfers are connecting",
+                "detail": f"{transfers_answered} of {transfers} transfers were answered by a buyer.",
+                "count": transfers_answered,
+            }
+        )
     if opener_drops:
-        insights.append({
-            "severity": "warn",
-            "title": "Hang-ups during the opener",
-            "detail": f"{opener_drops} human(s) hung up in the first 20 seconds. The conversational opener (workflow v4+) targets exactly this - watch whether this number falls on the next run.",
-            "count": opener_drops,
-        })
+        insights.append(
+            {
+                "severity": "warn",
+                "title": "Hang-ups during the opener",
+                "detail": f"{opener_drops} human(s) hung up in the first 20 seconds. The conversational opener (workflow v4+) targets exactly this - watch whether this number falls on the next run.",
+                "count": opener_drops,
+            }
+        )
     if audio_losses:
-        insights.append({
-            "severity": "warn",
-            "title": "Audio / connection losses",
-            "detail": f"{audio_losses} human call(s) showed \"can't hear you\" or hello-loops. The instant greeting (v4) removes pickup dead-air; remaining cases point at line quality.",
-            "count": audio_losses,
-        })
+        insights.append(
+            {
+                "severity": "warn",
+                "title": "Audio / connection losses",
+                "detail": f'{audio_losses} human call(s) showed "can\'t hear you" or hello-loops. The instant greeting (v4) removes pickup dead-air; remaining cases point at line quality.',
+                "count": audio_losses,
+            }
+        )
     if warm_drops:
-        insights.append({
-            "severity": "info",
-            "title": "Warm prospects worth a re-dial",
-            "detail": f"{warm_drops} engaged human(s) (30s+ of real conversation, no refusal) dropped mid-call. These are recoverable leads.",
-            "count": warm_drops,
-        })
+        insights.append(
+            {
+                "severity": "info",
+                "title": "Warm prospects worth a re-dial",
+                "detail": f"{warm_drops} engaged human(s) (30s+ of real conversation, no refusal) dropped mid-call. These are recoverable leads.",
+                "count": warm_drops,
+            }
+        )
     if vm_leaks:
-        insights.append({
-            "severity": "info",
-            "title": "Talking to answering machines",
-            "detail": f"Alex kept talking on {vm_leaks} voicemail(s)/screening bot(s). Tightening machine detection saves talk-time and caller-ID reputation.",
-            "count": vm_leaks,
-        })
+        insights.append(
+            {
+                "severity": "info",
+                "title": "Talking to answering machines",
+                "detail": f"Alex kept talking on {vm_leaks} voicemail(s)/screening bot(s). Tightening machine detection saves talk-time and caller-ID reputation.",
+                "count": vm_leaks,
+            }
+        )
     if silent:
-        insights.append({
-            "severity": "info",
-            "title": "Dead-air endings",
-            "detail": f"{silent} human call(s) ended in silence (prospect stopped responding).",
-            "count": silent,
-        })
+        insights.append(
+            {
+                "severity": "info",
+                "title": "Dead-air endings",
+                "detail": f"{silent} human call(s) ended in silence (prospect stopped responding).",
+                "count": silent,
+            }
+        )
 
     last_call_at = (
         max(r["created_at"] for r in rows).astimezone(tz).isoformat() if rows else None
@@ -815,9 +923,16 @@ def _summarize_runs(rows, cached: Dict[int, Dict[str, Any]], tz, inbound: bool =
 
 @router.get("/campaign-insights")
 async def get_campaign_insights(
-    date: Optional[str] = Query(None, description="Single date YYYY-MM-DD (legacy; use start_date/end_date for a range)"),
-    start_date: Optional[str] = Query(None, description="Range start YYYY-MM-DD (inclusive)"),
-    end_date: Optional[str] = Query(None, description="Range end YYYY-MM-DD (inclusive)"),
+    date: Optional[str] = Query(
+        None,
+        description="Single date YYYY-MM-DD (legacy; use start_date/end_date for a range)",
+    ),
+    start_date: Optional[str] = Query(
+        None, description="Range start YYYY-MM-DD (inclusive)"
+    ),
+    end_date: Optional[str] = Query(
+        None, description="Range end YYYY-MM-DD (inclusive)"
+    ),
     timezone: str = Query("America/New_York", description="IANA timezone"),
     workflow_id: Optional[int] = Query(None),
     user: UserModel = Depends(get_user),
@@ -829,7 +944,9 @@ async def get_campaign_insights(
     s_str = start_date or date
     e_str = end_date or date
     if not s_str or not e_str:
-        raise HTTPException(status_code=400, detail="Provide date, or both start_date and end_date")
+        raise HTTPException(
+            status_code=400, detail="Provide date, or both start_date and end_date"
+        )
     try:
         s_day = datetime.strptime(s_str, "%Y-%m-%d")
         e_day = datetime.strptime(e_str, "%Y-%m-%d")
@@ -839,7 +956,9 @@ async def get_campaign_insights(
     if e_day < s_day:
         s_day, e_day = e_day, s_day
     if (e_day - s_day).days > 186:
-        raise HTTPException(status_code=400, detail="Date range too large (max 186 days)")
+        raise HTTPException(
+            status_code=400, detail="Date range too large (max 186 days)"
+        )
 
     start_utc = s_day.replace(tzinfo=tz).astimezone(ZoneInfo("UTC"))
     end_utc = (e_day.replace(tzinfo=tz) + timedelta(days=1)).astimezone(ZoneInfo("UTC"))
@@ -908,14 +1027,20 @@ async def get_campaign_insights(
                 # A machine hang-up recorded by the pipeline is already decided;
                 # keep the per-request LLM budget for the genuinely ambiguous calls.
                 targets = [
-                    r for r in to_classify
+                    r
+                    for r in to_classify
                     if _needs_llm(texts.get(r["id"], ""))
                     and not _is_machine_answer(r["dispo"], _json_list(r["call_tags"]))
                 ][:_MAX_LLM_PER_REQ]
                 if targets:
                     llm_sem = asyncio.Semaphore(8)
                     res = await asyncio.gather(
-                        *[_llm_category(texts.get(r["id"], ""), client, llm_cfg, llm_sem) for r in targets]
+                        *[
+                            _llm_category(
+                                texts.get(r["id"], ""), client, llm_cfg, llm_sem
+                            )
+                            for r in targets
+                        ]
                     )
                     cats = {r["id"]: c for r, c in zip(targets, res)}
         pipe = redis.pipeline()
@@ -929,7 +1054,9 @@ async def get_campaign_insights(
                 call_tags=_json_list(r["call_tags"]),
             )
             cached[r["id"]] = cls
-            pipe.set(f"{_CLS_CACHE_PREFIX}{r['id']}", _json.dumps(cls), ex=_CLS_CACHE_TTL)
+            pipe.set(
+                f"{_CLS_CACHE_PREFIX}{r['id']}", _json.dumps(cls), ex=_CLS_CACHE_TTL
+            )
         try:
             await pipe.execute()
         except Exception as e:
@@ -941,7 +1068,8 @@ async def get_campaign_insights(
     # re-derived from its cached transcript so it can never stay counted as a
     # human, with no transcript refetch.
     restale = [
-        r for r in completed_rows
+        r
+        for r in completed_rows
         if r["id"] in cached
         and not cached[r["id"]].get("machine_answer")
         and _is_machine_answer(r["dispo"], _json_list(r["call_tags"]))
@@ -957,7 +1085,9 @@ async def get_campaign_insights(
                 call_tags=_json_list(r["call_tags"]),
             )
             cached[r["id"]] = cls
-            pipe.set(f"{_CLS_CACHE_PREFIX}{r['id']}", _json.dumps(cls), ex=_CLS_CACHE_TTL)
+            pipe.set(
+                f"{_CLS_CACHE_PREFIX}{r['id']}", _json.dumps(cls), ex=_CLS_CACHE_TTL
+            )
         try:
             await pipe.execute()
         except Exception as e:
@@ -983,9 +1113,12 @@ async def get_campaign_insights(
     # A transfer is the call people want to hand to a buyer or a manager, so
     # each one with a recording gets a public token (the same login-free link
     # the run reports use). Other calls keep whatever token they already have.
-    tokens: Dict[int, str] = {r["id"]: r["public_token"] for r in completed_rows if r["public_token"]}
+    tokens: Dict[int, str] = {
+        r["id"]: r["public_token"] for r in completed_rows if r["public_token"]
+    }
     to_mint = [
-        r["id"] for r in completed_rows
+        r["id"]
+        for r in completed_rows
         if r["recording_url"]
         and r["id"] not in tokens
         and cached.get(r["id"], {}).get("fired_transfer")
@@ -1021,34 +1154,43 @@ async def get_campaign_insights(
         txt = c.get("transcript") or ""
         if not txt and r.get("transcript_url"):
             try:
-                obj = storage_fs.client.get_object(storage_fs.bucket_name, f"transcripts/{r['id']}.txt")
+                obj = storage_fs.client.get_object(
+                    storage_fs.bucket_name, f"transcripts/{r['id']}.txt"
+                )
                 txt = obj.read().decode("utf-8")
             except Exception:
                 txt = ""
-        calls.append({
-            "run_id": r["id"],
-            "time": r["created_at"].astimezone(tz).isoformat(),
-            "phone": r["phone"],
-            "direction": (r["direction"] or "").capitalize(),
-            "duration": c["duration"],
-            "category": c["category"],
-            "result": c["result"],
-            "reason": c["reason"],
-            "recording_url": r["recording_url"],
-            "recording_link": (
-                artifact_url(tokens.get(r["id"]), "recording") if r["recording_url"] else None
-            ),
-            "transcript_url": r["transcript_url"],
-            "transcript": txt,
-            "transfer": bool(c["fired_transfer"]),
-        })
+        calls.append(
+            {
+                "run_id": r["id"],
+                "time": r["created_at"].astimezone(tz).isoformat(),
+                "phone": r["phone"],
+                "direction": (r["direction"] or "").capitalize(),
+                "duration": c["duration"],
+                "category": c["category"],
+                "result": c["result"],
+                "reason": c["reason"],
+                "recording_url": r["recording_url"],
+                "recording_link": (
+                    artifact_url(tokens.get(r["id"]), "recording")
+                    if r["recording_url"]
+                    else None
+                ),
+                "transcript_url": r["transcript_url"],
+                "transcript": txt,
+                "transfer": bool(c["fired_transfer"]),
+            }
+        )
 
     # The top-level numbers cover every call, as before; each direction also
     # gets its own full set so inbound is never blended into outbound.
     summary = _summarize_runs(rows, cached, tz)
     by_direction = {
         d: _summarize_runs(
-            [r for r in rows if _direction(r) == d], cached, tz, inbound=(d == "inbound")
+            [r for r in rows if _direction(r) == d],
+            cached,
+            tz,
+            inbound=(d == "inbound"),
         )
         for d in ("outbound", "inbound")
     }
@@ -1085,18 +1227,37 @@ async def download_transfer_calls_csv(
     )
     output = _io.StringIO()
     writer = _csv.writer(output)
-    writer.writerow([
-        "run_id", "time", "phone", "direction", "duration_sec",
-        "who_answered", "result", "reason", "recording_link", "transcript",
-    ])
+    writer.writerow(
+        [
+            "run_id",
+            "time",
+            "phone",
+            "direction",
+            "duration_sec",
+            "who_answered",
+            "result",
+            "reason",
+            "recording_link",
+            "transcript",
+        ]
+    )
     for c in data["calls"]:
         if not c["transfer"]:
             continue
-        writer.writerow([
-            c["run_id"], c["time"], c["phone"], c["direction"], c["duration"],
-            c["category"], c["result"], c["reason"] or "", c["recording_link"] or "",
-            c["transcript"],
-        ])
+        writer.writerow(
+            [
+                c["run_id"],
+                c["time"],
+                c["phone"],
+                c["direction"],
+                c["duration"],
+                c["category"],
+                c["result"],
+                c["reason"] or "",
+                c["recording_link"] or "",
+                c["transcript"],
+            ]
+        )
     output.seek(0)
     filename = f"calls_{start_date}_to_{end_date}_transfers.csv"
     return StreamingResponse(
