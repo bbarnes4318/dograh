@@ -546,7 +546,7 @@ class DograhLLMService(BaseLLMConfiguration):
     model: str = Field(
         default="default",
         description="Dograh-hosted model tier.",
-        json_schema_extra={"examples": DOGRAH_LLM_MODELS},
+        json_schema_extra={"examples": DOGRAH_LLM_MODELS, "allow_custom_input": True},
     )
 
 

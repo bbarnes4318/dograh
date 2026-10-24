@@ -577,3 +577,11 @@ async def test_migrate_model_configuration_v2_initializes_hosted_mps_billing(
         fallback_user_config=legacy,
     )
     assert response == expected_response
+
+
+def test_dograh_llm_model_accepts_a_custom_model_name():
+    """The UI offers the listed tiers but must still let users type their own."""
+    model_schema = DograhLLMService.model_json_schema()["properties"]["model"]
+
+    assert model_schema["allow_custom_input"] is True
+    assert model_schema["examples"]
