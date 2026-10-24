@@ -17,6 +17,15 @@ instead, for three reasons measured against that loop:
    window reproduces earlier samples; this loop overlaps the *same* time span.
 3. Timing. It records prefill, first codec frame and first PCM timestamps so
    TTFA can be broken down instead of measured only at the network edge.
+4. Sampling parity. The library loop dropped two rules of the official
+   generate(): min_new_tokens=2 and repetition_penalty=1.05. Without them
+   short turns frequently produced no audio at all. With them this loop draws
+   the same frames as the official generator for the same seed.
+5. Leading silence. ICL cloning continues from the reference clip, so a turn
+   often opens with a pause (measured 0.6-1.1 s, and occasionally a short
+   acknowledgment came out entirely silent). Streaming that silence plays it to
+   the caller in real time; the gate drops it and reports no_speech instead of
+   streaming silence until the frame cap.
 
 Generation itself (prefill, talker step, sampling, decode) is unchanged.
 """
@@ -41,9 +50,22 @@ class StreamParams:
     first_chunk_emit_every: int = 5
     first_chunk_decode_window: int = 48
     first_chunk_frames: int = 48
-    repetition_penalty: float = 1.0
+    # Match the official Qwen3-TTS generate(): repetition_penalty 1.05 and
+    # min_new_tokens=2 (codec EOS suppressed for the first two frames). The
+    # library streaming loop used 1.0 and no minimum; on short lines that made
+    # Alex say nothing ("Perfect."/"Sure." -> 0 frames in 6/6 seeds) or run on
+    # into silence ("Got it." -> 6.4 s).
+    repetition_penalty: float = 1.05
+    min_new_frames: int = 2
     repetition_penalty_window: int = 100
     fade_in_samples: int = 96
+    # Leading-silence gate: audio is not emitted until a 10 ms frame exceeds
+    # speech_gate_dbfs; pre-roll keeps soft onsets. If no speech appears within
+    # max_leading_silence_frames, generation stops with timings["no_speech"].
+    trim_leading_silence: bool = True
+    speech_gate_dbfs: float = -42.0
+    preroll_ms: float = 60.0
+    max_leading_silence_frames: int = 30
 
 
 def supported(wrapper) -> bool:
@@ -162,7 +184,16 @@ def stream_voice_clone(
         past_key_values = out.past_key_values
         past_hidden = out.past_hidden
         generation_step = out.generation_step
-        logits = out.logits[:, -1, :]
+        codec_eos = config.talker_config.codec_eos_token_id
+
+        def block_early_eos(logits, generated: int):
+            # HF MinNewTokensLengthLogitsProcessor on the primary codec EOS.
+            if generated < params.min_new_frames:
+                logits = logits.clone()
+                logits[..., codec_eos] = float("-inf")
+            return logits
+
+        logits = block_early_eos(out.logits[:, -1, :], 0)
         token = (
             _sample_next_token(logits, temperature, top_k, top_p, suppress)
             if do_sample
@@ -215,6 +246,39 @@ def stream_voice_clone(
             else:
                 wavs, sr = tokenizer.decode([{"audio_codes": window}])
             return np.asarray(wavs[0], dtype=np.float32), int(sr)
+
+        speech_started = not params.trim_leading_silence
+        timings["leading_silence_ms"] = 0.0
+
+        def gate(chunk: np.ndarray, sr: int) -> np.ndarray | None:
+            """Drop audio before the first speech frame (keeping pre-roll)."""
+            nonlocal speech_started
+            if speech_started or len(chunk) == 0:
+                return chunk
+            hop = max(1, sr // 100)
+            frames = len(chunk) // hop
+            first = None
+            if frames:
+                blocks = chunk[: frames * hop].reshape(frames, hop).astype(np.float64)
+                level = 10.0 * np.log10(np.mean(blocks**2, axis=1) + 1e-12)
+                above = np.nonzero(level > params.speech_gate_dbfs)[0]
+                if len(above):
+                    # Refine to the first loud sample inside that 10 ms block.
+                    block = int(above[0]) * hop
+                    amplitude = 10.0 ** (params.speech_gate_dbfs / 20.0)
+                    loud = np.abs(chunk[block : block + hop]) > amplitude
+                    first = block + (int(np.argmax(loud)) if loud.any() else 0)
+            if first is None:
+                timings["leading_silence_ms"] += len(chunk) / sr * 1000.0
+                return None
+            start = max(0, first - int(sr * params.preroll_ms / 1000.0))
+            out = chunk[start:].copy()
+            if start and params.fade_in_samples > 0:
+                n = min(params.fade_in_samples, len(out))
+                out[:n] *= _raised_cosine(n, rising=True)
+            timings["leading_silence_ms"] += start / sr * 1000.0
+            speech_started = True
+            return out
 
         def stitch(wav: np.ndarray, new_samples: int, final: bool) -> np.ndarray:
             """Return audio for the newest ``new_samples``, overlapping the
@@ -280,6 +344,7 @@ def stream_voice_clone(
                 presence.scatter_(1, rp_history, True)
                 penalized = torch.where(logits > 0, logits / rp, logits * rp)
                 logits = torch.where(presence[:, :vocab_size], penalized, logits)
+            logits = block_early_eos(logits, len(codes))
             token = (
                 _sample_next_token(logits, temperature, top_k, top_p, suppress)
                 if do_sample
@@ -316,9 +381,20 @@ def stream_voice_clone(
                 optimized=params.use_optimized_decode and not first_phase,
             )
             emitted_frames = len(codes)
-            chunk = stitch(wav, new_frames * samples_per_frame, final=False)
+            chunk = gate(
+                stitch(wav, new_frames * samples_per_frame, final=False), sample_rate
+            )
             if cancelled():
                 return
+            if chunk is None:
+                if (
+                    params.max_leading_silence_frames
+                    and len(codes) >= params.max_leading_silence_frames
+                ):
+                    timings["no_speech"] = True
+                    timings["frames"] = len(codes)
+                    return
+                continue
             if "first_pcm" not in timings:
                 timings["first_pcm"] = time.perf_counter()
             timings["frames"] = len(codes)
@@ -342,6 +418,10 @@ def stream_voice_clone(
             n = min(overlap, len(chunk))
             chunk[-n:] *= _raised_cosine(n, rising=False)
         else:
+            return
+        chunk = gate(chunk, sample_rate or 24000)
+        if chunk is None:
+            timings["no_speech"] = True
             return
         if "first_pcm" not in timings:
             timings["first_pcm"] = time.perf_counter()

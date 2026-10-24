@@ -466,25 +466,44 @@ class QwenBackend:
         ):
             # Frame-level loop: cancellation is checked every codec frame and
             # chunk overlaps are time-aligned (see qwen_stream module docs).
-            for chunk, sample_rate in qwen_stream.stream_voice_clone(
-                self._model,
-                text=text,
-                language=spec.language,
-                voice_clone_prompt=prompt,
-                params=self._stream_params(text),
-                generation=self._generation(spec, delivery),
-                cancel_event=cancel_event,
-                timings=timings,
-            ):
-                data = np.asarray(chunk, dtype=np.float32)
-                if data.size == 0:
-                    continue
-                yield SynthesisResult(
-                    audio=data,
-                    sample_rate=int(sample_rate),
-                    model_id=self.settings.model_id,
-                    voice_id=voice_id,
-                    streaming=True,
+            timings = timings if timings is not None else {}
+            first_start = None
+            for attempt in range(2):
+                yielded = False
+                for chunk, sample_rate in qwen_stream.stream_voice_clone(
+                    self._model,
+                    text=text,
+                    language=spec.language,
+                    voice_clone_prompt=prompt,
+                    params=self._stream_params(text),
+                    generation=self._generation(spec, delivery),
+                    cancel_event=cancel_event,
+                    timings=timings,
+                ):
+                    data = np.asarray(chunk, dtype=np.float32)
+                    if data.size == 0:
+                        continue
+                    yielded = True
+                    yield SynthesisResult(
+                        audio=data,
+                        sample_rate=int(sample_rate),
+                        model_id=self.settings.model_id,
+                        voice_id=voice_id,
+                        streaming=True,
+                    )
+                if first_start is None:
+                    first_start = timings.get("generation_start")
+                # Keep TTFA honest across a retry: measure from the first start.
+                timings["generation_start"] = first_start
+                timings["attempts"] = attempt + 1
+                if yielded or not timings.pop("no_speech", False):
+                    return
+                if cancel_event and cancel_event.is_set():
+                    return
+                logger.warning(
+                    "Hopvoice produced no speech for %r (%s frames); retrying once",
+                    text[:60],
+                    timings.get("frames"),
                 )
             return
 

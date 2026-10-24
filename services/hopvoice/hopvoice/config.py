@@ -39,7 +39,7 @@ class Settings:
     stream_first_chunk_emit_every: int = 5
     stream_first_chunk_decode_window: int = 48
     stream_first_chunk_frames: int = 48
-    stream_repetition_penalty: float = 1.0
+    stream_repetition_penalty: float = 1.05
     stream_repetition_penalty_window: int = 100
     stream_use_optimized_decode: bool = True
     stream_compile: bool = True
@@ -97,7 +97,7 @@ class Settings:
                 0, int(os.getenv("HOPVOICE_STREAM_FIRST_CHUNK_FRAMES", "48"))
             ),
             stream_repetition_penalty=float(
-                os.getenv("HOPVOICE_STREAM_REPETITION_PENALTY", "1.0")
+                os.getenv("HOPVOICE_STREAM_REPETITION_PENALTY", "1.05")
             ),
             stream_repetition_penalty_window=max(
                 0, int(os.getenv("HOPVOICE_STREAM_REPETITION_PENALTY_WINDOW", "100"))

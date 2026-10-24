@@ -43,12 +43,15 @@ def frame_wave(index: int) -> np.ndarray:
 
 
 class FakeTokenizer:
+    def __init__(self, wave=frame_wave):
+        self.wave = wave
+
     def get_decode_upsample_rate(self):
         return SAMPLES_PER_FRAME
 
     def decode(self, items):
         codes = items[0]["audio_codes"]
-        wav = np.concatenate([frame_wave(int(row[0])) for row in codes])
+        wav = np.concatenate([self.wave(int(row[0])) for row in codes])
         return [wav], 24000
 
 
@@ -61,7 +64,7 @@ class FakeTalker:
         self.on_step = on_step
 
     def forward(self, **kwargs):
-        logits = torch.zeros(1, 1, 4)
+        logits = torch.zeros(1, 1, 1100)
         if kwargs.get("inputs_embeds") is not None:  # prefill
             return types.SimpleNamespace(
                 past_key_values=None, past_hidden=None, generation_step=0, logits=logits
@@ -80,7 +83,7 @@ class FakeTalker:
         )
 
 
-def make_wrapper(total_frames: int, on_step=None):
+def make_wrapper(total_frames: int, on_step=None, wave=frame_wave):
     config = types.SimpleNamespace(
         talker_config=types.SimpleNamespace(codec_eos_token_id=EOS, vocab_size=1100),
         tts_eos_token_id=EOS,
@@ -89,7 +92,7 @@ def make_wrapper(total_frames: int, on_step=None):
     model = types.SimpleNamespace(
         config=config,
         talker=FakeTalker(total_frames, on_step),
-        speech_tokenizer=FakeTokenizer(),
+        speech_tokenizer=FakeTokenizer(wave),
         _build_talker_inputs=lambda **kw: (torch.zeros(1, 1, 1), None, None, None),
     )
     return types.SimpleNamespace(
@@ -189,3 +192,57 @@ def test_streaming_resampler_matches_whole_utterance():
         whole = resample(audio, 24000, target)
         assert len(streamed) == len(whole)
         np.testing.assert_allclose(streamed, whole, atol=1e-5)
+
+
+def silent_until(first_speech_frame: int):
+    def wave(index: int) -> np.ndarray:
+        if index < first_speech_frame:
+            return np.zeros(SAMPLES_PER_FRAME, dtype=np.float32)
+        return frame_wave(index)
+
+    return wave
+
+
+def test_leading_silence_is_not_streamed_but_onset_preroll_is_kept(monkeypatch):
+    _install_fake_qwen(monkeypatch)
+    from hopvoice.qwen_stream import StreamParams
+
+    params = StreamParams(
+        emit_every_frames=4,
+        first_chunk_emit_every=2,
+        first_chunk_frames=6,
+        overlap_samples=0,
+        use_optimized_decode=False,
+        preroll_ms=5.0,  # 120 samples at 24 kHz
+        fade_in_samples=0,
+    )
+    timings: dict = {}
+    out = np.concatenate(
+        run(make_wrapper(20, wave=silent_until(7)), params, timings=timings)
+    )
+    ideal = np.concatenate([frame_wave(i) for i in range(7, 20)])
+    # 7 silent frames dropped except the 120-sample pre-roll before speech.
+    assert len(out) == len(ideal) + 120
+    np.testing.assert_allclose(out[120:], ideal, atol=1e-6)
+    assert timings["leading_silence_ms"] == pytest.approx(
+        (7 * SAMPLES_PER_FRAME - 120) / 24
+    )
+    assert "no_speech" not in timings
+
+
+def test_no_speech_stops_generation_instead_of_streaming_silence(monkeypatch):
+    _install_fake_qwen(monkeypatch)
+    from hopvoice.qwen_stream import StreamParams
+
+    wrapper = make_wrapper(500, wave=silent_until(10_000))
+    params = StreamParams(
+        emit_every_frames=4,
+        first_chunk_emit_every=0,
+        overlap_samples=0,
+        use_optimized_decode=False,
+        max_leading_silence_frames=12,
+    )
+    timings: dict = {}
+    assert run(wrapper, params, timings=timings) == []
+    assert timings["no_speech"] is True
+    assert wrapper.model.talker.steps == 12

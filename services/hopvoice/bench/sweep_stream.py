@@ -24,7 +24,7 @@ import numpy as np
 
 DEFAULT_GRID = {
     "stream_first_chunk_emit_every": [2, 3, 5],
-    "stream_first_chunk_decode_window": [24, 48],
+    "stream_first_chunk_decode_window": [24, 48, 80],
     "stream_emit_every_frames": [6, 12],
     "stream_overlap_samples": [0, 256, 512],
 }
