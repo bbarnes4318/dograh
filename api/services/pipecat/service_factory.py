@@ -702,6 +702,42 @@ def create_tts_service(
             skip_aggregator_types=["recording_router", "recording"],
             silence_time_s=1.0,
         )
+    elif user_config.tts.provider == ServiceProviders.HOPVOICE.value:
+        from os import getenv
+
+        from api.services.pipecat.hopvoice_tts import (
+            HopvoiceTTSService,
+            HopvoiceTTSSettings,
+        )
+
+        enabled = getenv("HOPVOICE_ENABLED", "false").strip().lower()
+        if enabled not in {"1", "true", "yes", "on"}:
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    "Hopvoice TTS is disabled on this runtime. Set "
+                    "HOPVOICE_ENABLED=true after deploying the Hopvoice GPU sidecar."
+                ),
+            )
+
+        endpoint = getattr(user_config.tts, "endpoint", None) or "http://hopvoice:8787"
+        _validate_runtime_service_url(endpoint, "endpoint")
+        return HopvoiceTTSService(
+            endpoint=endpoint,
+            api_key=user_config.tts.api_key,
+            session_id=correlation_id,
+            sample_rate=audio_config.transport_out_sample_rate,
+            settings=HopvoiceTTSSettings(
+                model=user_config.tts.model,
+                voice=user_config.tts.voice,
+                language=getattr(user_config.tts, "language", None) or "en",
+                instructions=getattr(user_config.tts, "voice_instructions", None)
+                or None,
+            ),
+            text_filters=[xml_function_tag_filter],
+            skip_aggregator_types=["recording_router", "recording"],
+            silence_time_s=1.0,
+        )
     elif user_config.tts.provider == ServiceProviders.CAMB.value:
         from pipecat.services.camb.tts import CambTTSService
 

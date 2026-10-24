@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hopwhistle-hopvoice"
+version = "0.3.0"
+description = "Hopwhistle first-party neural voice inference service"
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi>=0.115,<1",
+  "uvicorn[standard]>=0.30,<1",
+  "numpy>=1.26,<3",
+  "scipy>=1.12,<2",
+]
+
+[project.optional-dependencies]
+qwen = [
+  "qwen-tts==0.1.1",
+  "torch>=2.6",
+  "torchaudio>=2.6",
+]
+qwen-streaming = [
+  "qwen-tts @ git+https://github.com/rekuenkdr/Qwen3-TTS-streaming.git@b8db6ff1cebc0d6554cf0977045850bcc796b383",
+  "torch>=2.6",
+  "torchaudio>=2.6",
+]
+test = [
+  "httpx>=0.27,<1",
+  "pytest>=8,<10",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["hopvoice*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

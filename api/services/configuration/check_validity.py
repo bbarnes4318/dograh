@@ -1,3 +1,4 @@
+import os
 from typing import Optional, TypedDict
 
 import httpx
@@ -129,6 +130,31 @@ class UserConfigurationValidator:
                     )
                 except ValueError as e:
                     return [{"model": service_name, "message": str(e)}]
+
+        # Hopvoice is an internal/self-hosted service. The endpoint is validated
+        # above, and bearer auth is optional on isolated private deployments.
+        # The feature gate prevents a saved config from silently selecting a
+        # provider that the runtime operator has not explicitly enabled.
+        if provider == ServiceProviders.HOPVOICE.value:
+            enabled = os.getenv("HOPVOICE_ENABLED", "false").strip().lower()
+            if enabled not in {"1", "true", "yes", "on"}:
+                return [
+                    {
+                        "model": service_name,
+                        "message": (
+                            "Hopvoice TTS is disabled on this runtime. Set "
+                            "HOPVOICE_ENABLED=true after deploying the Hopvoice GPU sidecar."
+                        ),
+                    }
+                ]
+            if not getattr(service_config, "endpoint", None):
+                return [
+                    {
+                        "model": service_name,
+                        "message": "endpoint is required for Hopvoice TTS",
+                    }
+                ]
+            return []
 
         # Speaches doesn't require an API key
         if provider == ServiceProviders.SPEACHES.value:

@@ -127,6 +127,7 @@ class ServiceProviders(str, Enum):
     XAI = "xai"
     LMNT = "lmnt"
     FISH = "fish"  # HOPWHISTLE_FISH_TTS_V1
+    HOPVOICE = "hopvoice"
 
 
 class BaseServiceConfiguration(BaseModel):
@@ -162,6 +163,7 @@ class BaseServiceConfiguration(BaseModel):
         ServiceProviders.XAI,
         ServiceProviders.LMNT,
         ServiceProviders.FISH,  # HOPWHISTLE_FISH_TTS_V1
+        ServiceProviders.HOPVOICE,
     ]
     api_key: str | list[str]
 
@@ -316,6 +318,13 @@ ELEVENLABS_PROVIDER_MODEL_CONFIG = provider_model_config("ElevenLabs")
 CARTESIA_PROVIDER_MODEL_CONFIG = provider_model_config("Cartesia")
 XAI_PROVIDER_MODEL_CONFIG = provider_model_config("xAI")
 LMNT_PROVIDER_MODEL_CONFIG = provider_model_config("LMNT")
+HOPVOICE_PROVIDER_MODEL_CONFIG = provider_model_config(
+    "Hopvoice",
+    description=(
+        "Hopwhistle first-party persistent-streaming neural TTS. Requires the "
+        "Hopvoice GPU sidecar and HOPVOICE_ENABLED=true on the AI Voice runtime."
+    ),
+)
 INWORLD_PROVIDER_MODEL_CONFIG = provider_model_config(
     "Inworld",
     description=(
@@ -1692,6 +1701,62 @@ class FishAudioTTSConfiguration(BaseTTSConfiguration):
 # --- end HOPWHISTLE_FISH_TTS_V1 ------------------------------------------------
 
 
+HOPVOICE_TTS_MODELS = ("native-fast", "native-premium")
+
+
+@register_tts
+class HopvoiceTTSConfiguration(BaseTTSConfiguration):
+    model_config = HOPVOICE_PROVIDER_MODEL_CONFIG
+    provider: Literal[ServiceProviders.HOPVOICE] = ServiceProviders.HOPVOICE
+    model: str = Field(
+        default="native-fast",
+        description=(
+            "Hopvoice model profile. native-fast targets the 0.6B streaming Base "
+            "worker; native-premium targets the 1.7B Base worker."
+        ),
+        json_schema_extra={
+            "examples": list(HOPVOICE_TTS_MODELS),
+            "allow_custom_input": True,
+        },
+    )
+    voice: str = Field(
+        default="default",
+        description=(
+            "Licensed Hopvoice voice_id from the sidecar voice registry. The ID "
+            "must resolve to a voice asset with synthetic-use rights."
+        ),
+        json_schema_extra={"allow_custom_input": True},
+    )
+    language: str = Field(
+        default="en",
+        description="Language hint carried with the persistent TTS session.",
+        json_schema_extra={"allow_custom_input": True},
+    )
+    endpoint: str = Field(
+        default="http://hopvoice:8787",
+        description=(
+            "Hopvoice service base URL. The native adapter normalizes this to "
+            "the persistent /v1/tts/ws WebSocket endpoint."
+        ),
+    )
+    voice_instructions: str | None = Field(
+        default=None,
+        title="Voice Delivery Instructions",
+        description=(
+            "Delivery-only guidance sent to Hopvoice for prosody and style. It "
+            "must never change the factual text supplied by the agent."
+        ),
+        json_schema_extra={"multiline": True},
+    )
+    api_key: str | list[str] | None = Field(
+        default=None,
+        description=(
+            "Optional Hopvoice bearer token. Recommended outside an isolated "
+            "private network."
+        ),
+    )
+
+
 TTSConfig = Annotated[
     Union[
         DeepgramTTSConfiguration,
@@ -1711,6 +1776,7 @@ TTSConfig = Annotated[
         XAITTSConfiguration,
         LmntTTSConfiguration,
         FishAudioTTSConfiguration,  # HOPWHISTLE_FISH_TTS_V1
+        HopvoiceTTSConfiguration,
     ],
     Field(discriminator="provider"),
 ]
