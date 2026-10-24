@@ -16,6 +16,7 @@ DEFAULT_TURN_STOP_STRATEGY = "transcription"
 DEFAULT_CONTEXT_COMPACTION_ENABLED = False
 DEFAULT_BUFFER_MUTED_SPEECH = True
 DEFAULT_SPEAK_DURING_TRANSITION = False
+DEFAULT_PREVENT_REPEATS = True
 
 
 class ExternalPBXFieldMapping(BaseModel):
@@ -141,9 +142,11 @@ def default_idle_nudges() -> list["IdleNudgeConfiguration"]:
         IdleNudgeConfiguration(
             after_seconds=8.0,
             llm_instruction=(
-                "The user has gone quiet again. Briefly re-ask your last "
-                "question in a different way, in the language the user has "
-                "been speaking."
+                "The user has gone quiet again. Do not repeat or reword your "
+                "last question or anything else you already said. In one short "
+                "sentence, make it easy for them to reply, for example by "
+                "offering to call back at a better time, in the language the "
+                "user has been speaking."
             ),
         ),
         IdleNudgeConfiguration(
@@ -226,6 +229,9 @@ class WorkflowConfigurationDefaults(BaseModel):
     # that speaks in the new node. Edges with their own configured transition
     # speech are unaffected.
     speak_during_transition: bool = DEFAULT_SPEAK_DURING_TRANSITION
+    # Never say the same sentence twice on a call (unless the caller asks to
+    # hear it again), and tell the model not to re-ask answered questions.
+    prevent_repeats: bool = DEFAULT_PREVENT_REPEATS
     external_pbx_field_mappings: list[ExternalPBXFieldMapping] = Field(
         default_factory=list,
         max_length=100,

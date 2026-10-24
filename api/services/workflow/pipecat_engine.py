@@ -142,6 +142,7 @@ class PipecatEngine:
         context_compaction_enabled: bool = False,
         tool_filler: Optional["ToolFillerConfiguration"] = None,
         speak_during_transition: bool = False,
+        prevent_repeats: bool = False,
         send_dtmf_enabled: bool = False,
         llm_provider: Optional[str] = None,
         prompt_cache_namespace: Optional[str] = None,
@@ -261,6 +262,10 @@ class PipecatEngine:
         # Let the model supply a line to say while a node transition runs, so
         # the second generation isn't dead air.
         self._speak_during_transition: bool = speak_during_transition
+
+        # Tell the model on every node not to re-ask answered questions or
+        # repeat itself (the RepeatGuard enforces it on the spoken output).
+        self._prevent_repeats: bool = prevent_repeats
 
         # Whether the agent can press keys on a phone menu.
         self._send_dtmf_enabled: bool = send_dtmf_enabled
@@ -761,6 +766,7 @@ class PipecatEngine:
             workflow=self.workflow,
             format_prompt=self._format_prompt,
             has_recordings=self._has_recordings,
+            include_no_repeat_rules=self._prevent_repeats,
         )
         if self._send_dtmf_enabled:
             await self._register_send_dtmf_function()

@@ -186,8 +186,13 @@ class RealtimeFeedbackObserver(BaseObserver):
         # log persistence. The downstream TTSTextFrame(s) from the TTS service
         # still stream to WS as normal; we persist the full utterance once here
         # to avoid word-level log entries from word-timestamp providers.
+        # Speech that is also appended to the context is already persisted
+        # once spoken, through the assistant turn (register_turn_log_handlers);
+        # logging it here too put the line in the transcript twice.
         elif isinstance(frame, TTSSpeakFrame):
-            if getattr(frame, "persist_to_logs", False):
+            if getattr(frame, "persist_to_logs", False) and not getattr(
+                frame, "append_to_context", False
+            ):
                 await self._append_to_buffer(build_bot_text_event(text=frame.text))
         # Handle bot TTS text after output transport timing, WebSocket only
         # Complete turn text is persisted via register_turn_handlers,

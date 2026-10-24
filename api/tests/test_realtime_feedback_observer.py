@@ -4,6 +4,7 @@ from types import SimpleNamespace
 import pytest
 from pipecat.frames.frames import (
     TranscriptionFrame,
+    TTSSpeakFrame,
     TTSTextFrame,
 )
 from pipecat.observers.base_observer import FramePushed
@@ -119,6 +120,43 @@ async def test_observer_waits_for_tts_text_from_output_transport():
             "payload": {"text": "Hello"},
         }
     ]
+
+
+class _FakeLogsBuffer:
+    def __init__(self):
+        self.events = []
+
+    async def append(self, event, **_kwargs):
+        self.events.append(event)
+
+
+@pytest.mark.asyncio
+async def test_engine_speech_kept_out_of_context_is_persisted_once():
+    logs = _FakeLogsBuffer()
+    observer = RealtimeFeedbackObserver(ws_sender=None, logs_buffer=logs)
+
+    frame = TTSSpeakFrame(
+        "Agents are tied up right now.", append_to_context=False, persist_to_logs=True
+    )
+    await observer.on_push_frame(_frame_pushed(frame, FrameDirection.DOWNSTREAM))
+
+    assert [event["payload"]["text"] for event in logs.events] == [
+        "Agents are tied up right now."
+    ]
+
+
+@pytest.mark.asyncio
+async def test_engine_speech_appended_to_context_is_left_to_the_assistant_turn():
+    """The assistant turn logs it once spoken; logging it here too doubled it."""
+    logs = _FakeLogsBuffer()
+    observer = RealtimeFeedbackObserver(ws_sender=None, logs_buffer=logs)
+
+    frame = TTSSpeakFrame(
+        "Sorry, are you still there?", append_to_context=True, persist_to_logs=True
+    )
+    await observer.on_push_frame(_frame_pushed(frame, FrameDirection.DOWNSTREAM))
+
+    assert logs.events == []
 
 
 @pytest.mark.asyncio

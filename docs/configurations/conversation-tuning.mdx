@@ -46,7 +46,7 @@ or asks the model to generate one.
     "enabled": true,
     "nudges": [
       { "message": "Sorry, are you still there?" },
-      { "after_seconds": 8, "llm_instruction": "The user has gone quiet again. Briefly re-ask your last question in a different way, in the language the user has been speaking." },
+      { "after_seconds": 8, "llm_instruction": "The user has gone quiet again. Do not repeat or reword your last question. In one short sentence, offer to call back at a better time." },
       { "after_seconds": 8, "llm_instruction": "Wish them a good day and end the call.", "end_call": true }
     ]
   }
@@ -59,6 +59,11 @@ or asks the model to generate one.
 - `after_seconds` — how long to wait before *this* step. Omit to keep the
   previous step's timeout. The first step uses `max_user_idle_timeout`.
 - `end_call` — hang up after speaking this step.
+
+The ladder restarts each time the caller speaks, but a canned line is spoken
+at most once per call. If a step's line was already said, the agent moves to
+the next step instead of saying it again. Every `llm_instruction` also tells
+the model not to repeat anything it has already said.
 
 <Note>
 The default first nudge is English. For a non-English workflow, set
@@ -82,6 +87,25 @@ in the *first* call's arguments, so it costs no extra round trip.
 
 Edges with their own configured transition speech are unaffected — the
 configured line wins.
+
+## Preventing repeats
+
+On by default. The agent never says the same sentence twice on a call, and
+never says something close to it with a different lead-in like "okay" or "so".
+If the caller asks to hear something again ("What?", "Say that again") or
+answers with a question of their own, the agent may say it one more time, but
+never a third time. Short acknowledgments and goodbyes are not affected.
+
+When a reply is held back, the model is asked once for a new line that moves
+the call forward. Every node's prompt also tells the model not to re-ask
+questions the caller already answered.
+
+```json
+{ "prevent_repeats": true }
+```
+
+Speech-to-speech models get the prompt rule only, because their audio can't be
+held back.
 
 ## Captured speech while muted
 
