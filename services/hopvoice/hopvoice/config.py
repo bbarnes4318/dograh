@@ -50,6 +50,7 @@ class Settings:
     stream_loop: str = "hopvoice"
     stream_fade_in_samples: int = 96
     delivery_planner: bool = True
+    speech_gate_dbfs: float = -36.0
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -112,6 +113,7 @@ class Settings:
             ).strip(),
             stream_loop=os.getenv("HOPVOICE_STREAM_LOOP", "hopvoice").strip().lower(),
             delivery_planner=_env_bool("HOPVOICE_DELIVERY_PLANNER", True),
+            speech_gate_dbfs=float(os.getenv("HOPVOICE_SPEECH_GATE_DBFS", "-36")),
             stream_fade_in_samples=max(
                 0, int(os.getenv("HOPVOICE_STREAM_FADE_IN_SAMPLES", "96"))
             ),

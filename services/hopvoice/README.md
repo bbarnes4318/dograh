@@ -46,8 +46,13 @@ LLM -> Pipecat text aggregation -> HopvoiceTTSService (api/services/pipecat/hopv
 
 `voices/alex_fec_v1/` holds a **fully synthetic** voice: Qwen3-TTS 1.7B
 VoiceDesign generated it from a text description (`tools/design_voice.py`), so
-no human recording is cloned. The selected clip is the ICL reference for the
-Base workers, which gives a stable reusable identity. Six candidates, their
+no human recording is cloned. The Base workers condition on that clip's
+speaker embedding (`x_vector_only_mode`), which gives a stable reusable
+identity and bounded turn-start silence (measured 370 ms P50 / 540 ms max vs
+~700 ms / 2.2 s with full-clip ICL, which continues from the reference's
+pauses). `alex_fec_v1_icl` is the same speaker via ICL on the clip's last
+sentence; it also copies the reference's casual delivery, so A/B the two by
+ear. Six candidates, their
 objective analysis and the provenance record are kept alongside it. The
 selection was made on measurements (male register, calm pitch movement,
 moderate pausing, 0 WER at 24 kHz and 8 kHz mu-law); confirm it by ear and swap

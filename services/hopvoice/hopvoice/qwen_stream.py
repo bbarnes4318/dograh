@@ -63,7 +63,9 @@ class StreamParams:
     # speech_gate_dbfs; pre-roll keeps soft onsets. If no speech appears within
     # max_leading_silence_frames, generation stops with timings["no_speech"].
     trim_leading_silence: bool = True
-    speech_gate_dbfs: float = -42.0
+    # Alex speaks at about -20 dBFS RMS; -36 sits above the low breathy noise
+    # (-42..-50 dBFS) the model sometimes produces for ~1 s before a turn.
+    speech_gate_dbfs: float = -36.0
     preroll_ms: float = 60.0
     max_leading_silence_frames: int = 30
 

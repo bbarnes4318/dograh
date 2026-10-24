@@ -256,6 +256,7 @@ class QwenBackend:
             repetition_penalty=s.stream_repetition_penalty,
             repetition_penalty_window=s.stream_repetition_penalty_window,
             fade_in_samples=s.stream_fade_in_samples,
+            speech_gate_dbfs=s.speech_gate_dbfs,
         )
 
     def _maybe_enable_streaming_optimizations(self) -> None:
