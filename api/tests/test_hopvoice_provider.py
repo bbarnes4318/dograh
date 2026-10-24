@@ -1,3 +1,4 @@
+import json
 from types import SimpleNamespace
 
 import pytest
@@ -11,7 +12,7 @@ from api.services.configuration.registry import (
     ServiceProviders,
     TTSConfig,
 )
-from api.services.pipecat import service_factory
+from api.services.pipecat import hopvoice_tts, service_factory
 from api.services.pipecat.hopvoice_tts import HopvoiceTTSService
 
 
@@ -103,8 +104,65 @@ def test_hopvoice_factory_builds_persistent_native_adapter(monkeypatch):
     assert isinstance(service, HopvoiceTTSService)
     assert service._endpoint == "ws://hopvoice:8787/v1/tts/ws"
     assert service._session_id == "call-123"
-    assert service.sample_rate == 8000
+    # The configured rate; start() makes it the live sample_rate.
+    assert service._init_sample_rate == 8000
     assert service._settings.model == "native-fast"
     assert service._settings.voice == "alex_licensed_v1"
     assert service._settings.language == "en"
     assert service._settings.instructions == "Warm, calm, conversational delivery."
+
+
+class _FakeHopvoiceSocket:
+    def __init__(self):
+        self.sent = []
+        self.closed = False
+
+    @property
+    def state(self):
+        from websockets.protocol import State
+
+        return State.CLOSED if self.closed else State.OPEN
+
+    async def send(self, message):
+        self.sent.append(json.loads(message))
+
+    async def recv(self):
+        return json.dumps({"type": "ready"})
+
+    async def close(self):
+        self.closed = True
+
+
+@pytest.mark.asyncio
+async def test_hopvoice_adapter_handshakes_through_the_reconnect_hooks(monkeypatch):
+    """The base class reconnects through these two methods, so they own the
+    session handshake and the goodbye."""
+    sockets = []
+
+    async def fake_connect(url, additional_headers=None):
+        assert url == "ws://hopvoice:8787/v1/tts/ws"
+        sockets.append(_FakeHopvoiceSocket())
+        return sockets[-1]
+
+    monkeypatch.setattr(hopvoice_tts, "websocket_connect", fake_connect)
+    service = HopvoiceTTSService(
+        endpoint="http://hopvoice:8787",
+        api_key=None,
+        session_id="call-123",
+        sample_rate=8000,
+        settings=HopvoiceTTSService.Settings(model="native-fast", voice="alex"),
+    )
+    service._sample_rate = 8000  # what start() sets before connecting
+
+    await service._connect_websocket()
+    await service._disconnect_websocket()
+    await service._connect_websocket()
+
+    start = sockets[0].sent[0]
+    assert start["type"] == "start"
+    assert start["session_id"] == "call-123"
+    assert start["voice_id"] == "alex"
+    assert start["output"]["sample_rate"] == 8000
+    assert sockets[0].sent[-1] == {"type": "end"} and sockets[0].closed
+    # A reconnect opens a fresh socket and repeats the handshake.
+    assert len(sockets) == 2 and sockets[1].sent[0]["type"] == "start"

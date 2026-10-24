@@ -118,6 +118,22 @@ class HopvoiceTTSService(WebsocketTTSService):
 
     async def _connect(self):
         await super()._connect()
+        await self._connect_websocket()
+        if self._websocket and not self._receive_task:
+            self._receive_task = self.create_task(
+                self._receive_task_handler(self._report_error)
+            )
+
+    async def _disconnect(self):
+        await super()._disconnect()
+        if self._receive_task:
+            await self.cancel_task(self._receive_task)
+            self._receive_task = None
+        await self._disconnect_websocket()
+
+    async def _connect_websocket(self):
+        # Also called by the base class to reconnect, so the session handshake
+        # lives here rather than in _connect.
         if self._websocket and self._websocket.state is State.OPEN:
             return
 
@@ -156,9 +172,6 @@ class HopvoiceTTSService(WebsocketTTSService):
             if ready.get("type") != "ready":
                 raise RuntimeError(f"Hopvoice did not accept session: {ready}")
 
-            self._receive_task = self.create_task(
-                self._receive_task_handler(self._report_error)
-            )
             await self._call_event_handler("on_connected")
             logger.info(
                 f"Connected to Hopvoice profile={self._settings.model} session={self._session_id}"
@@ -170,11 +183,7 @@ class HopvoiceTTSService(WebsocketTTSService):
             self._websocket = None
             raise
 
-    async def _disconnect(self):
-        await super()._disconnect()
-        if self._receive_task:
-            await self.cancel_task(self._receive_task)
-            self._receive_task = None
+    async def _disconnect_websocket(self):
         if self._websocket:
             try:
                 if self._websocket.state is State.OPEN:
