@@ -55,9 +55,7 @@ def test_hopvoice_validation_rejects_disabled_runtime(monkeypatch):
         lambda *_args, **_kwargs: None,
     )
 
-    errors = UserConfigurationValidator()._validate_service(
-        _hopvoice_config(), "tts"
-    )
+    errors = UserConfigurationValidator()._validate_service(_hopvoice_config(), "tts")
 
     assert errors == [
         {

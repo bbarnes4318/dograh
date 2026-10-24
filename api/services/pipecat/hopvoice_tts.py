@@ -18,7 +18,13 @@ from urllib.parse import urlparse, urlunparse
 
 from loguru import logger
 
-from pipecat.frames.frames import ErrorFrame, Frame, StartFrame, TTSAudioRawFrame, TTSStoppedFrame
+from pipecat.frames.frames import (
+    ErrorFrame,
+    Frame,
+    StartFrame,
+    TTSAudioRawFrame,
+    TTSStoppedFrame,
+)
 from pipecat.services.settings import NOT_GIVEN, TTSSettings, _NotGiven
 from pipecat.services.tts_service import TextAggregationMode, WebsocketTTSService
 from pipecat.utils.tracing.service_decorators import traced_tts
@@ -42,7 +48,9 @@ def _websocket_url(endpoint: str) -> str:
         path = path[:-3]
     if not path.endswith("/v1/tts/ws"):
         path = f"{path}/v1/tts/ws" if path else "/v1/tts/ws"
-    return urlunparse(parsed._replace(scheme=scheme, path=path, params="", query="", fragment=""))
+    return urlunparse(
+        parsed._replace(scheme=scheme, path=path, params="", query="", fragment="")
+    )
 
 
 @dataclass
@@ -271,7 +279,9 @@ class HopvoiceTTSService(WebsocketTTSService):
             try:
                 await self._websocket.send(json.dumps({"type": "cancel_all"}))
             except Exception as exc:  # noqa: BLE001 - local interruption must continue
-                logger.warning(f"Unable to cancel Hopvoice queue on interruption: {exc}")
+                logger.warning(
+                    f"Unable to cancel Hopvoice queue on interruption: {exc}"
+                )
         self._receiving_context_id = None
         await super().on_audio_context_interrupted(context_id)
 

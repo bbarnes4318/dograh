@@ -731,7 +731,8 @@ def create_tts_service(
                 model=user_config.tts.model,
                 voice=user_config.tts.voice,
                 language=getattr(user_config.tts, "language", None) or "en",
-                instructions=getattr(user_config.tts, "voice_instructions", None) or None,
+                instructions=getattr(user_config.tts, "voice_instructions", None)
+                or None,
             ),
             text_filters=[xml_function_tag_filter],
             skip_aggregator_types=["recording_router", "recording"],
