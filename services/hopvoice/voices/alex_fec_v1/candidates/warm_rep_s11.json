@@ -1,0 +1,32 @@
+{
+  "candidate": "warm_rep_s11",
+  "model": "Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign",
+  "instruct": "A male American speaker in his late thirties with a warm, calm, slightly low voice. He sounds like a friendly, patient insurance representative chatting on the phone with an older customer: relaxed, confident, approachable and a little casual, with natural conversational pacing. General American accent. Not an announcer, not a radio voice, not salesy or over-enthusiastic.",
+  "ref_text": "Hey, how's it going? Yeah, so I'm just following up on that information you'd asked about. It's real simple, it only takes a minute. And honestly, if anything doesn't make sense, just stop me and I'll walk you through it.",
+  "language": "English",
+  "seed": 11,
+  "temperature": 0.8,
+  "sample_rate": 24000,
+  "duration_s": 12.56,
+  "generation_s": 78.26,
+  "provenance": "synthetic: Qwen3-TTS VoiceDesign from text description; no human reference audio",
+  "analysis": {
+    "duration_s": 12.56,
+    "leading_ms": 60.0,
+    "trailing_ms": 220.0,
+    "pauses": 5.0,
+    "pause_ms": 2510.0,
+    "f0_median_hz": 119.3,
+    "f0_std_st": 4.11,
+    "f0_range_st": 14.07,
+    "voiced_ratio": 0.576,
+    "peak_dbfs": -8.72,
+    "rms_dbfs": -24.89,
+    "clipped_ratio": 0.0,
+    "max_jump_ratio": 4.06,
+    "words_per_s": 3.26,
+    "asr": "Hey, how's it going? Yeah, so I'm just following up on that information you'd asked about. It's real simple, it only takes a minute. And honestly, if anything doesn't make sense, just stop me and I'll walk you through it.",
+    "wer": 0.0,
+    "telephone_wer": 0.0
+  }
+}

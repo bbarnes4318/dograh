@@ -1,0 +1,20 @@
+{
+  "voices": {
+    "alex_fec_v1": {
+      "language": "English",
+      "ref_audio": "alex_fec_v1/reference.wav",
+      "ref_text": "Hey, how's it going? Yeah, so I'm just following up on that information you'd asked about. It's real simple, it only takes a minute. And honestly, if anything doesn't make sense, just stop me and I'll walk you through it.",
+      "x_vector_only_mode": true,
+      "temperature": 0.8,
+      "top_p": 0.95
+    },
+    "alex_fec_v1_icl": {
+      "language": "English",
+      "ref_audio": "alex_fec_v1/reference_short.wav",
+      "ref_text": "And honestly, if anything doesn't make sense, just stop me and I'll walk you through it.",
+      "x_vector_only_mode": false,
+      "temperature": 0.8,
+      "top_p": 0.95
+    }
+  }
+}

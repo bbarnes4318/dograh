@@ -31,3 +31,7 @@ docs/superpowers/
 # Local Redis snapshots from a dev/test server
 dump.rdb
 *.rdb
+
+# Hopvoice voice references are runtime assets, not scratch audio.
+!services/hopvoice/voices/**/*.wav
+services/hopvoice/*.egg-info/

@@ -83,7 +83,7 @@ class HopvoiceTTSService(WebsocketTTSService):
     ):
         defaults = HopvoiceTTSSettings(
             model="native-fast",
-            voice="default",
+            voice="alex_fec_v1",
             language="en",
             instructions=None,
         )

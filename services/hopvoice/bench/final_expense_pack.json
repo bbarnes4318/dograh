@@ -1,0 +1,62 @@
+{
+  "name": "final-expense-alex-v1",
+  "description": "Real phrases the Final Expense Center agent says. Used for TTFA/RTF benchmarks, 24 kHz + 8 kHz mu-law listening files, ASR intelligibility and identity drift.",
+  "phrases": [
+    {"id": "open_01", "category": "opening", "text": "Hey, this is Alex at the Final Expense Center. We had called you earlier about funeral and burial coverage. I can get you caught up real quick — are you between the ages of 40 and 85?"},
+
+    {"id": "ack_okay", "category": "short", "text": "Okay."},
+    {"id": "ack_got_it", "category": "short", "text": "Got it."},
+    {"id": "ack_perfect", "category": "short", "text": "Perfect."},
+    {"id": "ack_absolutely", "category": "short", "text": "Absolutely."},
+    {"id": "ack_thats_fine", "category": "short", "text": "That's fine."},
+    {"id": "ack_sure", "category": "short", "text": "Sure."},
+
+    {"id": "qual_01", "category": "qualification", "text": "And you're living independently, right? You're not currently in a nursing home or assisted living facility?"},
+    {"id": "explain_01", "category": "explanation", "text": "We're just following up on the information about funeral and burial coverage."},
+
+    {"id": "obj_01", "category": "objection", "text": "I understand. This will only take a second."},
+    {"id": "obj_02", "category": "objection", "text": "No problem. The licensed agent can answer that for you."},
+
+    {"id": "transfer_01", "category": "transfer", "text": "Perfect. I'm going to bring a licensed agent on the line now."},
+
+    {"id": "num_01", "category": "numbers", "text": "I'm showing your age as seventy-two. Is that correct?"},
+    {"id": "num_02", "category": "numbers", "text": "The coverage options usually start around five thousand dollars."},
+
+    {"id": "term_01", "category": "terms", "text": "Final expense coverage is there so your family isn't stuck with those costs."},
+    {"id": "term_02", "category": "terms", "text": "Who would you want listed as the beneficiary on the policy?"},
+    {"id": "term_03", "category": "terms", "text": "This is whole life insurance, so it doesn't expire as you get older."},
+    {"id": "term_04", "category": "terms", "text": "The licensed agent will go over the premium and the coverage amount with you."},
+    {"id": "term_05", "category": "terms", "text": "Burial coverage, final expense, whole life insurance — the agent can explain the difference."},
+
+    {"id": "question_01", "category": "question", "text": "Do you have a pen and paper handy, or would you like me to wait a moment?"},
+    {"id": "question_02", "category": "question", "text": "Is now still a good time to talk?"},
+    {"id": "comma_01", "category": "commas", "text": "So, just to make sure I have this right, you're seventy-two, you live on your own, and you'd like about ten thousand in coverage."},
+    {"id": "long_01", "category": "long", "text": "What usually happens next is the licensed agent asks you a few simple health questions, looks at what's available in your state, and then walks you through a couple of options so you can pick whatever fits your budget best."},
+    {"id": "vshort_01", "category": "very_short", "text": "Yes."},
+    {"id": "vshort_02", "category": "very_short", "text": "Right."},
+    {"id": "vshort_03", "category": "very_short", "text": "Mm-hmm."},
+    {"id": "correction_01", "category": "correction", "text": "Oh, I'm sorry, I said sixty-two — I meant seventy-two."},
+    {"id": "correction_02", "category": "correction", "text": "Actually, let me correct that. It's the licensed agent who confirms the coverage amount, not me."},
+    {"id": "empathy_01", "category": "empathetic", "text": "I'm really sorry to hear about your husband. Take all the time you need."},
+    {"id": "empathy_02", "category": "empathetic", "text": "That's completely understandable. A lot of folks feel the same way."},
+    {"id": "upbeat_01", "category": "upbeat", "text": "Oh, that's great news! You should be in good shape then."},
+    {"id": "upbeat_02", "category": "upbeat", "text": "Awesome, thank you so much for your patience."},
+    {"id": "hesitation_01", "category": "hesitation", "text": "Hmm, let me see here... okay, yeah, I've got your information pulled up."},
+    {"id": "hesitation_02", "category": "hesitation", "text": "Well, um, it really depends on your age and your health."},
+    {"id": "interrupt_recover_01", "category": "interruption", "text": "Oh, sorry, go ahead."},
+    {"id": "interrupt_recover_02", "category": "interruption", "text": "No, you're fine. What was that?"}
+  ],
+  "dialogue": [
+    "Hey, this is Alex at the Final Expense Center.",
+    "We had called you earlier about funeral and burial coverage.",
+    "I can get you caught up real quick — are you between the ages of 40 and 85?",
+    "Perfect.",
+    "And you're living independently, right?",
+    "You're not currently in a nursing home or assisted living facility?",
+    "Got it.",
+    "I'm showing your age as seventy-two. Is that correct?",
+    "Okay, that's fine.",
+    "Let me get the licensed agent on with us."
+  ],
+  "interruption_text": "What usually happens next is the licensed agent asks you a few simple health questions, looks at what's available in your state, and then walks you through a couple of options so you can pick whatever fits your budget best."
+}

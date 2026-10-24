@@ -11,6 +11,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 COPY pyproject.toml ./
 COPY hopvoice ./hopvoice
+# Benchmark/sweep/voice tools, runnable inside the GPU container:
+#   docker compose -f docker-compose.gpu.yaml exec hopvoice python3 -m bench.sweep_stream ...
+COPY tools ./tools
+COPY bench ./bench
 
 # qwen-streaming is the reproducible low-TTFA runtime. Set
 # --build-arg HOPVOICE_QWEN_EXTRA=qwen to build against the official

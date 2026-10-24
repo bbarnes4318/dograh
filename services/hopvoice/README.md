@@ -1,162 +1,138 @@
 # Hopvoice — Hopwhistle Native Voice Engine
 
-This directory is the first runnable slice of Hopwhistle's first-party neural
-voice engine. It is **not** a Dograh SaaS/API integration. It is an internal GPU
-service intended to run beside Hopwhistle's self-hosted AI Voice runtime.
+Hopvoice is Hopwhistle's first-party neural TTS: an internal GPU inference
+service used by our self-hosted Dograh-derived AI Voice runtime. It is not a
+hosted-vendor integration.
 
-## What milestone 0.2 does
+```
+LLM -> Pipecat text aggregation -> HopvoiceTTSService (api/services/pipecat/hopvoice_tts.py)
+    -> one persistent WebSocket per call (/v1/tts/ws)
+    -> Qwen3-TTS Base on the GPU, frame-level streaming loop (hopvoice/qwen_stream.py)
+    -> stateful resampler -> 20 ms PCM frames -> telephony transport -> caller
+```
 
-- owns a stable Hopwhistle model profile (`native-fast` by default);
-- loads Qwen3-TTS locally on our GPU (`0.6B Base` by default);
-- caches licensed voice-clone prompts so reference features are not rebuilt on
-  every utterance;
-- exposes an OpenAI-compatible streaming HTTP endpoint that the existing
-  `Speaches` Pipecat adapter can call **today**, without changing the live
-  provider registry;
-- exposes the long-term persistent WebSocket protocol at `/v1/tts/ws` with
-  `start`, `text`, binary PCM, `cancel_turn`, `cancel_all`, and `end`;
-- serializes multiple TTS chunks per call so sentence-level LLM streaming cannot
-  overlap model inference or produce out-of-order audio;
-- marks both active and queued speech stale on barge-in so an interrupted caller
-  never hears a delayed sentence afterward;
-- keeps the GPU concurrency semaphore held until a blocking model call truly
-  exits, even when its caller-facing task has been cancelled;
-- outputs raw signed 16-bit PCM and can render 8/16/24/48 kHz on the WebSocket
-  path;
-- includes auth, concurrency limiting, health, a voice catalog, and minimal
-  Prometheus metrics;
-- includes a `stub` backend so protocol/API tests run without a GPU or model
-  weights;
-- includes `api/services/pipecat/hopvoice_tts.py`, the persistent native Pipecat
-  adapter that will replace the temporary HTTP compatibility path after provider
-  registry/factory wiring.
+## What is implemented
 
-## Important limitation of this first slice
+- `native-fast` (Qwen3-TTS-12Hz-0.6B-Base) / `native-premium` (1.7B-Base)
+  profiles, one profile per worker.
+- Persistent `/v1/tts/ws` protocol (`start`, `text`, binary PCM, `cancel_turn`,
+  `cancel_all`, `end`) and OpenAI-compatible `/v1/audio/speech`.
+- **Frame-level streaming loop** (`hopvoice/qwen_stream.py`) over the pinned
+  `rekuenkdr/Qwen3-TTS-streaming` model internals:
+  - cancellation is checked after every codec frame (~80 ms of speech) instead
+    of every emitted chunk (~1 s), so barge-in frees the GPU within one talker
+    step;
+  - chunk overlaps are time-aligned. The library loop blends the held-back tail
+    of chunk N with a *different* time span of chunk N+1; on the Alex reference
+    it deleted 277 ms from a 7.9 s sentence (SNR vs full decode −2.9 dB). The
+    Hopvoice loop is sample-exact in length (SNR 19 dB; the residual is the
+    shorter first-phase decode window, see Tuning);
+  - per-turn timings: queue wait, prefill, first codec frame, first PCM.
+  - `HOPVOICE_STREAM_LOOP=library` switches back to the library loop.
+- **Stateful resampling** for 8/16/48 kHz sessions. Resampling each streamed
+  chunk separately put a filter transient (up to 0.11 abs error) at every chunk
+  boundary of the 8 kHz telephone stream; output now equals whole-utterance
+  `resample_poly`.
+- Runaway guard: codec frames are capped by text length.
+- Per-session serialization, stale-speech suppression, GPU semaphore held until
+  the producer thread really exits (no overlapping generations).
+- **Delivery Planner** (`hopvoice/delivery.py`): per turn picks speech act,
+  style reference, sampling temperature and a leading beat from the text and
+  the previous turn. It never returns or modifies text.
+- Metrics (`/metrics`): requests, failures, cancels, first-audio, prefill,
+  cancel tail (cancel -> GPU slot released), RTF inputs, CUDA memory.
 
-The public `qwen-tts==0.1.1` Python wrapper returns a complete waveform. Its own
-source documents that `non_streaming_mode=False` only simulates streaming text
-input and does **not** enable true streaming generation. Therefore v0.2 has a
-streaming network contract but the Qwen backend does not yet achieve our TTFA
-objective.
+## Voice: Alex — Final Expense Center (`alex_fec_v1`)
 
-Cancellation drops unsent audio immediately. If the current public Qwen wrapper
-is already inside blocking GPU generation, that underlying thread cannot be
-force-stopped yet. Hopvoice keeps the GPU semaphore held until it exits so a
-fresh caller response can never overlap stale generation on the same worker.
+`voices/alex_fec_v1/` holds a **fully synthetic** voice: Qwen3-TTS 1.7B
+VoiceDesign generated it from a text description (`tools/design_voice.py`), so
+no human recording is cloned. The Base workers condition on that clip's
+speaker embedding (`x_vector_only_mode`), which gives a stable reusable
+identity and bounded turn-start silence (measured 370 ms P50 / 540 ms max vs
+~700 ms / 2.2 s with full-clip ICL, which continues from the reference's
+pauses). `alex_fec_v1_icl` is the same speaker via ICL on the clip's last
+sentence; it also copies the reference's casual delivery, so A/B the two by
+ear. Six candidates, their
+objective analysis and the provenance record are kept alongside it. The
+selection was made on measurements (male register, calm pitch movement,
+moderate pausing, 0 WER at 24 kHz and 8 kHz mu-law); confirm it by ear and swap
+`ref_audio`/`ref_text` in `voices/voices.json` if another candidate wins.
 
-That is deliberate. We first lock the service boundary, voice provenance,
-telephony rendering, metrics, interruption semantics, and runtime integration.
-The next engine task is lower-level token/decoder streaming and a cancellable
-generation loop behind the same contract.
+Paths in `voices.json` are relative to the file, so the same registry works
+mounted at `/voices` and from a checkout. Optional per-voice fields:
+`temperature`, `top_p`, and `styles` (`{"warm": {"ref_audio": ..., "ref_text": ...}}`)
+used by the Delivery Planner.
 
-## Run a no-GPU smoke test
+No public figure, commercial actor, customer, or employee voice may be added
+without explicit synthetic-voice rights.
+
+## Deploy on a GPU host
 
 ```bash
 cd services/hopvoice
-python -m venv .venv
-. .venv/bin/activate
-pip install -e '.[test]'
-HOPVOICE_BACKEND=stub HOPVOICE_PRELOAD=0 \
-  uvicorn hopvoice.app:app --host 0.0.0.0 --port 8787
+HOPVOICE_API_KEY=... HOPVOICE_BIND=<private-ip> \
+  docker compose -f docker-compose.gpu.yaml up -d --build
+curl http://<private-ip>:8787/healthz      # "loaded": true, "streaming_available": true
+curl http://<private-ip>:8787/metrics      # hopvoice_cuda_memory_* present => model on GPU
 ```
 
-Then:
+`/healthz` alone is not a deployment check; run the benchmark below.
+
+On the AI Voice runtime that should use it (one controlled test agent first):
+`HOPVOICE_ENABLED=true`, TTS provider `hopvoice`, model `native-fast`, voice
+`alex_fec_v1`, endpoint `http://<private-ip>:8787`, API key as above.
+
+If the GPU host must run with `HF_HUB_OFFLINE=1`, set `HOPVOICE_MODEL_ID` to the
+local snapshot directory: transformers 4.57.3 still calls the Hub for a repo id.
+
+## Benchmark and listening pack
 
 ```bash
-curl http://127.0.0.1:8787/healthz
-curl -o out.pcm \
-  -H 'Authorization: Bearer dev-secret' \
-  -H 'Content-Type: application/json' \
-  -d '{"model":"native-fast","input":"Hello there.","voice":"test","response_format":"pcm"}' \
-  http://127.0.0.1:8787/v1/audio/speech
+# Inside the GPU container (or any host with websockets + soundfile):
+python3 -m bench.run_bench --endpoint ws://127.0.0.1:8787 --api-key $HOPVOICE_API_KEY \
+    --voice alex_fec_v1 --profile native-fast --out /tmp/bench --repeats 3 --first-is-cold
 ```
 
-Set `HOPVOICE_API_KEY=dev-secret` if you want auth enabled in local testing.
+`bench/final_expense_pack.json` holds the real agent phrases (opening, short
+acknowledgments, qualification, objections, transfer, numbers, insurance terms,
+questions, corrections, empathy, upbeat, hesitation). The harness writes
+`results.json` / `utterances.csv` (TTFA, server TTFA breakdown, RTF, playout
+underrun, P50/P95, cold vs warm, GPU snapshot), `wav/*_24k.wav` and
+`wav/*_8k_mulaw.wav` (what the caller hears), a sentence-turn dialogue, and four
+barge-in scenarios (stale audio after cancel, GPU cancel tail, next-turn TTFA).
+`--analyze` (needs the `bench` extra) adds ASR word error rate, pitch, pace,
+leading silence and speaker similarity per file.
 
-## GPU/Qwen run
-
-Build and run with NVIDIA Container Toolkit:
+## Tuning
 
 ```bash
-docker build -t hopvoice:0.2 services/hopvoice
-
-docker run --rm --gpus all -p 8787:8787 \
-  -e HOPVOICE_API_KEY='replace-me' \
-  -e HOPVOICE_PROFILE=native-fast \
-  -e HOPVOICE_MODEL_ID=Qwen/Qwen3-TTS-12Hz-0.6B-Base \
-  -e HOPVOICE_VOICES_FILE=/voices/voices.json \
-  -v /opt/hopvoice/voices:/voices:ro \
-  -v /opt/hopvoice/hf-cache:/home/hopvoice/.cache/huggingface \
-  hopvoice:0.2
+python3 -m bench.sweep_stream --model Qwen/Qwen3-TTS-12Hz-0.6B-Base \
+    --voices /voices/voices.json --voice alex_fec_v1 --out /tmp/sweep
 ```
 
-For a premium worker, run a separate container/GPU allocation with
-`HOPVOICE_PROFILE=native-premium` and
-`Qwen/Qwen3-TTS-12Hz-1.7B-Base`. Keeping one profile per worker prevents two
-large checkpoints from unexpectedly occupying the same GPU.
+Sweeps first-chunk emission/decode window, steady emission and overlap with the
+model loaded once; reports model-side TTFA, prefill, RTF and discontinuities and
+writes WAVs per setting. Pick the fastest setting that sounds clean, then set
+`HOPVOICE_STREAM_*` on the worker. Starting values: first emission 5 frames,
+first decode window 48, steady emission 12, steady window 80, overlap 512.
+Fidelity data says short utterances (< ~3.8 s, decoded entirely in the first
+phase) are least faithful with the 48-frame first window, so include 80 in the
+sweep.
 
-## Voice registry
+## No-GPU tests
 
-Copy `voices.example.json` to the mounted voice directory. `ref_audio` must be a
-licensed/consented voice reference and `ref_text` must match it exactly for the
-normal ICL clone mode.
-
-No public figure, commercial actor, customer, or employee voice should be added
-without explicit synthetic-voice/model-training rights.
-
-## Existing runtime compatibility path
-
-Until `api/services/pipecat/hopvoice_tts.py` is wired into the provider
-registry/factory, the existing `Speaches` TTS provider can reach Hopvoice through
-`/v1/audio/speech`:
-
-- provider: `speaches`
-- base URL: `http://<hopvoice-host>:8787/v1`
-- model: `native-fast`
-- voice: your Hopvoice `voice_id`
-- API key: `HOPVOICE_API_KEY` (or `none` only on an isolated network with auth disabled)
-
-This path is for first audio/quality benchmarks. The persistent WebSocket path is
-the production target because it enables context continuity, server-side
-cancellation, future acoustic memory, and lower per-turn overhead.
-
-## WebSocket protocol v1
-
-Hopvoice v0.2 serializes multiple queued text chunks per call session. This is
-important because Pipecat may produce more than one sentence/chunk from a single
-LLM response. A `cancel_all` command marks the active turn and every queued turn
-stale, suppresses their audio, and is the command the native Pipecat adapter uses
-on caller interruption.
-
-Client start:
-
-```json
-{"type":"start","protocol_version":1,"session_id":"call-uuid","model":"native-fast","voice_id":"alex_licensed_v1","output":{"encoding":"pcm_s16le","sample_rate":8000,"channels":1}}
+```bash
+pip install -e '.[test]' && python -m pytest -q
 ```
 
-The server answers `ready`. A turn is:
+The stub backend covers the protocol. `tests/test_streaming_loop.py` drives the
+frame-level loop with a fake causal model (needs torch; skipped otherwise) to
+prove sample-exact stitching and cancellation within one codec frame.
 
-```json
-{"type":"text","turn_id":"turn-17","text":"Okay, that makes sense."}
-```
+## Still open
 
-The server sends `turn_started`, `audio_meta`, binary PCM frames, then
-`turn_done`. Interrupt a single turn with:
-
-```json
-{"type":"cancel_turn","turn_id":"turn-17"}
-```
-
-Use `{"type":"cancel_all"}` on barge-in so no queued sentence can speak after
-the interruption, and finish the call with `{"type":"end"}`.
-
-## Next engineering gates
-
-1. Replace complete-waveform Qwen generation with true token/decoder streaming.
-2. Make cancellation stop GPU generation, not merely suppress its output.
-3. Wire the now-implemented `api/services/pipecat/hopvoice_tts.py` adapter into
-   provider configuration/factory and deploy it behind a feature flag.
-4. Add Delivery Planner controls (speech act, emotion, pace, energy, emphasis).
-5. Add call-session acoustic continuity.
-6. Benchmark native 24 kHz -> G.711 8 kHz vs direct low-rate generation.
-7. Gate production on blind human-vs-AI phone tests plus TTFA/cancel-tail metrics.
+1. GPU numbers: TTFA / RTF / VRAM / cancel tail on the target GPU (tools above).
+2. Real phone call on one controlled test agent; blind preference vs the
+   current production voice.
+3. Style references for the Delivery Planner (`styles` in voices.json) once the
+   base Alex identity is approved by ear.

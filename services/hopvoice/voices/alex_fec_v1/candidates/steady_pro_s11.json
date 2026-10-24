@@ -1,0 +1,32 @@
+{
+  "candidate": "steady_pro_s11",
+  "model": "Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign",
+  "instruct": "A calm, steady American male voice around forty years old. Confident and kind, conversational rather than scripted, warm mid-low tone, unhurried, with natural small pauses. Sounds like a real person on a phone call, not a commercial.",
+  "ref_text": "Hey, how's it going? Yeah, so I'm just following up on that information you'd asked about. It's real simple, it only takes a minute. And honestly, if anything doesn't make sense, just stop me and I'll walk you through it.",
+  "language": "English",
+  "seed": 11,
+  "temperature": 0.8,
+  "sample_rate": 24000,
+  "duration_s": 14.72,
+  "generation_s": 89.6,
+  "provenance": "synthetic: Qwen3-TTS VoiceDesign from text description; no human reference audio",
+  "analysis": {
+    "duration_s": 14.72,
+    "leading_ms": 70.0,
+    "trailing_ms": 200.0,
+    "pauses": 8.0,
+    "pause_ms": 4020.0,
+    "f0_median_hz": 137.8,
+    "f0_std_st": 4.43,
+    "f0_range_st": 14.6,
+    "voiced_ratio": 0.559,
+    "peak_dbfs": -2.28,
+    "rms_dbfs": -21.84,
+    "clipped_ratio": 0.0,
+    "max_jump_ratio": 2.94,
+    "words_per_s": 2.77,
+    "asr": "Hey, how's it going? Yeah, so I'm just following up on that information you'd asked about. It's real simple, it only takes a minute. And honestly, if anything doesn't make sense, just stop me and I'll walk you through it.",
+    "wer": 0.0,
+    "telephone_wer": 0.0
+  }
+}

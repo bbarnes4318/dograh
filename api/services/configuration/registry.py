@@ -1720,10 +1720,12 @@ class HopvoiceTTSConfiguration(BaseTTSConfiguration):
         },
     )
     voice: str = Field(
-        default="default",
+        default="alex_fec_v1",
         description=(
-            "Licensed Hopvoice voice_id from the sidecar voice registry. The ID "
-            "must resolve to a voice asset with synthetic-use rights."
+            "Hopvoice voice_id from the sidecar voice registry "
+            "(services/hopvoice/voices/voices.json). alex_fec_v1 is Alex, the "
+            "Final Expense Center agent voice. The ID must resolve to a voice "
+            "asset with synthetic-use rights."
         ),
         json_schema_extra={"allow_custom_input": True},
     )

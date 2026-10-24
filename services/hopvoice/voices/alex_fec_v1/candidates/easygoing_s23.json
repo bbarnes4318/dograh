@@ -1,0 +1,32 @@
+{
+  "candidate": "easygoing_s23",
+  "model": "Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign",
+  "instruct": "Mid-thirties American man, easygoing and trustworthy. Medium-low pitch, soft but clear, speaking at a relaxed everyday pace like he is talking to a neighbor. Friendly and reassuring, never pushy, never theatrical.",
+  "ref_text": "Hey, how's it going? Yeah, so I'm just following up on that information you'd asked about. It's real simple, it only takes a minute. And honestly, if anything doesn't make sense, just stop me and I'll walk you through it.",
+  "language": "English",
+  "seed": 23,
+  "temperature": 0.8,
+  "sample_rate": 24000,
+  "duration_s": 13.52,
+  "generation_s": 96.8,
+  "provenance": "synthetic: Qwen3-TTS VoiceDesign from text description; no human reference audio",
+  "analysis": {
+    "duration_s": 13.52,
+    "leading_ms": 40.0,
+    "trailing_ms": 250.0,
+    "pauses": 7.0,
+    "pause_ms": 4490.0,
+    "f0_median_hz": 121.4,
+    "f0_std_st": 4.06,
+    "f0_range_st": 12.02,
+    "voiced_ratio": 0.53,
+    "peak_dbfs": -3.9,
+    "rms_dbfs": -22.51,
+    "clipped_ratio": 0.0,
+    "max_jump_ratio": 4.32,
+    "words_per_s": 3.02,
+    "asr": "Hey, how's it going? Yeah, so I'm just following up on that information you'd asked about. It's real simple, it only takes a minute. And honestly, if anything doesn't make sense, just stop me and I'll walk you through it.",
+    "wer": 0.0,
+    "telephone_wer": 0.0
+  }
+}
