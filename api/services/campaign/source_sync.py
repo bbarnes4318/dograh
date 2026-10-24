@@ -1,8 +1,7 @@
+import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Set
-
-import re
 
 from loguru import logger
 

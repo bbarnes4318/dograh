@@ -43,6 +43,7 @@ def build_pipeline(
     machine_answer_guard=None,
     assistant_turn_guard=None,
     output_gate=None,
+    repeat_guard=None,
 ):
     """Build the main pipeline with all components.
 
@@ -66,6 +67,9 @@ def build_pipeline(
         assistant_turn_guard: Optional AssistantTurnGuard. Sits directly after
             the LLM and hangs up when a generation says goodbye without
             calling the end_call tool.
+        repeat_guard: Optional RepeatGuard. Sits directly after the LLM, ahead
+            of the assistant-turn guard, and drops sentences the agent already
+            said on this call.
     """
     # Build processors list with optional voicemail detection. DTMF capture
     # sits directly under the transport so keypresses are collected into whole
@@ -98,6 +102,10 @@ def build_pipeline(
     if assistant_turn_guard:
         logger.info("Adding assistant-turn guard to pipeline")
         post_llm.insert(0, assistant_turn_guard)
+    if repeat_guard:
+        # First, so the closing-line check sees only what will be spoken.
+        logger.info("Adding repeat guard to pipeline")
+        post_llm.insert(0, repeat_guard)
     if recording_router:
         post_llm.append(recording_router)
 

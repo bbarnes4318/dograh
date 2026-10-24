@@ -11,6 +11,7 @@ from api.schemas.workflow_configurations import (
     DEFAULT_BUFFER_MUTED_SPEECH,
     DEFAULT_MAX_CALL_DURATION_SECONDS,
     DEFAULT_MAX_USER_IDLE_TIMEOUT_SECONDS,
+    DEFAULT_PREVENT_REPEATS,
     DEFAULT_PROVISIONAL_VAD_PAUSE_SECS,
     DEFAULT_SMART_TURN_STOP_SECS,
     DEFAULT_SPEAK_DURING_TRANSITION,
@@ -69,6 +70,7 @@ from api.services.pipecat.recording_audio_cache import (
     warm_recording_cache,
 )
 from api.services.pipecat.recording_router_processor import RecordingRouterProcessor
+from api.services.pipecat.repeat_guard import RepeatGuard
 from api.services.pipecat.service_factory import (
     create_llm_service,
     create_llm_service_from_provider,
@@ -877,6 +879,7 @@ async def _run_pipeline_impl(
     first_response_timeout = (
         call_hygiene.first_response_timeout_seconds if call_hygiene_active else None
     )
+    prevent_repeats = bool(run_configs.get("prevent_repeats", DEFAULT_PREVENT_REPEATS))
 
     engine = PipecatEngine(
         output_gate=output_gate,
@@ -898,6 +901,7 @@ async def _run_pipeline_impl(
         speak_during_transition=bool(
             run_configs.get("speak_during_transition", DEFAULT_SPEAK_DURING_TRANSITION)
         ),
+        prevent_repeats=prevent_repeats,
         send_dtmf_enabled=bool(
             (run_configs.get("dtmf") or {}).get("send_enabled", False)
         ),
@@ -1136,6 +1140,14 @@ async def _run_pipeline_impl(
         )
         assistant_turn_guard = AssistantTurnGuard(engine, call_hygiene)
 
+    # Speech-to-speech models speak their own audio, so there is no text
+    # stream to hold back; the prompt rules still apply there.
+    repeat_guard = None
+    if prevent_repeats and not is_realtime:
+        repeat_guard = RepeatGuard(
+            engine, inject_context_frame=user_context_aggregator.queue_frame
+        )
+
     voicemail_detector = None
     recording_router = None
 
@@ -1236,6 +1248,7 @@ async def _run_pipeline_impl(
             machine_answer_guard=machine_answer_guard,
             assistant_turn_guard=assistant_turn_guard,
             output_gate=output_gate,
+            repeat_guard=repeat_guard,
         )
 
     # Create pipeline task with audio configuration

@@ -318,8 +318,9 @@ def test_openai_live_does_not_mute_caller_before_first_bot_turn():
 def test_start_node_allow_interrupt_controls_first_bot_mute():
     from unittest.mock import Mock
 
-    from api.services.pipecat.run_pipeline import _create_user_mute_strategies
     from pipecat.turns.user_mute import MuteUntilFirstBotCompleteUserMuteStrategy
+
+    from api.services.pipecat.run_pipeline import _create_user_mute_strategies
 
     engine = Mock()
     interruptible = _create_user_mute_strategies(

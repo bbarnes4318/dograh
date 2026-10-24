@@ -9,7 +9,11 @@ from api.schemas.workflow_configurations import IdleNudgeConfiguration
 from api.services.pipecat.realtime.openai_realtime import (
     DograhOpenAIRealtimeLLMService,
 )
-from api.services.workflow.pipecat_engine_callbacks import UserIdleHandler
+from api.services.workflow.pipecat_engine_callbacks import (
+    DEFAULT_LLM_IDLE_INSTRUCTION,
+    NO_REPEAT_IDLE_SUFFIX,
+    UserIdleHandler,
+)
 
 
 @pytest.mark.asyncio
@@ -58,6 +62,6 @@ async def test_user_idle_handler_uses_realtime_append_path():
     assert frame.messages == [
         {
             "role": "user",
-            "content": "The user has been quiet. Politely and briefly ask if they're still there in the language that the user has been speaking so far.",
+            "content": DEFAULT_LLM_IDLE_INSTRUCTION + NO_REPEAT_IDLE_SUFFIX,
         }
     ]

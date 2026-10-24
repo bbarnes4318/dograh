@@ -165,8 +165,9 @@ SCREENER_LLM_INSTRUCTION = (
 )
 SCREENER_PICKUP_INSTRUCTION = (
     "(A call-screening assistant answered first; the person you called just "
-    "picked up. Greet them and restate who you are and why you are calling, "
-    "then continue.)"
+    "picked up. In one short sentence say who you are, then respond to what "
+    "they just said. Do not repeat your whole introduction or any question "
+    "they have already answered.)"
 )
 
 # Hangup fires this long after arming even if the bot never reports it

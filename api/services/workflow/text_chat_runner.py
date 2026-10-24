@@ -31,6 +31,7 @@ from pipecat.utils.run_context import set_current_org_id
 
 from api.db import db_client
 from api.enums import WorkflowRunMode, WorkflowRunState
+from api.schemas.workflow_configurations import DEFAULT_PREVENT_REPEATS
 from api.services.pipecat.audio_config import create_audio_config
 from api.services.pipecat.pipeline_builder import create_pipeline_task
 from api.services.pipecat.pipeline_metrics_aggregator import (
@@ -569,6 +570,11 @@ async def execute_text_chat_pending_turn(
         embeddings_api_version=embeddings_api_version,
         has_recordings=has_recordings,
         context_compaction_enabled=context_compaction_enabled,
+        prevent_repeats=bool(
+            (workflow.workflow_configurations or {}).get(
+                "prevent_repeats", DEFAULT_PREVENT_REPEATS
+            )
+        ),
     )
     engine._gathered_context = dict(base_checkpoint["gathered_context"])
 
