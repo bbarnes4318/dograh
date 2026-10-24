@@ -1,0 +1,16 @@
+{
+  "voice_id": "alex_fec_v1",
+  "display_name": "Alex \u2014 Final Expense Center",
+  "created": "2026-10-24",
+  "method": "Synthetic voice designed from a text description with Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign (Apache-2.0); the selected output is the ICL clone reference for the Base streaming workers.",
+  "human_reference_audio": null,
+  "rights": "No human speaker recorded or cloned. Model weights Apache-2.0. Safe for synthetic use.",
+  "selected_candidate": "warm_rep_s11",
+  "instruct": "A male American speaker in his late thirties with a warm, calm, slightly low voice. He sounds like a friendly, patient insurance representative chatting on the phone with an older customer: relaxed, confident, approachable and a little casual, with natural conversational pacing. General American accent. Not an announcer, not a radio voice, not salesy or over-enthusiastic.",
+  "seed": 11,
+  "temperature": 0.8,
+  "ref_text": "Hey, how's it going? Yeah, so I'm just following up on that information you'd asked about. It's real simple, it only takes a minute. And honestly, if anything doesn't make sense, just stop me and I'll walk you through it.",
+  "post_processing": "loudness-normalized +4.35 dB to -20 dBFS active-speech RMS (peak -4.4 dBFS), 16-bit PCM 24 kHz",
+  "selection_basis": "objective screen of 6 candidates (see candidates/*.json): male register median F0 119 Hz, calm pitch movement 4.1 st, moderate pausing, 3.3 words/s, 0 WER at 24 kHz and 8 kHz mu-law. Final choice must be confirmed by ear.",
+  "regenerate": "python -m tools.design_voice --model Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign --out <dir> --instructs warm_rep --seeds 11 --device cpu --dtype float32 (seeded on CPU float32; GPU sampling differs)"
+}

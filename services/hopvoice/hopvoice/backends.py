@@ -3,6 +3,7 @@ from __future__ import annotations
 import inspect
 import logging
 import threading
+import time
 from collections.abc import Iterator
 from dataclasses import dataclass
 from typing import Protocol
@@ -10,6 +11,7 @@ from typing import Protocol
 import numpy as np
 
 from .config import Settings
+from .delivery import Delivery
 from .voices import VoiceRegistry, VoiceSpec
 
 logger = logging.getLogger("hopvoice")
@@ -48,7 +50,11 @@ class VoiceBackend(Protocol):
         voice_id: str,
         instructions: str | None = None,
         cancel_event: threading.Event | None = None,
+        timings: dict | None = None,
+        delivery: Delivery | None = None,
     ) -> Iterator[SynthesisResult]: ...
+
+    def device_stats(self) -> dict[str, float]: ...
 
 
 class StubBackend:
@@ -67,6 +73,9 @@ class StubBackend:
 
     def load(self) -> None:
         return
+
+    def device_stats(self) -> dict[str, float]:
+        return {}
 
     def synthesize(
         self,
@@ -93,6 +102,8 @@ class StubBackend:
         voice_id: str,
         instructions: str | None = None,
         cancel_event: threading.Event | None = None,
+        timings: dict | None = None,
+        delivery: Delivery | None = None,
     ) -> Iterator[SynthesisResult]:
         result = self.synthesize(
             text=text,
@@ -114,6 +125,13 @@ class StubBackend:
                 voice_id=result.voice_id,
                 streaming=True,
             )
+
+
+def max_frames_for(text: str, ceiling: int) -> int:
+    """Runaway guard: a 12 Hz codec speaks ~0.8 frames per character, so a
+    generation that misses EOS stops at ~2.5x the expected length (+3 s)
+    instead of holding the GPU slot for minutes."""
+    return max(1, min(ceiling, 36 + 2 * len(text)))
 
 
 class QwenBackend:
@@ -195,6 +213,51 @@ class QwenBackend:
             )
             self._maybe_enable_streaming_optimizations()
 
+    def device_stats(self) -> dict[str, float]:
+        """CUDA memory for /metrics. Empty on CPU or before load."""
+        if self._model is None or not str(self.settings.device).startswith("cuda"):
+            return {}
+        try:
+            import torch
+
+            if not torch.cuda.is_available():
+                return {}
+            device = torch.device(self.settings.device)
+            return {
+                "cuda_memory_allocated_bytes": float(
+                    torch.cuda.memory_allocated(device)
+                ),
+                "cuda_memory_reserved_bytes": float(torch.cuda.memory_reserved(device)),
+                "cuda_max_memory_allocated_bytes": float(
+                    torch.cuda.max_memory_allocated(device)
+                ),
+                "cuda_total_memory_bytes": float(
+                    torch.cuda.get_device_properties(device).total_memory
+                ),
+            }
+        except Exception:  # noqa: BLE001 - metrics must never fail a scrape
+            logger.debug("CUDA memory stats unavailable", exc_info=True)
+            return {}
+
+    def _stream_params(self, text: str):
+        from .qwen_stream import StreamParams
+
+        s = self.settings
+        return StreamParams(
+            emit_every_frames=s.stream_emit_every_frames,
+            decode_window_frames=s.stream_decode_window_frames,
+            overlap_samples=s.stream_overlap_samples,
+            max_frames=max_frames_for(text, s.stream_max_frames),
+            use_optimized_decode=s.stream_use_optimized_decode
+            and self._streaming_optimized,
+            first_chunk_emit_every=s.stream_first_chunk_emit_every,
+            first_chunk_decode_window=s.stream_first_chunk_decode_window,
+            first_chunk_frames=s.stream_first_chunk_frames,
+            repetition_penalty=s.stream_repetition_penalty,
+            repetition_penalty_window=s.stream_repetition_penalty_window,
+            fade_in_samples=s.stream_fade_in_samples,
+        )
+
     def _maybe_enable_streaming_optimizations(self) -> None:
         if not self.settings.streaming_enabled or self._model_type != "base":
             return
@@ -241,10 +304,20 @@ class QwenBackend:
             return VoiceSpec(voice_id=voice_id, speaker=voice_id)
         raise ValueError(f"unknown Hopvoice voice_id '{voice_id}'")
 
-    def _clone_prompt(self, spec: VoiceSpec):
-        cached = self._prompt_cache.get(spec.voice_id)
+    def _clone_prompt(self, spec: VoiceSpec, style: str | None = None):
+        style_ref = spec.styles.get(style) if style else None
+        key = f"{spec.voice_id}#{style}" if style_ref else spec.voice_id
+        cached = self._prompt_cache.get(key)
         if cached is not None:
             return cached
+        if style_ref is not None:
+            prompt = self._model.create_voice_clone_prompt(
+                ref_audio=style_ref.ref_audio,
+                ref_text=style_ref.ref_text,
+                x_vector_only_mode=not style_ref.ref_text,
+            )
+            self._prompt_cache[key] = prompt
+            return prompt
         if not spec.ref_audio:
             raise ValueError(
                 f"voice '{spec.voice_id}' has no ref_audio; a Base Qwen model needs a licensed voice reference"
@@ -261,11 +334,19 @@ class QwenBackend:
         self._prompt_cache[spec.voice_id] = prompt
         return prompt
 
-    def _generation(self) -> dict[str, float]:
-        return {
-            "temperature": self.settings.generation_temperature,
-            "top_p": self.settings.generation_top_p,
-        }
+    def _generation(
+        self, spec: VoiceSpec | None = None, delivery: Delivery | None = None
+    ) -> dict[str, float]:
+        temperature = self.settings.generation_temperature
+        top_p = self.settings.generation_top_p
+        if spec is not None:
+            temperature = (
+                spec.temperature if spec.temperature is not None else temperature
+            )
+            top_p = spec.top_p if spec.top_p is not None else top_p
+        if delivery is not None and delivery.temperature is not None:
+            temperature = delivery.temperature
+        return {"temperature": temperature, "top_p": top_p}
 
     def synthesize(
         self,
@@ -276,7 +357,7 @@ class QwenBackend:
     ) -> SynthesisResult:
         self.load()
         spec = self._voice(voice_id)
-        generation = self._generation()
+        generation = self._generation(spec)
 
         if self._model_type == "base":
             prompt = self._clone_prompt(spec)
@@ -301,7 +382,9 @@ class QwenBackend:
         elif self._model_type == "voice_design":
             instruct = instructions or spec.default_instruct
             if not instruct:
-                raise ValueError("voice_design requires instructions or default_instruct")
+                raise ValueError(
+                    "voice_design requires instructions or default_instruct"
+                )
             wavs, sample_rate = self._model.generate_voice_design(
                 text=text,
                 language=spec.language,
@@ -321,12 +404,12 @@ class QwenBackend:
             voice_id=voice_id,
         )
 
-    def _stream_kwargs(self, stream_fn) -> dict:
+    def _stream_kwargs(self, stream_fn, text: str = "") -> dict:
         desired = {
             "emit_every_frames": self.settings.stream_emit_every_frames,
             "decode_window_frames": self.settings.stream_decode_window_frames,
             "overlap_samples": self.settings.stream_overlap_samples,
-            "max_frames": self.settings.stream_max_frames,
+            "max_frames": max_frames_for(text, self.settings.stream_max_frames),
             "use_optimized_decode": self.settings.stream_use_optimized_decode,
             "first_chunk_emit_every": self.settings.stream_first_chunk_emit_every,
             "first_chunk_decode_window": self.settings.stream_first_chunk_decode_window,
@@ -353,6 +436,8 @@ class QwenBackend:
         voice_id: str,
         instructions: str | None = None,
         cancel_event: threading.Event | None = None,
+        timings: dict | None = None,
+        delivery: Delivery | None = None,
     ) -> Iterator[SynthesisResult]:
         self.load()
 
@@ -372,22 +457,56 @@ class QwenBackend:
             return
 
         spec = self._voice(voice_id)
-        prompt = self._clone_prompt(spec)
+        prompt = self._clone_prompt(spec, delivery.style if delivery else None)
+
+        from . import qwen_stream
+
+        if self.settings.stream_loop == "hopvoice" and qwen_stream.supported(
+            self._model
+        ):
+            # Frame-level loop: cancellation is checked every codec frame and
+            # chunk overlaps are time-aligned (see qwen_stream module docs).
+            for chunk, sample_rate in qwen_stream.stream_voice_clone(
+                self._model,
+                text=text,
+                language=spec.language,
+                voice_clone_prompt=prompt,
+                params=self._stream_params(text),
+                generation=self._generation(spec, delivery),
+                cancel_event=cancel_event,
+                timings=timings,
+            ):
+                data = np.asarray(chunk, dtype=np.float32)
+                if data.size == 0:
+                    continue
+                yield SynthesisResult(
+                    audio=data,
+                    sample_rate=int(sample_rate),
+                    model_id=self.settings.model_id,
+                    voice_id=voice_id,
+                    streaming=True,
+                )
+            return
+
         kwargs = {
             "text": text,
             "language": spec.language,
             "voice_clone_prompt": prompt,
             "non_streaming_mode": False,
-            **self._stream_kwargs(stream_fn),
-            **self._generation(),
+            **self._stream_kwargs(stream_fn, text),
+            **self._generation(spec, delivery),
         }
 
+        if timings is not None:
+            timings["generation_start"] = time.perf_counter()
         for chunk, sample_rate in stream_fn(**kwargs):
             if cancel_event and cancel_event.is_set():
                 return
             data = np.asarray(chunk, dtype=np.float32)
             if data.size == 0:
                 continue
+            if timings is not None:
+                timings.setdefault("first_pcm", time.perf_counter())
             yield SynthesisResult(
                 audio=data,
                 sample_rate=int(sample_rate),

@@ -1,0 +1,42 @@
+# Hopvoice GPU worker. Run on the GPU host (NVIDIA driver + Container Toolkit):
+#
+#   cd services/hopvoice
+#   HOPVOICE_API_KEY=... docker compose -f docker-compose.gpu.yaml up -d --build
+#
+# Then point the AI Voice runtime at it (HOPVOICE_ENABLED=true on that runtime,
+# provider endpoint http://<gpu-host-private-ip>:8787). Keep 8787 on a private
+# network; the bearer key is the only auth.
+services:
+  hopvoice:
+    build: .
+    image: hopvoice:0.4
+    restart: unless-stopped
+    ports:
+      - "${HOPVOICE_BIND:-127.0.0.1}:8787:8787"
+    environment:
+      HOPVOICE_API_KEY: ${HOPVOICE_API_KEY:?set HOPVOICE_API_KEY}
+      HOPVOICE_PROFILE: ${HOPVOICE_PROFILE:-native-fast}
+      HOPVOICE_MODEL_ID: ${HOPVOICE_MODEL_ID:-Qwen/Qwen3-TTS-12Hz-0.6B-Base}
+      HOPVOICE_VOICES_FILE: /voices/voices.json
+      HOPVOICE_DEVICE: cuda:0
+      HOPVOICE_DTYPE: bfloat16
+      HOPVOICE_STREAM_LOOP: ${HOPVOICE_STREAM_LOOP:-hopvoice}
+    volumes:
+      - ./voices:/voices:ro
+      - hopvoice-hf-cache:/home/hopvoice/.cache/huggingface
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import json,urllib.request;h=json.load(urllib.request.urlopen('http://127.0.0.1:8787/healthz'));exit(0 if h['loaded'] else 1)"]
+      interval: 15s
+      timeout: 5s
+      start_period: 300s
+      retries: 5
+
+volumes:
+  hopvoice-hf-cache:

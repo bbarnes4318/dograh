@@ -5,14 +5,15 @@ import json
 import logging
 import threading
 import time
-from contextlib import asynccontextmanager
-from dataclasses import dataclass
+from contextlib import aclosing, asynccontextmanager
+from dataclasses import dataclass, field
 
 from fastapi import FastAPI, Header, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import PlainTextResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
-from .audio import float_to_pcm_s16le, pcm_chunks, resample
+from .audio import StreamingResampler, float_to_pcm_s16le, pcm_chunks, resample
+from . import delivery as delivery_planner
 from .backends import SynthesisResult, build_backend
 from .config import Settings
 from .voices import VoiceRegistry
@@ -42,6 +43,13 @@ class RuntimeMetrics:
     streaming_requests_total: int = 0
     streaming_fallbacks_total: int = 0
     inflight: int = 0
+    # Time from a cancellation request until the producer thread has really
+    # exited and released the GPU slot (the barge-in "tail" on the GPU).
+    cancel_tail_seconds: float = 0.0
+    cancel_tail_observations: int = 0
+    cancel_tail_max_seconds: float = 0.0
+    prefill_seconds: float = 0.0
+    prefill_observations: int = 0
 
 
 @dataclass
@@ -51,12 +59,40 @@ class StreamStats:
     generation_seconds: float = 0.0
     audio_seconds: float = 0.0
     streaming: bool | None = None
+    # Filled by the backend thread: generation_start, prefill_done,
+    # first_frame, first_pcm (time.perf_counter() values).
+    timings: dict = field(default_factory=dict)
+    first_sent_at: float | None = None
 
     @property
     def first_audio_seconds(self) -> float | None:
         if self.first_audio_at is None:
             return None
         return self.first_audio_at - self.started_at
+
+    def breakdown_ms(self) -> dict[str, float | None]:
+        def since_start(key: str) -> float | None:
+            value = self.timings.get(key)
+            if value is None:
+                return None
+            return round((value - self.started_at) * 1000.0, 1)
+
+        return {
+            "queue_wait_ms": since_start("generation_start"),
+            "prefill_ms": since_start("prefill_done"),
+            "first_frame_ms": since_start("first_frame"),
+            "first_pcm_generated_ms": since_start("first_pcm"),
+            "first_audio_ms": (
+                round(self.first_audio_seconds * 1000.0, 1)
+                if self.first_audio_seconds is not None
+                else None
+            ),
+            "first_pcm_sent_ms": (
+                round((self.first_sent_at - self.started_at) * 1000.0, 1)
+                if self.first_sent_at is not None
+                else None
+            ),
+        }
 
 
 @dataclass(frozen=True)
@@ -140,6 +176,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         instructions: str | None,
         sample_rate: int,
         stats: StreamStats,
+        delivery: delivery_planner.Delivery | None = None,
     ):
         """Yield PCM as the backend produces it without blocking the event loop.
 
@@ -153,9 +190,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         results: asyncio.Queue[object] = asyncio.Queue()
         done = object()
         cancel_event = threading.Event()
+        cancel_requested_at: list[float] = []
+        resampler: StreamingResampler | None = None
 
         await gate.acquire()
         metrics.inflight += 1
+
+        producer_finished = False
+
+        def request_cancel() -> None:
+            if not cancel_event.is_set() and not producer_finished:
+                cancel_requested_at.append(time.perf_counter())
+            cancel_event.set()
 
         def produce() -> None:
             try:
@@ -164,6 +210,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     voice_id=voice_id,
                     instructions=instructions,
                     cancel_event=cancel_event,
+                    timings=stats.timings,
+                    delivery=delivery,
                 ):
                     if cancel_event.is_set():
                         break
@@ -176,6 +224,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         producer_task = asyncio.create_task(asyncio.to_thread(produce))
 
         def release_gpu_slot(task: asyncio.Task) -> None:
+            if cancel_requested_at:
+                tail = time.perf_counter() - cancel_requested_at[0]
+                metrics.cancel_tail_seconds += tail
+                metrics.cancel_tail_observations += 1
+                metrics.cancel_tail_max_seconds = max(
+                    metrics.cancel_tail_max_seconds, tail
+                )
+                logger.info(
+                    "cancelled generation released GPU after %.1f ms", tail * 1000.0
+                )
             metrics.inflight -= 1
             gate.release()
             try:
@@ -184,7 +242,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 pass
             except Exception as exc:
                 metrics.failures_total += 1
-                logger.error("Hopvoice streaming producer failed outside backend: %s", exc)
+                logger.error(
+                    "Hopvoice streaming producer failed outside backend: %s", exc
+                )
 
         producer_task.add_done_callback(release_gpu_slot)
 
@@ -193,6 +253,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             while True:
                 item = await results.get()
                 if item is done:
+                    producer_finished = True
                     break
                 if isinstance(item, _StreamFailure):
                     raise item.error
@@ -207,7 +268,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     elif settings.streaming_enabled:
                         metrics.streaming_fallbacks_total += 1
 
-                audio = resample(item.audio, item.sample_rate, sample_rate)
+                # One stateful resampler per utterance: resampling each streamed
+                # chunk on its own puts a filter transient at every boundary.
+                if resampler is None:
+                    resampler = StreamingResampler(item.sample_rate, sample_rate)
+                audio = resampler.process(item.audio)
                 if len(audio) == 0:
                     continue
                 if stats.first_audio_at is None:
@@ -222,23 +287,34 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
             if not saw_result and not cancel_event.is_set():
                 raise RuntimeError("Hopvoice backend returned no audio")
+            if resampler is not None:
+                tail = resampler.flush()
+                if len(tail):
+                    stats.audio_seconds += len(tail) / sample_rate
+                    yield float_to_pcm_s16le(tail)
+
+            prefill = stats.timings.get("prefill_done")
+            start = stats.timings.get("generation_start")
+            if prefill is not None and start is not None:
+                metrics.prefill_seconds += prefill - start
+                metrics.prefill_observations += 1
 
             stats.generation_seconds = time.perf_counter() - stats.started_at
             metrics.generation_seconds += stats.generation_seconds
             metrics.generated_audio_seconds += stats.audio_seconds
         except asyncio.CancelledError:
-            cancel_event.set()
+            request_cancel()
             metrics.cancelled_total += 1
             raise
         except GeneratorExit:
-            cancel_event.set()
+            request_cancel()
             raise
         except Exception:
-            cancel_event.set()
+            request_cancel()
             metrics.failures_total += 1
             raise
         finally:
-            cancel_event.set()
+            request_cancel()
 
     @asynccontextmanager
     async def lifespan(_: FastAPI):
@@ -320,7 +396,20 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             f"hopvoice_first_audio_seconds_total {metrics.first_audio_seconds:.6f}",
             "# TYPE hopvoice_first_audio_observations_total counter",
             f"hopvoice_first_audio_observations_total {metrics.first_audio_observations}",
+            "# TYPE hopvoice_prefill_seconds_total counter",
+            f"hopvoice_prefill_seconds_total {metrics.prefill_seconds:.6f}",
+            "# TYPE hopvoice_prefill_observations_total counter",
+            f"hopvoice_prefill_observations_total {metrics.prefill_observations}",
+            "# TYPE hopvoice_cancel_tail_seconds_total counter",
+            f"hopvoice_cancel_tail_seconds_total {metrics.cancel_tail_seconds:.6f}",
+            "# TYPE hopvoice_cancel_tail_observations_total counter",
+            f"hopvoice_cancel_tail_observations_total {metrics.cancel_tail_observations}",
+            "# TYPE hopvoice_cancel_tail_max_seconds gauge",
+            f"hopvoice_cancel_tail_max_seconds {metrics.cancel_tail_max_seconds:.6f}",
         ]
+        for name, value in backend.device_stats().items():
+            lines.append(f"# TYPE hopvoice_{name} gauge")
+            lines.append(f"hopvoice_{name} {value:.0f}")
         return "\n".join(lines) + "\n"
 
     @app.post("/v1/audio/speech")
@@ -336,7 +425,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 detail=f"this worker serves only model/profile '{settings.profile}'",
             )
         if request.response_format != "pcm":
-            raise HTTPException(status_code=400, detail="v0.3 supports response_format=pcm only")
+            raise HTTPException(
+                status_code=400, detail="v0.3 supports response_format=pcm only"
+            )
         if request.speed != 1.0:
             logger.warning(
                 "speed=%s requested; Hopvoice does not yet apply time-scale modification",
@@ -353,7 +444,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         except Exception as exc:
             logger.exception("speech generation failed")
-            raise HTTPException(status_code=500, detail="speech generation failed") from exc
+            raise HTTPException(
+                status_code=500, detail="speech generation failed"
+            ) from exc
 
         return StreamingResponse(
             pcm_chunks(pcm, settings.output_sample_rate, settings.audio_chunk_ms),
@@ -381,46 +474,70 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         active_turn_id: str | None = None
         active_generation_task: asyncio.Task | None = None
         worker_task: asyncio.Task | None = None
+        # Session-level delivery continuity: the planner sees the previous turn.
+        previous_delivery: delivery_planner.Delivery | None = None
 
-        async def stream_turn(message: dict, stats: StreamStats) -> None:
+        async def stream_turn(
+            message: dict,
+            stats: StreamStats,
+            delivery: delivery_planner.Delivery | None,
+        ) -> None:
             turn_id = str(message["turn_id"])
             sent_meta = False
-            async for pcm in synthesize_stream(
+            pause_ms = delivery.pause_before_ms if delivery else 0
+            stream = synthesize_stream(
                 text=str(message["text"]),
                 voice_id=session["voice_id"],
                 instructions=(message.get("delivery") or {}).get("instructions")
                 or message.get("instructions"),
                 sample_rate=session["sample_rate"],
                 stats=stats,
-            ):
-                if turn_id in cancelled_turn_ids:
-                    return
-
-                if not sent_meta:
-                    first_audio = stats.first_audio_seconds
-                    await websocket.send_json(
-                        {
-                            "type": "audio_meta",
-                            "turn_id": turn_id,
-                            "first_audio_ms": (
-                                round(first_audio * 1000.0, 1)
-                                if first_audio is not None
-                                else None
-                            ),
-                            "sample_rate": session["sample_rate"],
-                            "encoding": "pcm_s16le",
-                            "streaming": bool(stats.streaming),
-                        }
-                    )
-                    sent_meta = True
-
-                for chunk in pcm_chunks(
-                    pcm, session["sample_rate"], settings.audio_chunk_ms
-                ):
+                delivery=delivery,
+            )
+            # aclosing() stops generation deterministically when this turn
+            # returns early on cancellation, rather than at async-gen GC time.
+            async with aclosing(stream):
+                async for pcm in stream:
                     if turn_id in cancelled_turn_ids:
                         return
-                    await websocket.send_bytes(chunk)
-                    await asyncio.sleep(0)
+
+                    if not sent_meta:
+                        first_audio = stats.first_audio_seconds
+                        await websocket.send_json(
+                            {
+                                "type": "audio_meta",
+                                "turn_id": turn_id,
+                                "first_audio_ms": (
+                                    round(first_audio * 1000.0, 1)
+                                    if first_audio is not None
+                                    else None
+                                ),
+                                "sample_rate": session["sample_rate"],
+                                "encoding": "pcm_s16le",
+                                "streaming": bool(stats.streaming),
+                            }
+                        )
+                        sent_meta = True
+                        if pause_ms:
+                            # Planned beat before this turn, sent ahead of the
+                            # first generated audio so it costs no extra wait.
+                            pcm = (
+                                bytes(
+                                    round(session["sample_rate"] * pause_ms / 1000.0)
+                                    * 2
+                                )
+                                + pcm
+                            )
+
+                    for chunk in pcm_chunks(
+                        pcm, session["sample_rate"], settings.audio_chunk_ms
+                    ):
+                        if turn_id in cancelled_turn_ids:
+                            return
+                        await websocket.send_bytes(chunk)
+                        if stats.first_sent_at is None:
+                            stats.first_sent_at = time.perf_counter()
+                        await asyncio.sleep(0)
 
             if turn_id in cancelled_turn_ids:
                 return
@@ -433,12 +550,20 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     "turn_id": turn_id,
                     "generation_ms": round(stats.generation_seconds * 1000.0, 1),
                     "generated_audio_ms": round(stats.audio_seconds * 1000.0, 1),
+                    "rtf": (
+                        round(stats.generation_seconds / stats.audio_seconds, 3)
+                        if stats.audio_seconds
+                        else None
+                    ),
+                    "frames": stats.timings.get("frames"),
                     "streaming": bool(stats.streaming),
+                    **stats.breakdown_ms(),
+                    "delivery": delivery.as_dict() if delivery else None,
                 }
             )
 
         async def generate_turn(message: dict) -> None:
-            nonlocal active_turn_id, active_generation_task
+            nonlocal active_turn_id, active_generation_task, previous_delivery
             turn_id = str(message["turn_id"])
             queued_turn_ids.discard(turn_id)
             if turn_id in cancelled_turn_ids:
@@ -447,9 +572,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
             active_turn_id = turn_id
             stats = StreamStats(started_at=time.perf_counter())
+            delivery = delivery_planner.from_client(message.get("delivery"))
+            if delivery is None and settings.delivery_planner:
+                delivery = delivery_planner.plan(
+                    str(message["text"]), previous_delivery
+                )
+            previous_delivery = delivery
             try:
                 await websocket.send_json({"type": "turn_started", "turn_id": turn_id})
-                active_generation_task = asyncio.create_task(stream_turn(message, stats))
+                active_generation_task = asyncio.create_task(
+                    stream_turn(message, stats, delivery)
+                )
                 await active_generation_task
             except asyncio.CancelledError:
                 if active_generation_task and not active_generation_task.done():
@@ -509,7 +642,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 try:
                     message = json.loads(raw)
                 except json.JSONDecodeError:
-                    await websocket.send_json({"type": "error", "message": "invalid JSON"})
+                    await websocket.send_json(
+                        {"type": "error", "message": "invalid JSON"}
+                    )
                     continue
 
                 msg_type = message.get("type")
@@ -544,7 +679,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                         continue
                     if sample_rate not in {8000, 16000, 24000, 48000}:
                         await websocket.send_json(
-                            {"type": "error", "message": "unsupported output sample rate"}
+                            {
+                                "type": "error",
+                                "message": "unsupported output sample rate",
+                            }
                         )
                         continue
                     session = {
