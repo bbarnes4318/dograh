@@ -240,6 +240,11 @@ export function resolveWorkflowConfigurations(
             configurations?.external_pbx_field_mappings
             ?? defaults?.external_pbx_field_mappings
             ?? FALLBACK_WORKFLOW_CONFIGURATIONS.external_pbx_field_mappings,
+        // The generated defaults type marks every field optional; the backend
+        // always fills them, so this is the same object the spread above sets.
+        call_hygiene:
+            configurations?.call_hygiene
+            ?? (defaults?.call_hygiene as CallHygieneConfiguration | undefined),
         transcript_configuration: {
             ...DEFAULT_TRANSCRIPT_CONFIGURATION,
             ...(defaults?.transcript_configuration as Partial<TranscriptConfiguration> | undefined),
