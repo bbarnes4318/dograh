@@ -1,0 +1,119 @@
+---
+title: "Hoppwhistle Integration"
+description: "Run Hoppwhistle's AI Callback Recovery and AI Lead Qualifier on Dograh: CRM-aware tools, licensed-agent transfers, and a signed post-call report"
+---
+
+## Overview
+
+Hoppwhistle is an insurance operating platform: CRM, consent and do-not-call,
+agent licensing, routing and telephony. Its **AI Callback Recovery** and **AI
+Lead Qualifier** products run their conversations on Dograh. The split is
+strict:
+
+- **Dograh** holds the conversation: speech, the LLM, the workflow, and the call leg.
+- **Hoppwhistle** holds everything else. It decides who the caller is, what to ask, whether they may be called, which licensed agent is free, and what goes in the CRM.
+
+Dograh never reads Hoppwhistle's database. It reaches Hoppwhistle only through
+ordinary Dograh tools:
+
+| Tool                 | Type                         | What it does                                                         |
+| -------------------- | ---------------------------- | -------------------------------------------------------------------- |
+| `lookup_customer`    | HTTP API                     | Identity, state and age on file, existing customer, do-not-call      |
+| `update_customer`    | HTTP API                     | Saves corrections; `wrong_person` ends the call without disclosure   |
+| `save_qualification` | HTTP API                     | Saves answers and returns the one next question, or "qualified"      |
+| `eligible_agents`    | HTTP API                     | Whether a licensed agent for the prospect's state is free            |
+| `create_callback`    | HTTP API                     | Books a callback inside the prospect's calling hours                 |
+| `mark_dnc`           | HTTP API                     | Puts the number on the agency's do-not-call list                     |
+| `transfer_to_agent`  | Transfer Call (dynamic)      | Hoppwhistle resolves the destination or declines with what to say    |
+| `end_call`           | End Call                     | Ends the call with a reason (the disposition)                        |
+
+Every tool sends `session_id` and `session_token` as **preset parameters**. The
+LLM never sees them and cannot override them; Hoppwhistle puts them in the
+call's `initial_context`. Every tool answer carries an `instruction` (for
+example `ask_next_question`, `offer_transfer`, `offer_callback`,
+`end_call_dnc_confirmed`), so compliance never depends on the prompt alone.
+
+## Prerequisites
+
+- A Hoppwhistle API with `DOGRAH_AI_AGENT_SECRET` set.
+- A Dograh API key for the organization the workflows run in.
+- A telephony configuration that supports transfers (Twilio, Telnyx, Vonage, Cloudonix or Asterisk ARI).
+
+## Setup
+
+### 1. Install the tools
+
+```bash
+curl -X POST https://your-dograh/api/v1/integrations/hoppwhistle/install \
+  -H "X-API-Key: $DOGRAH_API_KEY" -H "Content-Type: application/json" \
+  -d '{
+        "base_url": "https://your-hoppwhistle",
+        "service_secret": "<DOGRAH_AI_AGENT_SECRET>",
+        "create_workflows": true
+      }'
+```
+
+This creates the following, scoped to your organization:
+
+- a bearer credential;
+- the eight tools;
+- with `create_workflows`, three starter workflows: *AI Callback Recovery*, *AI Callback Recovery - After Hours Inbound* and *AI Lead Qualifier*.
+
+Running it again updates the tools in place, so workflows keep working when the
+URL or secret changes. To reuse an existing bearer credential, pass
+`credential_uuid` instead of `service_secret`.
+
+### 2. Give Hoppwhistle the workflow
+
+Copy the outbound workflow's UUID into the agency's AI Agents settings in
+Hoppwhistle. For after hours, also copy the inbound workflow's numeric id and
+assign that workflow as the inbound agent on the agency's after-hours number.
+
+### 3. Report finished calls
+
+The starter workflows already contain a **Hoppwhistle** integration node. On a
+workflow of your own, add one from **Integrations → Hoppwhistle** and set the
+Hoppwhistle URL and the signing secret (the same `DOGRAH_AI_AGENT_SECRET`).
+
+After each call Hoppwhistle started, the node posts a report signed with
+HMAC-SHA256 over `"<timestamp>.<body>"`. The report contains:
+
+- the disposition;
+- the transcript, and the recording and transcript links;
+- every transfer attempt with its reason;
+- the extracted variables;
+- duration, average response latency and usage.
+
+Runs Hoppwhistle did not start are skipped.
+
+## How transfers work
+
+`transfer_to_agent` uses a dynamic resolver. Hoppwhistle checks:
+
+- the prospect qualified (or asked for a person) and their state is known;
+- an agent passes its routing gates for that state: licensed or accepted states, availability, shift, softphone online and concurrency.
+
+It then returns the destination. When nobody can take the call, it answers:
+
+```json
+{
+  "transfer_context": {
+    "destination": null,
+    "decline_reason": "no_licensed_agent",
+    "message": "A live transfer is not possible: no agent here is licensed in their state. … offer a callback …"
+  }
+}
+```
+
+Dograh reports this to the LLM as `transfer_failed` with reason
+`declined_no_licensed_agent` and the resolver's `message`, so the agent offers a
+callback. Any resolver can decline this way. Every transfer outcome is recorded
+in the run's `gathered_context.transfer_attempts`.
+
+## Testing
+
+- `api/tests/integrations/test_hoppwhistle.py` covers the tool definitions, the templates, the report and its signature, and the resolver decline.
+- Exercise the dialogue in text chat with the conversation evals harness (`evals/conversation/README.md`). Transfers return `textchat_not_supported` there.
+
+The full contract, including request and response shapes, outcomes and
+retries, lives with Hoppwhistle in `docs/ai-agents/DOGRAH_CONTRACT.md`.
