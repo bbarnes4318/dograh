@@ -1,0 +1,2237 @@
+{
+  "default_accent_id": 68,
+  "area_codes": {
+    "201": {
+      "accent_id": 10,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "202": {
+      "accent_id": 16,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "203": {
+      "accent_id": 4,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "205": {
+      "accent_id": 31,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "206": {
+      "accent_id": 65,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "207": {
+      "accent_id": 1,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "208": {
+      "accent_id": 67,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "209": {
+      "accent_id": 64,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "210": {
+      "accent_id": 58,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "212": {
+      "accent_id": 6,
+      "accent_name": "New York City",
+      "male_voice_id": "0e7aacc1094c4aeaa9aeef0107627d21",
+      "female_voice_id": "9b2f0e92d3e44c65a411e1bbc0be78bf"
+    },
+    "213": {
+      "accent_id": 62,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "214": {
+      "accent_id": 56,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "215": {
+      "accent_id": 12,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "216": {
+      "accent_id": 50,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "217": {
+      "accent_id": 46,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "218": {
+      "accent_id": 42,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "219": {
+      "accent_id": 52,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "220": {
+      "accent_id": 51,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "223": {
+      "accent_id": 13,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "224": {
+      "accent_id": 45,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "225": {
+      "accent_id": 34,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "227": {
+      "accent_id": 16,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "228": {
+      "accent_id": 32,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "229": {
+      "accent_id": 30,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "231": {
+      "accent_id": 48,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "234": {
+      "accent_id": 50,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "235": {
+      "accent_id": 41,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "239": {
+      "accent_id": 54,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "240": {
+      "accent_id": 16,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "248": {
+      "accent_id": 47,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "251": {
+      "accent_id": 31,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "252": {
+      "accent_id": 26,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "253": {
+      "accent_id": 65,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "254": {
+      "accent_id": 58,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "256": {
+      "accent_id": 31,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "260": {
+      "accent_id": 52,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "262": {
+      "accent_id": 44,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "267": {
+      "accent_id": 12,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "269": {
+      "accent_id": 48,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "270": {
+      "accent_id": 20,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "272": {
+      "accent_id": 13,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "274": {
+      "accent_id": 44,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "276": {
+      "accent_id": 19,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "279": {
+      "accent_id": 64,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "281": {
+      "accent_id": 57,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "283": {
+      "accent_id": 51,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "301": {
+      "accent_id": 16,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "302": {
+      "accent_id": 11,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "303": {
+      "accent_id": 68,
+      "accent_name": "Colorado / Central Rockies",
+      "male_voice_id": "94b4c3b8823c46c69d6654bb62997988",
+      "female_voice_id": "039061bbcabb43cbace7867e8fbf2737"
+    },
+    "304": {
+      "accent_id": 19,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "305": {
+      "accent_id": 55,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "307": {
+      "accent_id": 73,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "308": {
+      "accent_id": 41,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "309": {
+      "accent_id": 46,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "310": {
+      "accent_id": 62,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "312": {
+      "accent_id": 45,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "313": {
+      "accent_id": 47,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "314": {
+      "accent_id": 39,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "315": {
+      "accent_id": 9,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "316": {
+      "accent_id": 41,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "317": {
+      "accent_id": 52,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "318": {
+      "accent_id": 35,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "319": {
+      "accent_id": 41,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "320": {
+      "accent_id": 42,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "321": {
+      "accent_id": 54,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "323": {
+      "accent_id": 62,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "324": {
+      "accent_id": 53,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "325": {
+      "accent_id": 60,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "326": {
+      "accent_id": 51,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "327": {
+      "accent_id": 37,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "329": {
+      "accent_id": 8,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "330": {
+      "accent_id": 50,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "331": {
+      "accent_id": 45,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "332": {
+      "accent_id": 6,
+      "accent_name": "New York City",
+      "male_voice_id": "0e7aacc1094c4aeaa9aeef0107627d21",
+      "female_voice_id": "9b2f0e92d3e44c65a411e1bbc0be78bf"
+    },
+    "334": {
+      "accent_id": 31,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "336": {
+      "accent_id": 25,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "337": {
+      "accent_id": 34,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "339": {
+      "accent_id": 3,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "341": {
+      "accent_id": 63,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "346": {
+      "accent_id": 57,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "347": {
+      "accent_id": 6,
+      "accent_name": "New York City",
+      "male_voice_id": "0e7aacc1094c4aeaa9aeef0107627d21",
+      "female_voice_id": "9b2f0e92d3e44c65a411e1bbc0be78bf"
+    },
+    "350": {
+      "accent_id": 64,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "351": {
+      "accent_id": 3,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "352": {
+      "accent_id": 53,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "353": {
+      "accent_id": 44,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "357": {
+      "accent_id": 64,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "360": {
+      "accent_id": 65,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "361": {
+      "accent_id": 59,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "363": {
+      "accent_id": 7,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "364": {
+      "accent_id": 20,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "369": {
+      "accent_id": 63,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "380": {
+      "accent_id": 51,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "385": {
+      "accent_id": 69,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "386": {
+      "accent_id": 53,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "401": {
+      "accent_id": 5,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "402": {
+      "accent_id": 41,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "404": {
+      "accent_id": 29,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "405": {
+      "accent_id": 38,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "406": {
+      "accent_id": 73,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "407": {
+      "accent_id": 54,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "408": {
+      "accent_id": 63,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "409": {
+      "accent_id": 57,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "410": {
+      "accent_id": 15,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "412": {
+      "accent_id": 14,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "413": {
+      "accent_id": 4,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "414": {
+      "accent_id": 44,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "415": {
+      "accent_id": 63,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "417": {
+      "accent_id": 36,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "419": {
+      "accent_id": 50,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "423": {
+      "accent_id": 21,
+      "accent_name": "East Tennessee Appalachian / Smoky Mountain",
+      "male_voice_id": "23afd6a3a01c47e58e582ff6b3ee5e7e",
+      "female_voice_id": "bdb20464e82b497bb26951af016be86b"
+    },
+    "424": {
+      "accent_id": 62,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "425": {
+      "accent_id": 65,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "430": {
+      "accent_id": 56,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "432": {
+      "accent_id": 60,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "434": {
+      "accent_id": 18,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "435": {
+      "accent_id": 69,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "436": {
+      "accent_id": 50,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "440": {
+      "accent_id": 50,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "442": {
+      "accent_id": 64,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "443": {
+      "accent_id": 15,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "445": {
+      "accent_id": 12,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "447": {
+      "accent_id": 46,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "448": {
+      "accent_id": 53,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "457": {
+      "accent_id": 35,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "458": {
+      "accent_id": 66,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "463": {
+      "accent_id": 52,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "464": {
+      "accent_id": 45,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "465": {
+      "accent_id": 6,
+      "accent_name": "New York City",
+      "male_voice_id": "0e7aacc1094c4aeaa9aeef0107627d21",
+      "female_voice_id": "9b2f0e92d3e44c65a411e1bbc0be78bf"
+    },
+    "469": {
+      "accent_id": 56,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "470": {
+      "accent_id": 29,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "471": {
+      "accent_id": 32,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "472": {
+      "accent_id": 26,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "475": {
+      "accent_id": 4,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "478": {
+      "accent_id": 30,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "479": {
+      "accent_id": 36,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "480": {
+      "accent_id": 71,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "483": {
+      "accent_id": 31,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "484": {
+      "accent_id": 12,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "501": {
+      "accent_id": 37,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "502": {
+      "accent_id": 20,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "503": {
+      "accent_id": 66,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "504": {
+      "accent_id": 33,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "505": {
+      "accent_id": 72,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "507": {
+      "accent_id": 42,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "508": {
+      "accent_id": 4,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "509": {
+      "accent_id": 67,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "510": {
+      "accent_id": 63,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "512": {
+      "accent_id": 58,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "513": {
+      "accent_id": 51,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "515": {
+      "accent_id": 41,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "516": {
+      "accent_id": 7,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "517": {
+      "accent_id": 48,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "518": {
+      "accent_id": 8,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "520": {
+      "accent_id": 71,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "530": {
+      "accent_id": 64,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "531": {
+      "accent_id": 41,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "534": {
+      "accent_id": 44,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "539": {
+      "accent_id": 38,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "540": {
+      "accent_id": 18,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "541": {
+      "accent_id": 66,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "551": {
+      "accent_id": 10,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "557": {
+      "accent_id": 39,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "559": {
+      "accent_id": 64,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "561": {
+      "accent_id": 55,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "562": {
+      "accent_id": 62,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "563": {
+      "accent_id": 41,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "564": {
+      "accent_id": 65,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "567": {
+      "accent_id": 50,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "570": {
+      "accent_id": 13,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "571": {
+      "accent_id": 16,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "572": {
+      "accent_id": 38,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "573": {
+      "accent_id": 41,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "574": {
+      "accent_id": 52,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "575": {
+      "accent_id": 72,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "580": {
+      "accent_id": 38,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "582": {
+      "accent_id": 13,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "585": {
+      "accent_id": 9,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "586": {
+      "accent_id": 47,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "601": {
+      "accent_id": 32,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "602": {
+      "accent_id": 71,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "603": {
+      "accent_id": 2,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "605": {
+      "accent_id": 43,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "606": {
+      "accent_id": 19,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "607": {
+      "accent_id": 9,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "608": {
+      "accent_id": 44,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "609": {
+      "accent_id": 11,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "610": {
+      "accent_id": 12,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "612": {
+      "accent_id": 42,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "614": {
+      "accent_id": 51,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "615": {
+      "accent_id": 22,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "616": {
+      "accent_id": 48,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "617": {
+      "accent_id": 3,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "618": {
+      "accent_id": 46,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "619": {
+      "accent_id": 62,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "620": {
+      "accent_id": 41,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "621": {
+      "accent_id": 57,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "623": {
+      "accent_id": 71,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "624": {
+      "accent_id": 9,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "626": {
+      "accent_id": 62,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "628": {
+      "accent_id": 63,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "629": {
+      "accent_id": 22,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "630": {
+      "accent_id": 45,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "631": {
+      "accent_id": 7,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "636": {
+      "accent_id": 39,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "640": {
+      "accent_id": 11,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "641": {
+      "accent_id": 41,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "645": {
+      "accent_id": 55,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "646": {
+      "accent_id": 6,
+      "accent_name": "New York City",
+      "male_voice_id": "0e7aacc1094c4aeaa9aeef0107627d21",
+      "female_voice_id": "9b2f0e92d3e44c65a411e1bbc0be78bf"
+    },
+    "650": {
+      "accent_id": 63,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "651": {
+      "accent_id": 42,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "656": {
+      "accent_id": 54,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "657": {
+      "accent_id": 62,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "659": {
+      "accent_id": 31,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "660": {
+      "accent_id": 41,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "661": {
+      "accent_id": 64,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "662": {
+      "accent_id": 32,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "667": {
+      "accent_id": 15,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "669": {
+      "accent_id": 63,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "678": {
+      "accent_id": 29,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "679": {
+      "accent_id": 47,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "680": {
+      "accent_id": 9,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "681": {
+      "accent_id": 19,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "682": {
+      "accent_id": 56,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "686": {
+      "accent_id": 18,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "689": {
+      "accent_id": 54,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "701": {
+      "accent_id": 43,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "702": {
+      "accent_id": 70,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "703": {
+      "accent_id": 16,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "704": {
+      "accent_id": 25,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "706": {
+      "accent_id": 29,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "707": {
+      "accent_id": 63,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "708": {
+      "accent_id": 45,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "712": {
+      "accent_id": 41,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "713": {
+      "accent_id": 57,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "714": {
+      "accent_id": 62,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "715": {
+      "accent_id": 44,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "716": {
+      "accent_id": 9,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "717": {
+      "accent_id": 13,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "718": {
+      "accent_id": 6,
+      "accent_name": "New York City",
+      "male_voice_id": "0e7aacc1094c4aeaa9aeef0107627d21",
+      "female_voice_id": "9b2f0e92d3e44c65a411e1bbc0be78bf"
+    },
+    "719": {
+      "accent_id": 68,
+      "accent_name": "Colorado / Central Rockies",
+      "male_voice_id": "94b4c3b8823c46c69d6654bb62997988",
+      "female_voice_id": "039061bbcabb43cbace7867e8fbf2737"
+    },
+    "720": {
+      "accent_id": 68,
+      "accent_name": "Colorado / Central Rockies",
+      "male_voice_id": "94b4c3b8823c46c69d6654bb62997988",
+      "female_voice_id": "039061bbcabb43cbace7867e8fbf2737"
+    },
+    "724": {
+      "accent_id": 14,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "725": {
+      "accent_id": 70,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "726": {
+      "accent_id": 58,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "727": {
+      "accent_id": 54,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "728": {
+      "accent_id": 55,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "729": {
+      "accent_id": 21,
+      "accent_name": "East Tennessee Appalachian / Smoky Mountain",
+      "male_voice_id": "23afd6a3a01c47e58e582ff6b3ee5e7e",
+      "female_voice_id": "bdb20464e82b497bb26951af016be86b"
+    },
+    "730": {
+      "accent_id": 46,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "731": {
+      "accent_id": 23,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "732": {
+      "accent_id": 11,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "734": {
+      "accent_id": 47,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "737": {
+      "accent_id": 58,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "738": {
+      "accent_id": 62,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "740": {
+      "accent_id": 51,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "743": {
+      "accent_id": 25,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "747": {
+      "accent_id": 62,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "748": {
+      "accent_id": 68,
+      "accent_name": "Colorado / Central Rockies",
+      "male_voice_id": "94b4c3b8823c46c69d6654bb62997988",
+      "female_voice_id": "039061bbcabb43cbace7867e8fbf2737"
+    },
+    "754": {
+      "accent_id": 55,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "757": {
+      "accent_id": 17,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "760": {
+      "accent_id": 64,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "762": {
+      "accent_id": 29,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "763": {
+      "accent_id": 42,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "765": {
+      "accent_id": 52,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "769": {
+      "accent_id": 32,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "770": {
+      "accent_id": 29,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "771": {
+      "accent_id": 16,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "772": {
+      "accent_id": 54,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "773": {
+      "accent_id": 45,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "774": {
+      "accent_id": 4,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "775": {
+      "accent_id": 70,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "779": {
+      "accent_id": 46,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "781": {
+      "accent_id": 3,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "785": {
+      "accent_id": 41,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "786": {
+      "accent_id": 55,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "801": {
+      "accent_id": 69,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "802": {
+      "accent_id": 2,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "803": {
+      "accent_id": 27,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "804": {
+      "accent_id": 18,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "805": {
+      "accent_id": 62,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "806": {
+      "accent_id": 60,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "808": {
+      "accent_id": 75,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "810": {
+      "accent_id": 47,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "812": {
+      "accent_id": 52,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "813": {
+      "accent_id": 54,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "814": {
+      "accent_id": 13,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "815": {
+      "accent_id": 46,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "816": {
+      "accent_id": 40,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "817": {
+      "accent_id": 56,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "818": {
+      "accent_id": 62,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "820": {
+      "accent_id": 62,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "821": {
+      "accent_id": 27,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "826": {
+      "accent_id": 18,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "828": {
+      "accent_id": 24,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "830": {
+      "accent_id": 58,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "831": {
+      "accent_id": 63,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "832": {
+      "accent_id": 57,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "835": {
+      "accent_id": 12,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "837": {
+      "accent_id": 64,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "838": {
+      "accent_id": 8,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "839": {
+      "accent_id": 27,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "840": {
+      "accent_id": 64,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "843": {
+      "accent_id": 28,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "845": {
+      "accent_id": 8,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "847": {
+      "accent_id": 45,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "848": {
+      "accent_id": 11,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "850": {
+      "accent_id": 53,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "854": {
+      "accent_id": 28,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "856": {
+      "accent_id": 11,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "857": {
+      "accent_id": 3,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "858": {
+      "accent_id": 62,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "859": {
+      "accent_id": 20,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "860": {
+      "accent_id": 4,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "861": {
+      "accent_id": 46,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "862": {
+      "accent_id": 10,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "863": {
+      "accent_id": 54,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "864": {
+      "accent_id": 27,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "865": {
+      "accent_id": 21,
+      "accent_name": "East Tennessee Appalachian / Smoky Mountain",
+      "male_voice_id": "23afd6a3a01c47e58e582ff6b3ee5e7e",
+      "female_voice_id": "bdb20464e82b497bb26951af016be86b"
+    },
+    "870": {
+      "accent_id": 37,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "872": {
+      "accent_id": 45,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "878": {
+      "accent_id": 14,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "901": {
+      "accent_id": 23,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "903": {
+      "accent_id": 56,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "904": {
+      "accent_id": 53,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "906": {
+      "accent_id": 49,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "907": {
+      "accent_id": 74,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "908": {
+      "accent_id": 10,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "909": {
+      "accent_id": 64,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "910": {
+      "accent_id": 26,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "912": {
+      "accent_id": 30,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "913": {
+      "accent_id": 40,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "914": {
+      "accent_id": 8,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "915": {
+      "accent_id": 61,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "916": {
+      "accent_id": 64,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "917": {
+      "accent_id": 6,
+      "accent_name": "New York City",
+      "male_voice_id": "0e7aacc1094c4aeaa9aeef0107627d21",
+      "female_voice_id": "9b2f0e92d3e44c65a411e1bbc0be78bf"
+    },
+    "918": {
+      "accent_id": 38,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "919": {
+      "accent_id": 25,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "920": {
+      "accent_id": 44,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "924": {
+      "accent_id": 42,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "925": {
+      "accent_id": 63,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "928": {
+      "accent_id": 71,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "929": {
+      "accent_id": 6,
+      "accent_name": "New York City",
+      "male_voice_id": "0e7aacc1094c4aeaa9aeef0107627d21",
+      "female_voice_id": "9b2f0e92d3e44c65a411e1bbc0be78bf"
+    },
+    "930": {
+      "accent_id": 52,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "931": {
+      "accent_id": 22,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "934": {
+      "accent_id": 7,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "936": {
+      "accent_id": 56,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "937": {
+      "accent_id": 51,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "938": {
+      "accent_id": 31,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "940": {
+      "accent_id": 56,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "941": {
+      "accent_id": 54,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "943": {
+      "accent_id": 29,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "945": {
+      "accent_id": 56,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "947": {
+      "accent_id": 47,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "948": {
+      "accent_id": 17,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "949": {
+      "accent_id": 62,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "951": {
+      "accent_id": 64,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "952": {
+      "accent_id": 42,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "954": {
+      "accent_id": 55,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "956": {
+      "accent_id": 59,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "959": {
+      "accent_id": 4,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "970": {
+      "accent_id": 68,
+      "accent_name": "Colorado / Central Rockies",
+      "male_voice_id": "94b4c3b8823c46c69d6654bb62997988",
+      "female_voice_id": "039061bbcabb43cbace7867e8fbf2737"
+    },
+    "971": {
+      "accent_id": 66,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "972": {
+      "accent_id": 56,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "973": {
+      "accent_id": 10,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "975": {
+      "accent_id": 40,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "978": {
+      "accent_id": 3,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "979": {
+      "accent_id": 57,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "980": {
+      "accent_id": 25,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "983": {
+      "accent_id": 68,
+      "accent_name": "Colorado / Central Rockies",
+      "male_voice_id": "94b4c3b8823c46c69d6654bb62997988",
+      "female_voice_id": "039061bbcabb43cbace7867e8fbf2737"
+    },
+    "984": {
+      "accent_id": 25,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "985": {
+      "accent_id": 34,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "986": {
+      "accent_id": 67,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    },
+    "989": {
+      "accent_id": 48,
+      "accent_name": null,
+      "male_voice_id": null,
+      "female_voice_id": null
+    }
+  }
+}

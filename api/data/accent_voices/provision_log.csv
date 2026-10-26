@@ -1,0 +1,7 @@
+accent_id,accent_name,gender,status,voice_id,area_codes,error
+6,New York City,male,OK,0e7aacc1094c4aeaa9aeef0107627d21,"212,332,347,465,646,718,917,929",
+6,New York City,female,OK,9b2f0e92d3e44c65a411e1bbc0be78bf,"212,332,347,465,646,718,917,929",
+21,East Tennessee Appalachian / Smoky Mountain,male,OK,23afd6a3a01c47e58e582ff6b3ee5e7e,"423,729,865",
+21,East Tennessee Appalachian / Smoky Mountain,female,OK,bdb20464e82b497bb26951af016be86b,"423,729,865",
+68,Colorado / Central Rockies,male,OK,94b4c3b8823c46c69d6654bb62997988,"303,719,720,748,970,983",
+68,Colorado / Central Rockies,female,OK,039061bbcabb43cbace7867e8fbf2737,"303,719,720,748,970,983",
