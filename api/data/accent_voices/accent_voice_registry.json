@@ -162,5 +162,35 @@
       "preview_ms": 7663,
       "source": "api"
     }
+  },
+  "4": {
+    "accent_id": 4,
+    "name": "Western & Southern New England",
+    "states": "MA, CT",
+    "area_codes": [
+      "203",
+      "413",
+      "475",
+      "508",
+      "774",
+      "860",
+      "959"
+    ],
+    "male": {
+      "voice_id": "a92160d69911480d85cc1014ccd4511d",
+      "title": "US Accent 04 - Western & Southern New England (Male)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8452,
+      "source": "api"
+    },
+    "female": {
+      "voice_id": "9cb0781e495649409a7b650a7af005e2",
+      "title": "US Accent 04 - Western & Southern New England (Female)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8452,
+      "source": "api"
+    }
   }
 }
