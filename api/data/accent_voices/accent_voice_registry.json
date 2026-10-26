@@ -108,5 +108,59 @@
       "preview_ms": 8870,
       "source": "api"
     }
+  },
+  "2": {
+    "accent_id": 2,
+    "name": "Northern New England (New Hampshire / Vermont)",
+    "states": "NH, VT",
+    "area_codes": [
+      "603",
+      "802"
+    ],
+    "male": {
+      "voice_id": "739c5859172b4869bc222a31e0503c9d",
+      "title": "US Accent 02 - Northern New England (New Hampshire / Vermont) (Male)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8870,
+      "source": "api"
+    },
+    "female": {
+      "voice_id": "3ed6774b1cb84101baa8f159f9435fdc",
+      "title": "US Accent 02 - Northern New England (New Hampshire / Vermont) (Female)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8870,
+      "source": "api"
+    }
+  },
+  "3": {
+    "accent_id": 3,
+    "name": "Boston / Eastern Massachusetts",
+    "states": "MA",
+    "area_codes": [
+      "339",
+      "351",
+      "617",
+      "781",
+      "857",
+      "978"
+    ],
+    "male": {
+      "voice_id": "18e281c286714004bdf4d25a20987416",
+      "title": "US Accent 03 - Boston / Eastern Massachusetts (Male)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 7663,
+      "source": "api"
+    },
+    "female": {
+      "voice_id": "ef2c95cc3f764a3e80f78450a1f8a808",
+      "title": "US Accent 03 - Boston / Eastern Massachusetts (Female)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 7663,
+      "source": "api"
+    }
   }
 }
