@@ -1,0 +1,112 @@
+{
+  "6": {
+    "accent_id": 6,
+    "name": "New York City",
+    "states": "NY",
+    "area_codes": [
+      "212",
+      "332",
+      "347",
+      "465",
+      "646",
+      "718",
+      "917",
+      "929"
+    ],
+    "male": {
+      "voice_id": "0e7aacc1094c4aeaa9aeef0107627d21",
+      "title": "US Accent 06 - New York City (Male)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8034,
+      "source": "api"
+    },
+    "female": {
+      "voice_id": "9b2f0e92d3e44c65a411e1bbc0be78bf",
+      "title": "US Accent 06 - New York City (Female)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8034,
+      "source": "api"
+    }
+  },
+  "21": {
+    "accent_id": 21,
+    "name": "East Tennessee Appalachian / Smoky Mountain",
+    "states": "TN",
+    "area_codes": [
+      "423",
+      "729",
+      "865"
+    ],
+    "male": {
+      "voice_id": "23afd6a3a01c47e58e582ff6b3ee5e7e",
+      "title": "US Accent 21 - East Tennessee Appalachian / Smoky Mountain (Male)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 9938,
+      "source": "api"
+    },
+    "female": {
+      "voice_id": "bdb20464e82b497bb26951af016be86b",
+      "title": "US Accent 21 - East Tennessee Appalachian / Smoky Mountain (Female)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 10542,
+      "source": "api"
+    }
+  },
+  "68": {
+    "accent_id": 68,
+    "name": "Colorado / Central Rockies",
+    "states": "CO",
+    "area_codes": [
+      "303",
+      "719",
+      "720",
+      "748",
+      "970",
+      "983"
+    ],
+    "male": {
+      "voice_id": "94b4c3b8823c46c69d6654bb62997988",
+      "title": "US Accent 68 - Colorado / Central Rockies (Male)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8452,
+      "source": "api"
+    },
+    "female": {
+      "voice_id": "039061bbcabb43cbace7867e8fbf2737",
+      "title": "US Accent 68 - Colorado / Central Rockies (Female)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8452,
+      "source": "api"
+    }
+  },
+  "1": {
+    "accent_id": 1,
+    "name": "Maine / Down East New England",
+    "states": "ME",
+    "area_codes": [
+      "207"
+    ],
+    "male": {
+      "voice_id": "f2fb229a21b44449a6402817d5c6df72",
+      "title": "US Accent 01 - Maine / Down East New England (Male)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8452,
+      "source": "api"
+    },
+    "female": {
+      "voice_id": "5b42a678c95f46eabdf968ce8ae92028",
+      "title": "US Accent 01 - Maine / Down East New England (Female)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8870,
+      "source": "api"
+    }
+  }
+}
