@@ -29,12 +29,30 @@ class ResolvedTransferConfig:
 
 
 class TransferResolutionError(ValueError):
-    """Raised when a transfer destination cannot be resolved safely."""
+    """Raised when a transfer destination cannot be resolved safely.
 
-    def __init__(self, reason: str, message: str):
+    ``llm_message`` is set only when the resolver itself declined the transfer
+    and said what the agent should tell the caller (see
+    ``_resolve_from_response``); it is handed to the LLM in place of the
+    generic failure line.
+    """
+
+    def __init__(self, reason: str, message: str, llm_message: Optional[str] = None):
         super().__init__(message)
         self.reason = reason
         self.message = message
+        self.llm_message = llm_message
+
+
+_DECLINE_REASON_MAX = 64
+
+
+def _declined_reason(value: Any) -> str:
+    """A resolver's decline reason, reduced to a safe lower_snake_case code."""
+    text = "".join(
+        ch if ch.isalnum() else "_" for ch in str(value or "").strip().lower()
+    ).strip("_")
+    return f"declined_{text[:_DECLINE_REASON_MAX]}" if text else "declined"
 
 
 def _render_value(
@@ -307,6 +325,20 @@ def _resolve_from_response(
         )
 
     destination = transfer_context.get("destination")
+    decline_reason = transfer_context.get("decline_reason")
+    if (destination is None or destination == "") and decline_reason:
+        # The resolver looked and decided nobody should take this call now
+        # (no one licensed, everyone busy, caller not qualified). That is an
+        # answer, not a fault: pass its reason through, and its message for
+        # the caller, so the agent can say the right thing.
+        message = transfer_context.get("message")
+        raise TransferResolutionError(
+            _declined_reason(decline_reason),
+            "Transfer resolver declined the transfer",
+            llm_message=message.strip()[:500]
+            if isinstance(message, str) and message.strip()
+            else None,
+        )
     if not isinstance(destination, str) or not destination.strip():
         raise TransferResolutionError(
             "no_destination",

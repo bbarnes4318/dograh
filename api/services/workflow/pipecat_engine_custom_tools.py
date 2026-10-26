@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import time
 import uuid
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from loguru import logger
@@ -973,7 +974,8 @@ class CustomToolManager:
                 except TransferResolutionError as e:
                     validation_error_result = {
                         "status": "failed",
-                        "message": "I'm sorry, but I couldn't find a valid destination for this transfer.",
+                        "message": e.llm_message
+                        or "I'm sorry, but I couldn't find a valid destination for this transfer.",
                         "action": "transfer_failed",
                         "reason": e.reason,
                     }
@@ -1263,6 +1265,30 @@ class CustomToolManager:
 
         return transfer_call_handler
 
+    def _record_transfer_attempt(self, action: str, result: dict) -> None:
+        """Keep each transfer outcome in gathered context (``transfer_attempts``).
+
+        Persisted with the run, so post-call reporting (webhooks, integrations)
+        can say how many transfers were tried and why each one failed, which
+        the call disposition alone cannot.
+        """
+        if action not in ("destination_answered", "transfer_failed"):
+            return
+        attempts = self._engine._gathered_context.setdefault("transfer_attempts", [])
+        if not isinstance(attempts, list):
+            return
+        attempts.append(
+            {
+                "status": "transfer_success"
+                if action == "destination_answered"
+                else "transfer_failed",
+                "reason": None
+                if action == "destination_answered"
+                else str(result.get("reason") or "unknown"),
+                "at": datetime.now(UTC).isoformat(),
+            }
+        )
+
     async def _handle_transfer_result(
         self, result: dict, function_call_params, properties
     ):
@@ -1280,6 +1306,7 @@ class CustomToolManager:
         status = result.get("status", "")
 
         logger.info(f"Handling transfer result: action={action}, status={status}")
+        self._record_transfer_attempt(action, result)
 
         # HOPWHISTLE_TRANSFER_DURATION_HOTFIX_V1
         # A failed or timed-out transfer returns ownership to the AI, so the
