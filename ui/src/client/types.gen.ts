@@ -2786,7 +2786,7 @@ export type FishAudioTtsConfiguration = {
     /**
      * Voice
      *
-     * Pick a local-accent voice, or 'Auto — local accent by area code' to match each prospect's area code on every call. You can still paste any Fish reference_id.
+     * Fish Audio reference_id — the 32-char hex voice-model id from the Fish voice library or one of your own cloned voices. Empty uses the standard voice.
      */
     voice?: string;
     /**
@@ -3269,6 +3269,46 @@ export type HealthResponse = {
      * Stack Publishable Client Key
      */
     stack_publishable_client_key?: string | null;
+};
+
+/**
+ * HoppwhistleInstallRequest
+ */
+export type HoppwhistleInstallRequest = {
+    /**
+     * Base Url
+     *
+     * Hoppwhistle API base URL, e.g. https://agents.example.com.
+     */
+    base_url: string;
+    /**
+     * Service Secret
+     *
+     * Hoppwhistle's DOGRAH_AI_AGENT_SECRET. Stored as the tools' bearer credential and as the reporting node's signing secret. Omit to reuse credential_uuid.
+     */
+    service_secret?: string | null;
+    /**
+     * Credential Uuid
+     *
+     * An existing bearer credential in this organization.
+     */
+    credential_uuid?: string | null;
+    /**
+     * Create Workflows
+     *
+     * Also create the starter workflows.
+     */
+    create_workflows?: boolean;
+    /**
+     * Products
+     */
+    products?: Array<'CALLBACK_RECOVERY' | 'LEAD_QUALIFIER'>;
+    /**
+     * Include After Hours
+     *
+     * With CALLBACK_RECOVERY, also the after-hours inbound workflow.
+     */
+    include_after_hours?: boolean;
 };
 
 /**
@@ -10683,7 +10723,7 @@ export type GetVoicesApiV1UserConfigurationsVoicesProviderGetData = {
         /**
          * Provider
          */
-        provider: 'elevenlabs' | 'deepgram' | 'sarvam' | 'cartesia' | 'dograh' | 'rime' | 'fish';
+        provider: 'elevenlabs' | 'deepgram' | 'sarvam' | 'cartesia' | 'dograh' | 'rime';
     };
     query?: {
         /**
@@ -14665,38 +14705,6 @@ export type DownloadWorkflowArtifactApiV1PublicDownloadWorkflowTokenArtifactType
     200: unknown;
 };
 
-export type GetAccentVoicePreviewApiV1PublicAccentVoicesPreviewsFilenameGetData = {
-    body?: never;
-    path: {
-        /**
-         * Filename
-         */
-        filename: string;
-    };
-    query?: never;
-    url: '/api/v1/public/accent-voices/previews/{filename}';
-};
-
-export type GetAccentVoicePreviewApiV1PublicAccentVoicesPreviewsFilenameGetErrors = {
-    /**
-     * Not found
-     */
-    404: unknown;
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type GetAccentVoicePreviewApiV1PublicAccentVoicesPreviewsFilenameGetError = GetAccentVoicePreviewApiV1PublicAccentVoicesPreviewsFilenameGetErrors[keyof GetAccentVoicePreviewApiV1PublicAccentVoicesPreviewsFilenameGetErrors];
-
-export type GetAccentVoicePreviewApiV1PublicAccentVoicesPreviewsFilenameGetResponses = {
-    /**
-     * Successful Response
-     */
-    200: unknown;
-};
-
 export type DeactivateEmbedTokenApiV1WorkflowWorkflowIdEmbedTokenDeleteData = {
     body?: never;
     headers?: {
@@ -15708,6 +15716,49 @@ export type GetNodeTypeApiV1NodeTypesNameGetResponses = {
 };
 
 export type GetNodeTypeApiV1NodeTypesNameGetResponse = GetNodeTypeApiV1NodeTypesNameGetResponses[keyof GetNodeTypeApiV1NodeTypesNameGetResponses];
+
+export type InstallApiV1IntegrationsHoppwhistleInstallPostData = {
+    body: HoppwhistleInstallRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/integrations/hoppwhistle/install';
+};
+
+export type InstallApiV1IntegrationsHoppwhistleInstallPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type InstallApiV1IntegrationsHoppwhistleInstallPostError = InstallApiV1IntegrationsHoppwhistleInstallPostErrors[keyof InstallApiV1IntegrationsHoppwhistleInstallPostErrors];
+
+export type InstallApiV1IntegrationsHoppwhistleInstallPostResponses = {
+    /**
+     * Response Install Api V1 Integrations Hoppwhistle Install Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type InstallApiV1IntegrationsHoppwhistleInstallPostResponse = InstallApiV1IntegrationsHoppwhistleInstallPostResponses[keyof InstallApiV1IntegrationsHoppwhistleInstallPostResponses];
 
 export type HealthApiV1HealthGetData = {
     body?: never;
