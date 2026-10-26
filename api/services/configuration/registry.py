@@ -1659,11 +1659,14 @@ class FishAudioTTSConfiguration(BaseTTSConfiguration):
     voice: str = Field(
         default=DEFAULT_FISH_VOICE,
         description=(
-            "Fish Audio reference_id — the 32-char hex voice-model id from the Fish "
-            "voice library or one of your own cloned voices. Empty uses the "
-            "standard voice."
+            "Pick 'Auto — Local Accent by Area Code' to answer each prospect in "
+            "the cloned regional voice for their area code, or a fixed regional "
+            "voice. You can still enter any Fish reference_id manually. Empty "
+            "uses the standard voice."
         ),
-        json_schema_extra={"allow_custom_input": True},
+        # The form renders VoiceSelector (browsable list + manual entry) only
+        # when custom input is off.
+        json_schema_extra={"allow_custom_input": False},
     )
     latency: str = Field(
         default="balanced",

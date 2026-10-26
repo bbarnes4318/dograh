@@ -15,3 +15,7 @@ evals/
 api/mcp_server/ts_validator/node_modules/
 sdk/
 venv
+# Accent clone source recordings are provisioning inputs only: the runtime
+# needs just the registry/maps/previews under api/data/accent_voices.
+api/data/accent_voices/reference_audio/
+api/data/accent_voices/.provision.lock

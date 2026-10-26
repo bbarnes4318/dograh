@@ -1,0 +1,1364 @@
+{
+  "1": {
+    "accent_id": 1,
+    "accent_name": "Maine / Down East New England",
+    "states": [
+      "ME"
+    ],
+    "area_codes": [
+      "207"
+    ],
+    "reference_audio": null,
+    "fish_voice_id": null,
+    "fish_model_title": "PVN Local Accent 001 - Maine Down East New England",
+    "status": "unavailable"
+  },
+  "2": {
+    "accent_id": 2,
+    "accent_name": "Northern New England (New Hampshire / Vermont)",
+    "states": [
+      "NH",
+      "VT"
+    ],
+    "area_codes": [
+      "603",
+      "802"
+    ],
+    "reference_audio": null,
+    "fish_voice_id": null,
+    "fish_model_title": "PVN Local Accent 002 - Northern New England New Hampshire Vermont",
+    "status": "unavailable"
+  },
+  "3": {
+    "accent_id": 3,
+    "accent_name": "Boston / Eastern Massachusetts",
+    "states": [
+      "MA"
+    ],
+    "area_codes": [
+      "339",
+      "351",
+      "617",
+      "781",
+      "857",
+      "978"
+    ],
+    "reference_audio": null,
+    "fish_voice_id": null,
+    "fish_model_title": "PVN Local Accent 003 - Boston Eastern Massachusetts",
+    "status": "unavailable"
+  },
+  "4": {
+    "accent_id": 4,
+    "accent_name": "Western & Southern New England",
+    "states": [
+      "MA",
+      "CT"
+    ],
+    "area_codes": [
+      "203",
+      "413",
+      "475",
+      "508",
+      "774",
+      "860",
+      "959"
+    ],
+    "reference_audio": null,
+    "fish_voice_id": null,
+    "fish_model_title": "PVN Local Accent 004 - Western Southern New England",
+    "status": "unavailable"
+  },
+  "5": {
+    "accent_id": 5,
+    "accent_name": "Rhode Island / Southeastern New England",
+    "states": [
+      "RI"
+    ],
+    "area_codes": [
+      "401"
+    ],
+    "reference_audio": null,
+    "fish_voice_id": null,
+    "fish_model_title": "PVN Local Accent 005 - Rhode Island Southeastern New England",
+    "status": "unavailable"
+  },
+  "6": {
+    "accent_id": 6,
+    "accent_name": "New York City",
+    "states": [
+      "NY"
+    ],
+    "area_codes": [
+      "212",
+      "332",
+      "347",
+      "465",
+      "646",
+      "718",
+      "917",
+      "929"
+    ],
+    "reference_audio": null,
+    "fish_voice_id": null,
+    "fish_model_title": "PVN Local Accent 006 - New York City",
+    "status": "unavailable"
+  },
+  "7": {
+    "accent_id": 7,
+    "accent_name": "Long Island",
+    "states": [
+      "NY"
+    ],
+    "area_codes": [
+      "363",
+      "516",
+      "631",
+      "934"
+    ],
+    "reference_audio": null,
+    "fish_voice_id": null,
+    "fish_model_title": "PVN Local Accent 007 - Long Island",
+    "status": "unavailable"
+  },
+  "8": {
+    "accent_id": 8,
+    "accent_name": "Hudson Valley / Capital District New York",
+    "states": [
+      "NY"
+    ],
+    "area_codes": [
+      "329",
+      "518",
+      "838",
+      "845",
+      "914"
+    ],
+    "reference_audio": null,
+    "fish_voice_id": null,
+    "fish_model_title": "PVN Local Accent 008 - Hudson Valley Capital District New York",
+    "status": "unavailable"
+  },
+  "9": {
+    "accent_id": 9,
+    "accent_name": "Central & Western New York / Inland North",
+    "states": [
+      "NY"
+    ],
+    "area_codes": [
+      "315",
+      "585",
+      "607",
+      "624",
+      "680",
+      "716"
+    ],
+    "reference_audio": null,
+    "fish_voice_id": null,
+    "fish_model_title": "PVN Local Accent 009 - Central Western New York Inland North",
+    "status": "unavailable"
+  },
+  "10": {
+    "accent_id": 10,
+    "accent_name": "North Jersey / NYC-influenced",
+    "states": [
+      "NJ"
+    ],
+    "area_codes": [
+      "201",
+      "551",
+      "862",
+      "908",
+      "973"
+    ],
+    "reference_audio": null,
+    "fish_voice_id": null,
+    "fish_model_title": "PVN Local Accent 010 - North Jersey NYC-influenced",
+    "status": "unavailable"
+  },
+  "11": {
+    "accent_id": 11,
+    "accent_name": "South & Central Jersey / Delaware Valley",
+    "states": [
+      "NJ",
+      "DE"
+    ],
+    "area_codes": [
+      "302",
+      "609",
+      "640",
+      "732",
+      "848",
+      "856"
+    ],
+    "reference_audio": null,
+    "fish_voice_id": null,
+    "fish_model_title": "PVN Local Accent 011 - South Central Jersey Delaware Valley",
+    "status": "unavailable"
+  },
+  "12": {
+    "accent_id": 12,
+    "accent_name": "Philadelphia / Delaware Valley",
+    "states": [
+      "PA"
+    ],
+    "area_codes": [
+      "215",
+      "267",
+      "445",
+      "484",
+      "610",
+      "835"
+    ],
+    "reference_audio": null,
+    "fish_voice_id": null,
+    "fish_model_title": "PVN Local Accent 012 - Philadelphia Delaware Valley",
+    "status": "unavailable"
+  },
+  "13": {
+    "accent_id": 13,
+    "accent_name": "Central & Northeastern Pennsylvania",
+    "states": [
+      "PA"
+    ],
+    "area_codes": [
+      "223",
+      "272",
+      "570",
+      "582",
+      "717",
+      "814"
+    ],
+    "reference_audio": null,
+    "fish_voice_id": null,
+    "fish_model_title": "PVN Local Accent 013 - Central Northeastern Pennsylvania",
+    "status": "unavailable"
+  },
+  "14": {
+    "accent_id": 14,
+    "accent_name": "Pittsburgh / Western Pennsylvania",
+    "states": [
+      "PA"
+    ],
+    "area_codes": [
+      "412",
+      "724",
+      "878"
+    ],
+    "reference_audio": null,
+    "fish_voice_id": null,
+    "fish_model_title": "PVN Local Accent 014 - Pittsburgh Western Pennsylvania",
+    "status": "unavailable"
+  },
+  "15": {
+    "accent_id": 15,
+    "accent_name": "Baltimore / Chesapeake Maryland",
+    "states": [
+      "MD"
+    ],
+    "area_codes": [
+      "410",
+      "443",
+      "667"
+    ],
+    "reference_audio": null,
+    "fish_voice_id": null,
+    "fish_model_title": "PVN Local Accent 015 - Baltimore Chesapeake Maryland",
+    "status": "unavailable"
+  },
+  "16": {
+    "accent_id": 16,
+    "accent_name": "Washington DC / DMV",
+    "states": [
+      "DC",
+      "MD",
+      "VA"
+    ],
+    "area_codes": [
+      "202",
+      "227",
+      "240",
+      "301",
+      "571",
+      "703",
+      "771"
+    ],
+    "reference_audio": null,
+    "fish_voice_id": null,
+    "fish_model_title": "PVN Local Accent 016 - Washington DC DMV",
+    "status": "unavailable"
+  },
+  "17": {
+    "accent_id": 17,
+    "accent_name": "Virginia Tidewater / Hampton Roads",
+    "states": [
+      "VA"
+    ],
+    "area_codes": [
+      "757",
+      "948"
+    ],
+    "reference_audio": null,
+    "fish_voice_id": null,
+    "fish_model_title": "PVN Local Accent 017 - Virginia Tidewater Hampton Roads",
+    "status": "unavailable"
+  },
+  "18": {
+    "accent_id": 18,
+    "accent_name": "Virginia Piedmont / Richmond / Shenandoah",
+    "states": [
+      "VA"
+    ],
+    "area_codes": [
+      "434",
+      "540",
+      "686",
+      "804",
+      "826"
+    ],
+    "reference_audio": null,
+    "fish_voice_id": null,
+    "fish_model_title": "PVN Local Accent 018 - Virginia Piedmont Richmond Shenandoah",
+    "status": "unavailable"
+  },
+  "19": {
+    "accent_id": 19,
+    "accent_name": "Central Appalachia (SW Virginia / West Virginia / Eastern Kentucky)",
+    "states": [
+      "VA",
+      "WV",
+      "KY"
+    ],
+    "area_codes": [
+      "276",
+      "304",
+      "606",
+      "681"
+    ],
+    "reference_audio": null,
+    "fish_voice_id": null,
+    "fish_model_title": "PVN Local Accent 019 - Central Appalachia SW Virginia West Virginia Eastern Kentucky",
+    "status": "unavailable"
+  },
+  "20": {
+    "accent_id": 20,
+    "accent_name": "Kentucky Upper South / Bluegrass",
+    "states": [
+      "KY"
+    ],
+    "area_codes": [
+      "270",
+      "364",
+      "502",
+      "859"
+    ],
+    "reference_audio": null,
+    "fish_voice_id": null,
+    "fish_model_title": "PVN Local Accent 020 - Kentucky Upper South Bluegrass",
+    "status": "unavailable"
+  },
+  "21": {
+    "accent_id": 21,
+    "accent_name": "East Tennessee Appalachian / Smoky Mountain",
+    "states": [
+      "TN"
+    ],
+    "area_codes": [
+      "423",
+      "729",
+      "865"
+    ],
+    "reference_audio": null,
+    "fish_voice_id": null,
+    "fish_model_title": "PVN Local Accent 021 - East Tennessee Appalachian Smoky Mountain",
+    "status": "unavailable"
+  },
+  "22": {
+    "accent_id": 22,
+    "accent_name": "Nashville / Middle Tennessee",
+    "states": [
+      "TN"
+    ],
+    "area_codes": [
+      "615",
+      "629",
+      "931"
+    ],
+    "reference_audio": null,
+    "fish_voice_id": null,
+    "fish_model_title": "PVN Local Accent 022 - Nashville Middle Tennessee",
+    "status": "unavailable"
+  },
+  "23": {
+    "accent_id": 23,
+    "accent_name": "Memphis / West Tennessee",
+    "states": [
+      "TN"
+    ],
+    "area_codes": [
+      "731",
+      "901"
+    ],
+    "reference_audio": null,
+    "fish_voice_id": null,
+    "fish_model_title": "PVN Local Accent 023 - Memphis West Tennessee",
+    "status": "unavailable"
+  },
+  "24": {
+    "accent_id": 24,
+    "accent_name": "Western North Carolina Appalachian",
+    "states": [
+      "NC"
+    ],
+    "area_codes": [
+      "828"
+    ],
+    "reference_audio": null,
+    "fish_voice_id": null,
+    "fish_model_title": "PVN Local Accent 024 - Western North Carolina Appalachian",
+    "status": "unavailable"
+  },
+  "25": {
+    "accent_id": 25,
+    "accent_name": "North Carolina Piedmont",
+    "states": [
+      "NC"
+    ],
+    "area_codes": [
+      "336",
+      "704",
+      "743",
+      "919",
+      "980",
+      "984"
+    ],
+    "reference_audio": null,
+    "fish_voice_id": null,
+    "fish_model_title": "PVN Local Accent 025 - North Carolina Piedmont",
+    "status": "unavailable"
+  },
+  "26": {
+    "accent_id": 26,
+    "accent_name": "Coastal / Eastern North Carolina",
+    "states": [
+      "NC"
+    ],
+    "area_codes": [
+      "252",
+      "472",
+      "910"
+    ],
+    "reference_audio": null,
+    "fish_voice_id": null,
+    "fish_model_title": "PVN Local Accent 026 - Coastal Eastern North Carolina",
+    "status": "unavailable"
+  },
+  "27": {
+    "accent_id": 27,
+    "accent_name": "South Carolina Upstate / Midlands",
+    "states": [
+      "SC"
+    ],
+    "area_codes": [
+      "803",
+      "821",
+      "839",
+      "864"
+    ],
+    "reference_audio": null,
+    "fish_voice_id": null,
+    "fish_model_title": "PVN Local Accent 027 - South Carolina Upstate Midlands",
+    "status": "unavailable"
+  },
+  "28": {
+    "accent_id": 28,
+    "accent_name": "Charleston / South Carolina Lowcountry",
+    "states": [
+      "SC"
+    ],
+    "area_codes": [
+      "843",
+      "854"
+    ],
+    "reference_audio": null,
+    "fish_voice_id": null,
+    "fish_model_title": "PVN Local Accent 028 - Charleston South Carolina Lowcountry",
+    "status": "unavailable"
+  },
+  "29": {
+    "accent_id": 29,
+    "accent_name": "Atlanta / North Georgia Piedmont",
+    "states": [
+      "GA"
+    ],
+    "area_codes": [
+      "404",
+      "470",
+      "678",
+      "706",
+      "762",
+      "770",
+      "943"
+    ],
+    "reference_audio": null,
+    "fish_voice_id": null,
+    "fish_model_title": "PVN Local Accent 029 - Atlanta North Georgia Piedmont",
+    "status": "unavailable"
+  },
+  "30": {
+    "accent_id": 30,
+    "accent_name": "South & Coastal Georgia",
+    "states": [
+      "GA"
+    ],
+    "area_codes": [
+      "229",
+      "478",
+      "912"
+    ],
+    "reference_audio": null,
+    "fish_voice_id": null,
+    "fish_model_title": "PVN Local Accent 030 - South Coastal Georgia",
+    "status": "unavailable"
+  },
+  "31": {
+    "accent_id": 31,
+    "accent_name": "Alabama Inland / Gulf South",
+    "states": [
+      "AL"
+    ],
+    "area_codes": [
+      "205",
+      "251",
+      "256",
+      "334",
+      "483",
+      "659",
+      "938"
+    ],
+    "reference_audio": null,
+    "fish_voice_id": null,
+    "fish_model_title": "PVN Local Accent 031 - Alabama Inland Gulf South",
+    "status": "unavailable"
+  },
+  "32": {
+    "accent_id": 32,
+    "accent_name": "Mississippi Deep South / Delta",
+    "states": [
+      "MS"
+    ],
+    "area_codes": [
+      "228",
+      "471",
+      "601",
+      "662",
+      "769"
+    ],
+    "reference_audio": null,
+    "fish_voice_id": null,
+    "fish_model_title": "PVN Local Accent 032 - Mississippi Deep South Delta",
+    "status": "unavailable"
+  },
+  "33": {
+    "accent_id": 33,
+    "accent_name": "New Orleans / Yat-influenced English",
+    "states": [
+      "LA"
+    ],
+    "area_codes": [
+      "504"
+    ],
+    "reference_audio": null,
+    "fish_voice_id": null,
+    "fish_model_title": "PVN Local Accent 033 - New Orleans Yat-influenced English",
+    "status": "unavailable"
+  },
+  "34": {
+    "accent_id": 34,
+    "accent_name": "South Louisiana / Cajun-influenced English",
+    "states": [
+      "LA"
+    ],
+    "area_codes": [
+      "225",
+      "337",
+      "985"
+    ],
+    "reference_audio": null,
+    "fish_voice_id": null,
+    "fish_model_title": "PVN Local Accent 034 - South Louisiana Cajun-influenced English",
+    "status": "unavailable"
+  },
+  "35": {
+    "accent_id": 35,
+    "accent_name": "North Louisiana / Ark-La-Tex",
+    "states": [
+      "LA"
+    ],
+    "area_codes": [
+      "318",
+      "457"
+    ],
+    "reference_audio": null,
+    "fish_voice_id": null,
+    "fish_model_title": "PVN Local Accent 035 - North Louisiana Ark-La-Tex",
+    "status": "unavailable"
+  },
+  "36": {
+    "accent_id": 36,
+    "accent_name": "Ozarks",
+    "states": [
+      "AR",
+      "MO"
+    ],
+    "area_codes": [
+      "417",
+      "479"
+    ],
+    "reference_audio": null,
+    "fish_voice_id": null,
+    "fish_model_title": "PVN Local Accent 036 - Ozarks",
+    "status": "unavailable"
+  },
+  "37": {
+    "accent_id": 37,
+    "accent_name": "Central & Eastern Arkansas / Mid-South",
+    "states": [
+      "AR"
+    ],
+    "area_codes": [
+      "327",
+      "501",
+      "870"
+    ],
+    "reference_audio": null,
+    "fish_voice_id": null,
+    "fish_model_title": "PVN Local Accent 037 - Central Eastern Arkansas Mid-South",
+    "status": "unavailable"
+  },
+  "38": {
+    "accent_id": 38,
+    "accent_name": "Oklahoma South Midland / Plains",
+    "states": [
+      "OK"
+    ],
+    "area_codes": [
+      "405",
+      "539",
+      "572",
+      "580",
+      "918"
+    ],
+    "reference_audio": null,
+    "fish_voice_id": null,
+    "fish_model_title": "PVN Local Accent 038 - Oklahoma South Midland Plains",
+    "status": "unavailable"
+  },
+  "39": {
+    "accent_id": 39,
+    "accent_name": "St. Louis / Eastern Missouri",
+    "states": [
+      "MO"
+    ],
+    "area_codes": [
+      "314",
+      "557",
+      "636"
+    ],
+    "reference_audio": null,
+    "fish_voice_id": null,
+    "fish_model_title": "PVN Local Accent 039 - St. Louis Eastern Missouri",
+    "status": "unavailable"
+  },
+  "40": {
+    "accent_id": 40,
+    "accent_name": "Kansas City / Western Missouri",
+    "states": [
+      "MO",
+      "KS"
+    ],
+    "area_codes": [
+      "816",
+      "913",
+      "975"
+    ],
+    "reference_audio": null,
+    "fish_voice_id": null,
+    "fish_model_title": "PVN Local Accent 040 - Kansas City Western Missouri",
+    "status": "unavailable"
+  },
+  "41": {
+    "accent_id": 41,
+    "accent_name": "Central Plains / Midland",
+    "states": [
+      "MO",
+      "IA",
+      "KS",
+      "NE"
+    ],
+    "area_codes": [
+      "235",
+      "308",
+      "316",
+      "319",
+      "402",
+      "515",
+      "531",
+      "563",
+      "573",
+      "620",
+      "641",
+      "660",
+      "712",
+      "785"
+    ],
+    "reference_audio": null,
+    "fish_voice_id": null,
+    "fish_model_title": "PVN Local Accent 041 - Central Plains Midland",
+    "status": "unavailable"
+  },
+  "42": {
+    "accent_id": 42,
+    "accent_name": "Minnesota / North Central",
+    "states": [
+      "MN"
+    ],
+    "area_codes": [
+      "218",
+      "320",
+      "507",
+      "612",
+      "651",
+      "763",
+      "924",
+      "952"
+    ],
+    "reference_audio": null,
+    "fish_voice_id": null,
+    "fish_model_title": "PVN Local Accent 042 - Minnesota North Central",
+    "status": "unavailable"
+  },
+  "43": {
+    "accent_id": 43,
+    "accent_name": "Dakotas / North Central Plains",
+    "states": [
+      "ND",
+      "SD"
+    ],
+    "area_codes": [
+      "605",
+      "701"
+    ],
+    "reference_audio": null,
+    "fish_voice_id": null,
+    "fish_model_title": "PVN Local Accent 043 - Dakotas North Central Plains",
+    "status": "unavailable"
+  },
+  "44": {
+    "accent_id": 44,
+    "accent_name": "Wisconsin / Upper Midwest",
+    "states": [
+      "WI"
+    ],
+    "area_codes": [
+      "262",
+      "274",
+      "353",
+      "414",
+      "534",
+      "608",
+      "715",
+      "920"
+    ],
+    "reference_audio": null,
+    "fish_voice_id": null,
+    "fish_model_title": "PVN Local Accent 044 - Wisconsin Upper Midwest",
+    "status": "unavailable"
+  },
+  "45": {
+    "accent_id": 45,
+    "accent_name": "Chicago / Inland North",
+    "states": [
+      "IL"
+    ],
+    "area_codes": [
+      "224",
+      "312",
+      "331",
+      "464",
+      "630",
+      "708",
+      "773",
+      "847",
+      "872"
+    ],
+    "reference_audio": null,
+    "fish_voice_id": null,
+    "fish_model_title": "PVN Local Accent 045 - Chicago Inland North",
+    "status": "unavailable"
+  },
+  "46": {
+    "accent_id": 46,
+    "accent_name": "Illinois Midland / Downstate",
+    "states": [
+      "IL"
+    ],
+    "area_codes": [
+      "217",
+      "309",
+      "447",
+      "618",
+      "730",
+      "779",
+      "815",
+      "861"
+    ],
+    "reference_audio": null,
+    "fish_voice_id": null,
+    "fish_model_title": "PVN Local Accent 046 - Illinois Midland Downstate",
+    "status": "unavailable"
+  },
+  "47": {
+    "accent_id": 47,
+    "accent_name": "Detroit / Southeast Michigan",
+    "states": [
+      "MI"
+    ],
+    "area_codes": [
+      "248",
+      "313",
+      "586",
+      "679",
+      "734",
+      "810",
+      "947"
+    ],
+    "reference_audio": null,
+    "fish_voice_id": null,
+    "fish_model_title": "PVN Local Accent 047 - Detroit Southeast Michigan",
+    "status": "unavailable"
+  },
+  "48": {
+    "accent_id": 48,
+    "accent_name": "West & Northern Lower Michigan",
+    "states": [
+      "MI"
+    ],
+    "area_codes": [
+      "231",
+      "269",
+      "517",
+      "616",
+      "989"
+    ],
+    "reference_audio": null,
+    "fish_voice_id": null,
+    "fish_model_title": "PVN Local Accent 048 - West Northern Lower Michigan",
+    "status": "unavailable"
+  },
+  "49": {
+    "accent_id": 49,
+    "accent_name": "Upper Peninsula Michigan / Yooper",
+    "states": [
+      "MI"
+    ],
+    "area_codes": [
+      "906"
+    ],
+    "reference_audio": null,
+    "fish_voice_id": null,
+    "fish_model_title": "PVN Local Accent 049 - Upper Peninsula Michigan Yooper",
+    "status": "unavailable"
+  },
+  "50": {
+    "accent_id": 50,
+    "accent_name": "Northern Ohio / Great Lakes",
+    "states": [
+      "OH"
+    ],
+    "area_codes": [
+      "216",
+      "234",
+      "330",
+      "419",
+      "436",
+      "440",
+      "567"
+    ],
+    "reference_audio": null,
+    "fish_voice_id": null,
+    "fish_model_title": "PVN Local Accent 050 - Northern Ohio Great Lakes",
+    "status": "unavailable"
+  },
+  "51": {
+    "accent_id": 51,
+    "accent_name": "Central & Southern Ohio / Midland",
+    "states": [
+      "OH"
+    ],
+    "area_codes": [
+      "220",
+      "283",
+      "326",
+      "380",
+      "513",
+      "614",
+      "740",
+      "937"
+    ],
+    "reference_audio": null,
+    "fish_voice_id": null,
+    "fish_model_title": "PVN Local Accent 051 - Central Southern Ohio Midland",
+    "status": "unavailable"
+  },
+  "52": {
+    "accent_id": 52,
+    "accent_name": "Indiana Midland / Great Lakes Transition",
+    "states": [
+      "IN"
+    ],
+    "area_codes": [
+      "219",
+      "260",
+      "317",
+      "463",
+      "574",
+      "765",
+      "812",
+      "930"
+    ],
+    "reference_audio": null,
+    "fish_voice_id": null,
+    "fish_model_title": "PVN Local Accent 052 - Indiana Midland Great Lakes Transition",
+    "status": "unavailable"
+  },
+  "53": {
+    "accent_id": 53,
+    "accent_name": "North Florida / Panhandle Southern",
+    "states": [
+      "FL"
+    ],
+    "area_codes": [
+      "324",
+      "352",
+      "386",
+      "448",
+      "850",
+      "904"
+    ],
+    "reference_audio": null,
+    "fish_voice_id": null,
+    "fish_model_title": "PVN Local Accent 053 - North Florida Panhandle Southern",
+    "status": "unavailable"
+  },
+  "54": {
+    "accent_id": 54,
+    "accent_name": "Central Florida / Sunbelt",
+    "states": [
+      "FL"
+    ],
+    "area_codes": [
+      "239",
+      "321",
+      "407",
+      "656",
+      "689",
+      "727",
+      "772",
+      "813",
+      "863",
+      "941"
+    ],
+    "reference_audio": null,
+    "fish_voice_id": null,
+    "fish_model_title": "PVN Local Accent 054 - Central Florida Sunbelt",
+    "status": "unavailable"
+  },
+  "55": {
+    "accent_id": 55,
+    "accent_name": "South Florida / Miami English",
+    "states": [
+      "FL"
+    ],
+    "area_codes": [
+      "305",
+      "561",
+      "645",
+      "728",
+      "754",
+      "786",
+      "954"
+    ],
+    "reference_audio": null,
+    "fish_voice_id": null,
+    "fish_model_title": "PVN Local Accent 055 - South Florida Miami English",
+    "status": "unavailable"
+  },
+  "56": {
+    "accent_id": 56,
+    "accent_name": "North & East Texas",
+    "states": [
+      "TX"
+    ],
+    "area_codes": [
+      "214",
+      "430",
+      "469",
+      "682",
+      "817",
+      "903",
+      "936",
+      "940",
+      "945",
+      "972"
+    ],
+    "reference_audio": null,
+    "fish_voice_id": null,
+    "fish_model_title": "PVN Local Accent 056 - North East Texas",
+    "status": "unavailable"
+  },
+  "57": {
+    "accent_id": 57,
+    "accent_name": "Houston / Gulf Texas",
+    "states": [
+      "TX"
+    ],
+    "area_codes": [
+      "281",
+      "346",
+      "409",
+      "621",
+      "713",
+      "832",
+      "979"
+    ],
+    "reference_audio": null,
+    "fish_voice_id": null,
+    "fish_model_title": "PVN Local Accent 057 - Houston Gulf Texas",
+    "status": "unavailable"
+  },
+  "58": {
+    "accent_id": 58,
+    "accent_name": "Central Texas / Austin / Hill Country",
+    "states": [
+      "TX"
+    ],
+    "area_codes": [
+      "210",
+      "254",
+      "512",
+      "726",
+      "737",
+      "830"
+    ],
+    "reference_audio": null,
+    "fish_voice_id": null,
+    "fish_model_title": "PVN Local Accent 058 - Central Texas Austin Hill Country",
+    "status": "unavailable"
+  },
+  "59": {
+    "accent_id": 59,
+    "accent_name": "South Texas / Rio Grande Valley / Coastal Bend",
+    "states": [
+      "TX"
+    ],
+    "area_codes": [
+      "361",
+      "956"
+    ],
+    "reference_audio": null,
+    "fish_voice_id": null,
+    "fish_model_title": "PVN Local Accent 059 - South Texas Rio Grande Valley Coastal Bend",
+    "status": "unavailable"
+  },
+  "60": {
+    "accent_id": 60,
+    "accent_name": "West Texas / Panhandle",
+    "states": [
+      "TX"
+    ],
+    "area_codes": [
+      "325",
+      "432",
+      "806"
+    ],
+    "reference_audio": null,
+    "fish_voice_id": null,
+    "fish_model_title": "PVN Local Accent 060 - West Texas Panhandle",
+    "status": "unavailable"
+  },
+  "61": {
+    "accent_id": 61,
+    "accent_name": "El Paso / Southwestern",
+    "states": [
+      "TX"
+    ],
+    "area_codes": [
+      "915"
+    ],
+    "reference_audio": null,
+    "fish_voice_id": null,
+    "fish_model_title": "PVN Local Accent 061 - El Paso Southwestern",
+    "status": "unavailable"
+  },
+  "62": {
+    "accent_id": 62,
+    "accent_name": "Los Angeles / Southern California Coastal",
+    "states": [
+      "CA"
+    ],
+    "area_codes": [
+      "213",
+      "310",
+      "323",
+      "424",
+      "562",
+      "619",
+      "626",
+      "657",
+      "714",
+      "738",
+      "747",
+      "805",
+      "818",
+      "820",
+      "858",
+      "949"
+    ],
+    "reference_audio": null,
+    "fish_voice_id": null,
+    "fish_model_title": "PVN Local Accent 062 - Los Angeles Southern California Coastal",
+    "status": "unavailable"
+  },
+  "63": {
+    "accent_id": 63,
+    "accent_name": "Bay Area / Northern California Coastal",
+    "states": [
+      "CA"
+    ],
+    "area_codes": [
+      "341",
+      "369",
+      "408",
+      "415",
+      "510",
+      "628",
+      "650",
+      "669",
+      "707",
+      "831",
+      "925"
+    ],
+    "reference_audio": null,
+    "fish_voice_id": null,
+    "fish_model_title": "PVN Local Accent 063 - Bay Area Northern California Coastal",
+    "status": "unavailable"
+  },
+  "64": {
+    "accent_id": 64,
+    "accent_name": "Central Valley / Inland California",
+    "states": [
+      "CA"
+    ],
+    "area_codes": [
+      "209",
+      "279",
+      "350",
+      "357",
+      "442",
+      "530",
+      "559",
+      "661",
+      "760",
+      "837",
+      "840",
+      "909",
+      "916",
+      "951"
+    ],
+    "reference_audio": null,
+    "fish_voice_id": null,
+    "fish_model_title": "PVN Local Accent 064 - Central Valley Inland California",
+    "status": "unavailable"
+  },
+  "65": {
+    "accent_id": 65,
+    "accent_name": "Puget Sound / Western Washington",
+    "states": [
+      "WA"
+    ],
+    "area_codes": [
+      "206",
+      "253",
+      "360",
+      "425",
+      "564"
+    ],
+    "reference_audio": null,
+    "fish_voice_id": null,
+    "fish_model_title": "PVN Local Accent 065 - Puget Sound Western Washington",
+    "status": "unavailable"
+  },
+  "66": {
+    "accent_id": 66,
+    "accent_name": "Oregon / Willamette / Pacific Northwest",
+    "states": [
+      "OR"
+    ],
+    "area_codes": [
+      "458",
+      "503",
+      "541",
+      "971"
+    ],
+    "reference_audio": null,
+    "fish_voice_id": null,
+    "fish_model_title": "PVN Local Accent 066 - Oregon Willamette Pacific Northwest",
+    "status": "unavailable"
+  },
+  "67": {
+    "accent_id": 67,
+    "accent_name": "Inland Northwest",
+    "states": [
+      "WA",
+      "ID"
+    ],
+    "area_codes": [
+      "208",
+      "509",
+      "986"
+    ],
+    "reference_audio": null,
+    "fish_voice_id": null,
+    "fish_model_title": "PVN Local Accent 067 - Inland Northwest",
+    "status": "unavailable"
+  },
+  "68": {
+    "accent_id": 68,
+    "accent_name": "Colorado / Central Rockies",
+    "states": [
+      "CO"
+    ],
+    "area_codes": [
+      "303",
+      "719",
+      "720",
+      "748",
+      "970",
+      "983"
+    ],
+    "reference_audio": null,
+    "fish_voice_id": null,
+    "fish_model_title": "PVN Local Accent 068 - Colorado Central Rockies",
+    "status": "unavailable"
+  },
+  "69": {
+    "accent_id": 69,
+    "accent_name": "Utah / Intermountain West",
+    "states": [
+      "UT"
+    ],
+    "area_codes": [
+      "385",
+      "435",
+      "801"
+    ],
+    "reference_audio": null,
+    "fish_voice_id": null,
+    "fish_model_title": "PVN Local Accent 069 - Utah Intermountain West",
+    "status": "unavailable"
+  },
+  "70": {
+    "accent_id": 70,
+    "accent_name": "Nevada / Great Basin",
+    "states": [
+      "NV"
+    ],
+    "area_codes": [
+      "702",
+      "725",
+      "775"
+    ],
+    "reference_audio": null,
+    "fish_voice_id": null,
+    "fish_model_title": "PVN Local Accent 070 - Nevada Great Basin",
+    "status": "unavailable"
+  },
+  "71": {
+    "accent_id": 71,
+    "accent_name": "Arizona / Sonoran Southwest",
+    "states": [
+      "AZ"
+    ],
+    "area_codes": [
+      "480",
+      "520",
+      "602",
+      "623",
+      "928"
+    ],
+    "reference_audio": null,
+    "fish_voice_id": null,
+    "fish_model_title": "PVN Local Accent 071 - Arizona Sonoran Southwest",
+    "status": "unavailable"
+  },
+  "72": {
+    "accent_id": 72,
+    "accent_name": "New Mexico / Southwestern English",
+    "states": [
+      "NM"
+    ],
+    "area_codes": [
+      "505",
+      "575"
+    ],
+    "reference_audio": null,
+    "fish_voice_id": null,
+    "fish_model_title": "PVN Local Accent 072 - New Mexico Southwestern English",
+    "status": "unavailable"
+  },
+  "73": {
+    "accent_id": 73,
+    "accent_name": "Montana / Wyoming Northern Rockies",
+    "states": [
+      "MT",
+      "WY"
+    ],
+    "area_codes": [
+      "307",
+      "406"
+    ],
+    "reference_audio": null,
+    "fish_voice_id": null,
+    "fish_model_title": "PVN Local Accent 073 - Montana Wyoming Northern Rockies",
+    "status": "unavailable"
+  },
+  "74": {
+    "accent_id": 74,
+    "accent_name": "Alaska English",
+    "states": [
+      "AK"
+    ],
+    "area_codes": [
+      "907"
+    ],
+    "reference_audio": null,
+    "fish_voice_id": null,
+    "fish_model_title": "PVN Local Accent 074 - Alaska English",
+    "status": "unavailable"
+  },
+  "75": {
+    "accent_id": 75,
+    "accent_name": "Hawaiʻi Local English",
+    "states": [
+      "HI"
+    ],
+    "area_codes": [
+      "808"
+    ],
+    "reference_audio": null,
+    "fish_voice_id": null,
+    "fish_model_title": "PVN Local Accent 075 - Hawaiʻi Local English",
+    "status": "unavailable"
+  }
+}

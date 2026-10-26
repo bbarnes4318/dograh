@@ -1,0 +1,1145 @@
+{
+  "version": 2,
+  "description": "Authoritative 75 US regional accent taxonomy. accent_id is the primary key; each accent owns its area codes. One Fish instant clone is provisioned per accent from an approved reference recording.",
+  "default_accent_id": 68,
+  "preview_text": "Hey there, I'm calling about the request you put in online. Do you have a minute so I can go over a couple of quick options with you today?",
+  "accents": [
+    {
+      "accent_id": 1,
+      "name": "Maine / Down East New England",
+      "states": [
+        "ME"
+      ],
+      "area_codes": [
+        "207"
+      ],
+      "intensity": 4
+    },
+    {
+      "accent_id": 2,
+      "name": "Northern New England (New Hampshire / Vermont)",
+      "states": [
+        "NH",
+        "VT"
+      ],
+      "area_codes": [
+        "603",
+        "802"
+      ],
+      "intensity": 3
+    },
+    {
+      "accent_id": 3,
+      "name": "Boston / Eastern Massachusetts",
+      "states": [
+        "MA"
+      ],
+      "area_codes": [
+        "339",
+        "351",
+        "617",
+        "781",
+        "857",
+        "978"
+      ],
+      "intensity": 4
+    },
+    {
+      "accent_id": 4,
+      "name": "Western & Southern New England",
+      "states": [
+        "MA",
+        "CT"
+      ],
+      "area_codes": [
+        "203",
+        "413",
+        "475",
+        "508",
+        "774",
+        "860",
+        "959"
+      ],
+      "intensity": 2
+    },
+    {
+      "accent_id": 5,
+      "name": "Rhode Island / Southeastern New England",
+      "states": [
+        "RI"
+      ],
+      "area_codes": [
+        "401"
+      ],
+      "intensity": 4
+    },
+    {
+      "accent_id": 6,
+      "name": "New York City",
+      "states": [
+        "NY"
+      ],
+      "area_codes": [
+        "212",
+        "332",
+        "347",
+        "465",
+        "646",
+        "718",
+        "917",
+        "929"
+      ],
+      "intensity": 4
+    },
+    {
+      "accent_id": 7,
+      "name": "Long Island",
+      "states": [
+        "NY"
+      ],
+      "area_codes": [
+        "363",
+        "516",
+        "631",
+        "934"
+      ],
+      "intensity": 3
+    },
+    {
+      "accent_id": 8,
+      "name": "Hudson Valley / Capital District New York",
+      "states": [
+        "NY"
+      ],
+      "area_codes": [
+        "329",
+        "518",
+        "838",
+        "845",
+        "914"
+      ],
+      "intensity": 2
+    },
+    {
+      "accent_id": 9,
+      "name": "Central & Western New York / Inland North",
+      "states": [
+        "NY"
+      ],
+      "area_codes": [
+        "315",
+        "585",
+        "607",
+        "624",
+        "680",
+        "716"
+      ],
+      "intensity": 4
+    },
+    {
+      "accent_id": 10,
+      "name": "North Jersey / NYC-influenced",
+      "states": [
+        "NJ"
+      ],
+      "area_codes": [
+        "201",
+        "551",
+        "862",
+        "908",
+        "973"
+      ],
+      "intensity": 3
+    },
+    {
+      "accent_id": 11,
+      "name": "South & Central Jersey / Delaware Valley",
+      "states": [
+        "NJ",
+        "DE"
+      ],
+      "area_codes": [
+        "302",
+        "609",
+        "640",
+        "732",
+        "848",
+        "856"
+      ],
+      "intensity": 3
+    },
+    {
+      "accent_id": 12,
+      "name": "Philadelphia / Delaware Valley",
+      "states": [
+        "PA"
+      ],
+      "area_codes": [
+        "215",
+        "267",
+        "445",
+        "484",
+        "610",
+        "835"
+      ],
+      "intensity": 4
+    },
+    {
+      "accent_id": 13,
+      "name": "Central & Northeastern Pennsylvania",
+      "states": [
+        "PA"
+      ],
+      "area_codes": [
+        "223",
+        "272",
+        "570",
+        "582",
+        "717",
+        "814"
+      ],
+      "intensity": 3
+    },
+    {
+      "accent_id": 14,
+      "name": "Pittsburgh / Western Pennsylvania",
+      "states": [
+        "PA"
+      ],
+      "area_codes": [
+        "412",
+        "724",
+        "878"
+      ],
+      "intensity": 4
+    },
+    {
+      "accent_id": 15,
+      "name": "Baltimore / Chesapeake Maryland",
+      "states": [
+        "MD"
+      ],
+      "area_codes": [
+        "410",
+        "443",
+        "667"
+      ],
+      "intensity": 4
+    },
+    {
+      "accent_id": 16,
+      "name": "Washington DC / DMV",
+      "states": [
+        "DC",
+        "MD",
+        "VA"
+      ],
+      "area_codes": [
+        "202",
+        "227",
+        "240",
+        "301",
+        "571",
+        "703",
+        "771"
+      ],
+      "intensity": 2
+    },
+    {
+      "accent_id": 17,
+      "name": "Virginia Tidewater / Hampton Roads",
+      "states": [
+        "VA"
+      ],
+      "area_codes": [
+        "757",
+        "948"
+      ],
+      "intensity": 3
+    },
+    {
+      "accent_id": 18,
+      "name": "Virginia Piedmont / Richmond / Shenandoah",
+      "states": [
+        "VA"
+      ],
+      "area_codes": [
+        "434",
+        "540",
+        "686",
+        "804",
+        "826"
+      ],
+      "intensity": 3
+    },
+    {
+      "accent_id": 19,
+      "name": "Central Appalachia (SW Virginia / West Virginia / Eastern Kentucky)",
+      "states": [
+        "VA",
+        "WV",
+        "KY"
+      ],
+      "area_codes": [
+        "276",
+        "304",
+        "606",
+        "681"
+      ],
+      "intensity": 5
+    },
+    {
+      "accent_id": 20,
+      "name": "Kentucky Upper South / Bluegrass",
+      "states": [
+        "KY"
+      ],
+      "area_codes": [
+        "270",
+        "364",
+        "502",
+        "859"
+      ],
+      "intensity": 3
+    },
+    {
+      "accent_id": 21,
+      "name": "East Tennessee Appalachian / Smoky Mountain",
+      "states": [
+        "TN"
+      ],
+      "area_codes": [
+        "423",
+        "729",
+        "865"
+      ],
+      "intensity": 5
+    },
+    {
+      "accent_id": 22,
+      "name": "Nashville / Middle Tennessee",
+      "states": [
+        "TN"
+      ],
+      "area_codes": [
+        "615",
+        "629",
+        "931"
+      ],
+      "intensity": 3
+    },
+    {
+      "accent_id": 23,
+      "name": "Memphis / West Tennessee",
+      "states": [
+        "TN"
+      ],
+      "area_codes": [
+        "731",
+        "901"
+      ],
+      "intensity": 4
+    },
+    {
+      "accent_id": 24,
+      "name": "Western North Carolina Appalachian",
+      "states": [
+        "NC"
+      ],
+      "area_codes": [
+        "828"
+      ],
+      "intensity": 5
+    },
+    {
+      "accent_id": 25,
+      "name": "North Carolina Piedmont",
+      "states": [
+        "NC"
+      ],
+      "area_codes": [
+        "336",
+        "704",
+        "743",
+        "919",
+        "980",
+        "984"
+      ],
+      "intensity": 3
+    },
+    {
+      "accent_id": 26,
+      "name": "Coastal / Eastern North Carolina",
+      "states": [
+        "NC"
+      ],
+      "area_codes": [
+        "252",
+        "472",
+        "910"
+      ],
+      "intensity": 3
+    },
+    {
+      "accent_id": 27,
+      "name": "South Carolina Upstate / Midlands",
+      "states": [
+        "SC"
+      ],
+      "area_codes": [
+        "803",
+        "821",
+        "839",
+        "864"
+      ],
+      "intensity": 3
+    },
+    {
+      "accent_id": 28,
+      "name": "Charleston / South Carolina Lowcountry",
+      "states": [
+        "SC"
+      ],
+      "area_codes": [
+        "843",
+        "854"
+      ],
+      "intensity": 4
+    },
+    {
+      "accent_id": 29,
+      "name": "Atlanta / North Georgia Piedmont",
+      "states": [
+        "GA"
+      ],
+      "area_codes": [
+        "404",
+        "470",
+        "678",
+        "706",
+        "762",
+        "770",
+        "943"
+      ],
+      "intensity": 3
+    },
+    {
+      "accent_id": 30,
+      "name": "South & Coastal Georgia",
+      "states": [
+        "GA"
+      ],
+      "area_codes": [
+        "229",
+        "478",
+        "912"
+      ],
+      "intensity": 4
+    },
+    {
+      "accent_id": 31,
+      "name": "Alabama Inland / Gulf South",
+      "states": [
+        "AL"
+      ],
+      "area_codes": [
+        "205",
+        "251",
+        "256",
+        "334",
+        "483",
+        "659",
+        "938"
+      ],
+      "intensity": 4
+    },
+    {
+      "accent_id": 32,
+      "name": "Mississippi Deep South / Delta",
+      "states": [
+        "MS"
+      ],
+      "area_codes": [
+        "228",
+        "471",
+        "601",
+        "662",
+        "769"
+      ],
+      "intensity": 5
+    },
+    {
+      "accent_id": 33,
+      "name": "New Orleans / Yat-influenced English",
+      "states": [
+        "LA"
+      ],
+      "area_codes": [
+        "504"
+      ],
+      "intensity": 5
+    },
+    {
+      "accent_id": 34,
+      "name": "South Louisiana / Cajun-influenced English",
+      "states": [
+        "LA"
+      ],
+      "area_codes": [
+        "225",
+        "337",
+        "985"
+      ],
+      "intensity": 5
+    },
+    {
+      "accent_id": 35,
+      "name": "North Louisiana / Ark-La-Tex",
+      "states": [
+        "LA"
+      ],
+      "area_codes": [
+        "318",
+        "457"
+      ],
+      "intensity": 4
+    },
+    {
+      "accent_id": 36,
+      "name": "Ozarks",
+      "states": [
+        "AR",
+        "MO"
+      ],
+      "area_codes": [
+        "417",
+        "479"
+      ],
+      "intensity": 5
+    },
+    {
+      "accent_id": 37,
+      "name": "Central & Eastern Arkansas / Mid-South",
+      "states": [
+        "AR"
+      ],
+      "area_codes": [
+        "327",
+        "501",
+        "870"
+      ],
+      "intensity": 4
+    },
+    {
+      "accent_id": 38,
+      "name": "Oklahoma South Midland / Plains",
+      "states": [
+        "OK"
+      ],
+      "area_codes": [
+        "405",
+        "539",
+        "572",
+        "580",
+        "918"
+      ],
+      "intensity": 3
+    },
+    {
+      "accent_id": 39,
+      "name": "St. Louis / Eastern Missouri",
+      "states": [
+        "MO"
+      ],
+      "area_codes": [
+        "314",
+        "557",
+        "636"
+      ],
+      "intensity": 4
+    },
+    {
+      "accent_id": 40,
+      "name": "Kansas City / Western Missouri",
+      "states": [
+        "MO",
+        "KS"
+      ],
+      "area_codes": [
+        "816",
+        "913",
+        "975"
+      ],
+      "intensity": 3
+    },
+    {
+      "accent_id": 41,
+      "name": "Central Plains / Midland",
+      "states": [
+        "MO",
+        "IA",
+        "KS",
+        "NE"
+      ],
+      "area_codes": [
+        "235",
+        "308",
+        "316",
+        "319",
+        "402",
+        "515",
+        "531",
+        "563",
+        "573",
+        "620",
+        "641",
+        "660",
+        "712",
+        "785"
+      ],
+      "intensity": 2
+    },
+    {
+      "accent_id": 42,
+      "name": "Minnesota / North Central",
+      "states": [
+        "MN"
+      ],
+      "area_codes": [
+        "218",
+        "320",
+        "507",
+        "612",
+        "651",
+        "763",
+        "924",
+        "952"
+      ],
+      "intensity": 4
+    },
+    {
+      "accent_id": 43,
+      "name": "Dakotas / North Central Plains",
+      "states": [
+        "ND",
+        "SD"
+      ],
+      "area_codes": [
+        "605",
+        "701"
+      ],
+      "intensity": 3
+    },
+    {
+      "accent_id": 44,
+      "name": "Wisconsin / Upper Midwest",
+      "states": [
+        "WI"
+      ],
+      "area_codes": [
+        "262",
+        "274",
+        "353",
+        "414",
+        "534",
+        "608",
+        "715",
+        "920"
+      ],
+      "intensity": 4
+    },
+    {
+      "accent_id": 45,
+      "name": "Chicago / Inland North",
+      "states": [
+        "IL"
+      ],
+      "area_codes": [
+        "224",
+        "312",
+        "331",
+        "464",
+        "630",
+        "708",
+        "773",
+        "847",
+        "872"
+      ],
+      "intensity": 4
+    },
+    {
+      "accent_id": 46,
+      "name": "Illinois Midland / Downstate",
+      "states": [
+        "IL"
+      ],
+      "area_codes": [
+        "217",
+        "309",
+        "447",
+        "618",
+        "730",
+        "779",
+        "815",
+        "861"
+      ],
+      "intensity": 3
+    },
+    {
+      "accent_id": 47,
+      "name": "Detroit / Southeast Michigan",
+      "states": [
+        "MI"
+      ],
+      "area_codes": [
+        "248",
+        "313",
+        "586",
+        "679",
+        "734",
+        "810",
+        "947"
+      ],
+      "intensity": 4
+    },
+    {
+      "accent_id": 48,
+      "name": "West & Northern Lower Michigan",
+      "states": [
+        "MI"
+      ],
+      "area_codes": [
+        "231",
+        "269",
+        "517",
+        "616",
+        "989"
+      ],
+      "intensity": 3
+    },
+    {
+      "accent_id": 49,
+      "name": "Upper Peninsula Michigan / Yooper",
+      "states": [
+        "MI"
+      ],
+      "area_codes": [
+        "906"
+      ],
+      "intensity": 5
+    },
+    {
+      "accent_id": 50,
+      "name": "Northern Ohio / Great Lakes",
+      "states": [
+        "OH"
+      ],
+      "area_codes": [
+        "216",
+        "234",
+        "330",
+        "419",
+        "436",
+        "440",
+        "567"
+      ],
+      "intensity": 4
+    },
+    {
+      "accent_id": 51,
+      "name": "Central & Southern Ohio / Midland",
+      "states": [
+        "OH"
+      ],
+      "area_codes": [
+        "220",
+        "283",
+        "326",
+        "380",
+        "513",
+        "614",
+        "740",
+        "937"
+      ],
+      "intensity": 2
+    },
+    {
+      "accent_id": 52,
+      "name": "Indiana Midland / Great Lakes Transition",
+      "states": [
+        "IN"
+      ],
+      "area_codes": [
+        "219",
+        "260",
+        "317",
+        "463",
+        "574",
+        "765",
+        "812",
+        "930"
+      ],
+      "intensity": 3
+    },
+    {
+      "accent_id": 53,
+      "name": "North Florida / Panhandle Southern",
+      "states": [
+        "FL"
+      ],
+      "area_codes": [
+        "324",
+        "352",
+        "386",
+        "448",
+        "850",
+        "904"
+      ],
+      "intensity": 4
+    },
+    {
+      "accent_id": 54,
+      "name": "Central Florida / Sunbelt",
+      "states": [
+        "FL"
+      ],
+      "area_codes": [
+        "239",
+        "321",
+        "407",
+        "656",
+        "689",
+        "727",
+        "772",
+        "813",
+        "863",
+        "941"
+      ],
+      "intensity": 1
+    },
+    {
+      "accent_id": 55,
+      "name": "South Florida / Miami English",
+      "states": [
+        "FL"
+      ],
+      "area_codes": [
+        "305",
+        "561",
+        "645",
+        "728",
+        "754",
+        "786",
+        "954"
+      ],
+      "intensity": 4
+    },
+    {
+      "accent_id": 56,
+      "name": "North & East Texas",
+      "states": [
+        "TX"
+      ],
+      "area_codes": [
+        "214",
+        "430",
+        "469",
+        "682",
+        "817",
+        "903",
+        "936",
+        "940",
+        "945",
+        "972"
+      ],
+      "intensity": 4
+    },
+    {
+      "accent_id": 57,
+      "name": "Houston / Gulf Texas",
+      "states": [
+        "TX"
+      ],
+      "area_codes": [
+        "281",
+        "346",
+        "409",
+        "621",
+        "713",
+        "832",
+        "979"
+      ],
+      "intensity": 3
+    },
+    {
+      "accent_id": 58,
+      "name": "Central Texas / Austin / Hill Country",
+      "states": [
+        "TX"
+      ],
+      "area_codes": [
+        "210",
+        "254",
+        "512",
+        "726",
+        "737",
+        "830"
+      ],
+      "intensity": 3
+    },
+    {
+      "accent_id": 59,
+      "name": "South Texas / Rio Grande Valley / Coastal Bend",
+      "states": [
+        "TX"
+      ],
+      "area_codes": [
+        "361",
+        "956"
+      ],
+      "intensity": 4
+    },
+    {
+      "accent_id": 60,
+      "name": "West Texas / Panhandle",
+      "states": [
+        "TX"
+      ],
+      "area_codes": [
+        "325",
+        "432",
+        "806"
+      ],
+      "intensity": 4
+    },
+    {
+      "accent_id": 61,
+      "name": "El Paso / Southwestern",
+      "states": [
+        "TX"
+      ],
+      "area_codes": [
+        "915"
+      ],
+      "intensity": 4
+    },
+    {
+      "accent_id": 62,
+      "name": "Los Angeles / Southern California Coastal",
+      "states": [
+        "CA"
+      ],
+      "area_codes": [
+        "213",
+        "310",
+        "323",
+        "424",
+        "562",
+        "619",
+        "626",
+        "657",
+        "714",
+        "738",
+        "747",
+        "805",
+        "818",
+        "820",
+        "858",
+        "949"
+      ],
+      "intensity": 3
+    },
+    {
+      "accent_id": 63,
+      "name": "Bay Area / Northern California Coastal",
+      "states": [
+        "CA"
+      ],
+      "area_codes": [
+        "341",
+        "369",
+        "408",
+        "415",
+        "510",
+        "628",
+        "650",
+        "669",
+        "707",
+        "831",
+        "925"
+      ],
+      "intensity": 2
+    },
+    {
+      "accent_id": 64,
+      "name": "Central Valley / Inland California",
+      "states": [
+        "CA"
+      ],
+      "area_codes": [
+        "209",
+        "279",
+        "350",
+        "357",
+        "442",
+        "530",
+        "559",
+        "661",
+        "760",
+        "837",
+        "840",
+        "909",
+        "916",
+        "951"
+      ],
+      "intensity": 2
+    },
+    {
+      "accent_id": 65,
+      "name": "Puget Sound / Western Washington",
+      "states": [
+        "WA"
+      ],
+      "area_codes": [
+        "206",
+        "253",
+        "360",
+        "425",
+        "564"
+      ],
+      "intensity": 2
+    },
+    {
+      "accent_id": 66,
+      "name": "Oregon / Willamette / Pacific Northwest",
+      "states": [
+        "OR"
+      ],
+      "area_codes": [
+        "458",
+        "503",
+        "541",
+        "971"
+      ],
+      "intensity": 2
+    },
+    {
+      "accent_id": 67,
+      "name": "Inland Northwest",
+      "states": [
+        "WA",
+        "ID"
+      ],
+      "area_codes": [
+        "208",
+        "509",
+        "986"
+      ],
+      "intensity": 3
+    },
+    {
+      "accent_id": 68,
+      "name": "Colorado / Central Rockies",
+      "states": [
+        "CO"
+      ],
+      "area_codes": [
+        "303",
+        "719",
+        "720",
+        "748",
+        "970",
+        "983"
+      ],
+      "intensity": 1
+    },
+    {
+      "accent_id": 69,
+      "name": "Utah / Intermountain West",
+      "states": [
+        "UT"
+      ],
+      "area_codes": [
+        "385",
+        "435",
+        "801"
+      ],
+      "intensity": 2
+    },
+    {
+      "accent_id": 70,
+      "name": "Nevada / Great Basin",
+      "states": [
+        "NV"
+      ],
+      "area_codes": [
+        "702",
+        "725",
+        "775"
+      ],
+      "intensity": 1
+    },
+    {
+      "accent_id": 71,
+      "name": "Arizona / Sonoran Southwest",
+      "states": [
+        "AZ"
+      ],
+      "area_codes": [
+        "480",
+        "520",
+        "602",
+        "623",
+        "928"
+      ],
+      "intensity": 2
+    },
+    {
+      "accent_id": 72,
+      "name": "New Mexico / Southwestern English",
+      "states": [
+        "NM"
+      ],
+      "area_codes": [
+        "505",
+        "575"
+      ],
+      "intensity": 4
+    },
+    {
+      "accent_id": 73,
+      "name": "Montana / Wyoming Northern Rockies",
+      "states": [
+        "MT",
+        "WY"
+      ],
+      "area_codes": [
+        "307",
+        "406"
+      ],
+      "intensity": 3
+    },
+    {
+      "accent_id": 74,
+      "name": "Alaska English",
+      "states": [
+        "AK"
+      ],
+      "area_codes": [
+        "907"
+      ],
+      "intensity": 1
+    },
+    {
+      "accent_id": 75,
+      "name": "Hawaiʻi Local English",
+      "states": [
+        "HI"
+      ],
+      "area_codes": [
+        "808"
+      ],
+      "intensity": 4
+    }
+  ]
+}

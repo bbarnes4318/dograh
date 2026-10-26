@@ -87,6 +87,10 @@ from api.services.pipecat.transport_setup import create_webrtc_transport
 from api.services.pipecat.worker_runner import run_pipeline_worker
 from api.services.pipecat.ws_sender_registry import get_ws_sender
 from api.services.telephony import registry as telephony_registry
+from api.services.voice_routing.accent_voices import (
+    accent_runtime_configuration,
+    apply_local_accent_voice,
+)
 from api.services.workflow.dto import ReactFlowDTO
 from api.services.workflow.pipecat_engine import PipecatEngine
 from api.services.workflow.workflow_graph import WorkflowGraph
@@ -702,6 +706,8 @@ async def _run_pipeline_impl(
     # Detect realtime mode (speech-to-speech services like OpenAI Realtime, Gemini Live)
     is_realtime = user_config.is_realtime and user_config.realtime is not None
 
+    accent_pick = None
+
     # Create services based on user configuration
     if is_realtime:
         llm = create_realtime_llm_service(
@@ -722,6 +728,11 @@ async def _run_pipeline_impl(
             audio_config,
             keyterms=keyterms,
             correlation_id=mps_correlation_id,
+        )
+        # "Auto — Local Accent by Area Code": swap auto:local-accent for the
+        # Fish clone of the prospect's regional accent before Fish sees it.
+        user_config, accent_pick = apply_local_accent_voice(
+            user_config, merged_call_context_vars, workflow_run_id=workflow_run_id
         )
         tts = create_tts_service(
             user_config,
@@ -753,6 +764,7 @@ async def _run_pipeline_impl(
             "tts_voice": getattr(user_config.tts, "voice", None),
             "llm_provider": user_config.llm.provider,
             "llm_model": user_config.llm.model,
+            **accent_runtime_configuration(accent_pick),
         }
     merged_call_context_vars = {
         **merged_call_context_vars,
