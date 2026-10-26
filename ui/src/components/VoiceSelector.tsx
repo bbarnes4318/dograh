@@ -11,12 +11,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { detailFromError } from "@/lib/apiError";
+import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 
 // Providers that have MPS voice endpoints
-type TTSProviderWithVoices = "elevenlabs" | "deepgram" | "sarvam" | "cartesia" | "dograh" | "rime";
-const MPS_VOICE_PROVIDERS: TTSProviderWithVoices[] = ["elevenlabs", "deepgram", "sarvam", "cartesia", "dograh", "rime"];
+type TTSProviderWithVoices = "elevenlabs" | "deepgram" | "sarvam" | "cartesia" | "dograh" | "rime" | "fish";
+const MPS_VOICE_PROVIDERS: TTSProviderWithVoices[] = ["elevenlabs", "deepgram", "sarvam", "cartesia", "dograh", "rime", "fish"];
 const ALL_FILTER_VALUE = "__all__";
+// "Auto — local accent" entries (fish) stay at the top whatever the search/filters.
+const isPinnedVoice = (voice: VoiceInfo) => voice.voice_id.startsWith("auto:");
 
 interface VoiceSelectorProps {
     provider: string;
@@ -51,6 +55,7 @@ export const VoiceSelector: React.FC<VoiceSelectorProps> = ({
     const [error, setError] = useState<string | null>(null);
     const [playingPreview, setPlayingPreview] = useState<string | null>(null);
     const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(null);
+    const { user, loading: authLoading } = useAuth();
 
     // Check if provider has MPS voice endpoint
     const hasMPSVoiceEndpoint = useCallback((providerName: string): boolean => {
@@ -66,6 +71,7 @@ export const VoiceSelector: React.FC<VoiceSelectorProps> = ({
             cartesia: "cartesia",
             dograh: "dograh",
             rime: "rime",
+            fish: "fish",
         };
         return providerMap[providerName.toLowerCase()] || null;
     }, []);
@@ -89,6 +95,11 @@ export const VoiceSelector: React.FC<VoiceSelectorProps> = ({
                 query: Object.keys(query).length > 0 ? query : undefined,
             });
 
+            if (response.error) {
+                setError(detailFromError(response.error, "Failed to load voices"));
+                setVoices([]);
+                return;
+            }
             if (response.data?.voices) {
                 setVoices(response.data.voices);
             }
@@ -102,10 +113,11 @@ export const VoiceSelector: React.FC<VoiceSelectorProps> = ({
     }, [provider, model, language, getProviderKey]);
 
     useEffect(() => {
+        if (authLoading || !user) return;
         if (provider) {
             fetchVoices();
         }
-    }, [provider, fetchVoices]);
+    }, [provider, fetchVoices, authLoading, user]);
 
     // Check if the current value exists in the voices list
     useEffect(() => {
@@ -141,6 +153,7 @@ export const VoiceSelector: React.FC<VoiceSelectorProps> = ({
     }, [currentAudio]);
 
     const filteredVoices = voices.filter((voice) => {
+        if (isPinnedVoice(voice)) return true;
         const searchLower = searchTerm.toLowerCase();
         const matchesSearch = (
             voice.name.toLowerCase().includes(searchLower) ||

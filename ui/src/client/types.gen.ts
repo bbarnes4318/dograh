@@ -179,6 +179,12 @@ export type AwsBedrockLlmConfiguration = {
      * AWS region where the Bedrock model is available.
      */
     aws_region?: string;
+    /**
+     * Enable Prompt Caching
+     *
+     * Send prompt cache points on the system prompt and tool schemas. Cuts time-to-first-token on models that support it, but Bedrock rejects cache points on models that do not — and a rejected request fails every turn of the call. Leave off unless you have confirmed your model accepts them.
+     */
+    enable_prompt_caching?: boolean;
 };
 
 /**
@@ -572,7 +578,11 @@ export type ByokPipelineAiModelConfiguration = {
         provider: 'xai';
     } & XaittsConfiguration) | ({
         provider: 'lmnt';
-    } & LmntTtsConfiguration);
+    } & LmntTtsConfiguration) | ({
+        provider: 'fish';
+    } & FishAudioTtsConfiguration) | ({
+        provider: 'hopvoice';
+    } & HopvoiceTtsConfiguration);
     /**
      * Stt
      */
@@ -629,6 +639,8 @@ export type ByokRealtimeAiModelConfiguration = {
     realtime: ({
         provider: 'openai_realtime';
     } & OpenAiRealtimeLlmConfiguration) | ({
+        provider: 'openai_live';
+    } & OpenAiLiveLlmConfiguration) | ({
         provider: 'grok_realtime';
     } & GrokRealtimeLlmConfiguration) | ({
         provider: 'ultravox_realtime';
@@ -774,100 +786,6 @@ export type CalculatorToolDefinition = {
 };
 
 /**
- * PlayAudioConfig
- *
- * Configuration for Play Audio tools.
- */
-export type PlayAudioConfig = {
-    /**
-     * Audio Url
-     *
-     * Public http(s) URL of the audio file (mp3, wav, ...) to play to the caller. It is fetched and converted to the call's sample rate.
-     */
-    audio_url: string;
-    /**
-     * Terminal Chain
-     *
-     * When enabled, the application silences the AI voice from the moment playback starts until the workflow moves to another node. Follow-up tools (e.g. send SMS, end call) still run, but nothing is spoken. Enforced in code, not in the prompt.
-     */
-    terminal_chain?: boolean;
-};
-
-/**
- * PlayAudioToolDefinition
- *
- * Tool definition for Play Audio tools.
- */
-export type PlayAudioToolDefinition = {
-    /**
-     * Schema Version
-     *
-     * Schema version.
-     */
-    schema_version?: number;
-    /**
-     * Type
-     *
-     * Tool type.
-     */
-    type: 'play_audio';
-    /**
-     * Play Audio configuration.
-     */
-    config: PlayAudioConfig;
-};
-
-/**
- * SendSmsConfig
- *
- * Configuration for Send SMS tools (FracTEL provider).
- */
-export type SendSmsConfig = {
-    /**
-     * Credential Uuid
-     *
-     * Reference to a Basic Auth credential holding the FracTEL API username and password.
-     */
-    credential_uuid?: string | null;
-    /**
-     * From Numbers
-     *
-     * 10-digit sender DIDs registered with FracTEL (10DLC). With more than one, messages rotate round-robin across them.
-     */
-    from_numbers?: Array<string>;
-    /**
-     * Append Links
-     *
-     * http(s) links added to the end of every text, one per line. A link already present in the message is not added again.
-     */
-    append_links?: Array<string>;
-};
-
-/**
- * SendSmsToolDefinition
- *
- * Tool definition for Send SMS tools.
- */
-export type SendSmsToolDefinition = {
-    /**
-     * Schema Version
-     *
-     * Schema version.
-     */
-    schema_version?: number;
-    /**
-     * Type
-     *
-     * Tool type.
-     */
-    type: 'send_sms';
-    /**
-     * Send SMS configuration.
-     */
-    config: SendSmsConfig;
-};
-
-/**
  * CallDispositionCodes
  */
 export type CallDispositionCodes = {
@@ -875,6 +793,68 @@ export type CallDispositionCodes = {
      * Disposition Codes
      */
     disposition_codes?: Array<string>;
+};
+
+/**
+ * CallHygieneConfiguration
+ *
+ * Guards that end calls the agent should not be sitting on.
+ *
+ * Voicemail greetings, post-recording carrier menus, call screeners and
+ * answering bots all read as caller speech to the rest of the pipeline, so
+ * nothing else ends them early. These guards run alongside the LLM
+ * voicemail detector (non-realtime pipelines only).
+ */
+export type CallHygieneConfiguration = {
+    /**
+     * Enabled
+     */
+    enabled?: boolean;
+    /**
+     * Machine Keyword Hangup
+     */
+    machine_keyword_hangup?: boolean;
+    /**
+     * Screener Handling
+     */
+    screener_handling?: boolean;
+    /**
+     * Screener Response
+     */
+    screener_response?: string | null;
+    /**
+     * Screener Pickup Timeout Seconds
+     */
+    screener_pickup_timeout_seconds?: number;
+    /**
+     * Answering Bot Detection
+     */
+    answering_bot_detection?: boolean;
+    /**
+     * Closing Line Hangup
+     */
+    closing_line_hangup?: boolean;
+    /**
+     * Closing Line Grace Seconds
+     */
+    closing_line_grace_seconds?: number;
+    /**
+     * First Response Timeout Seconds
+     */
+    first_response_timeout_seconds?: number | null;
+    /**
+     * First Response Nudge
+     */
+    first_response_nudge?: string;
+    /**
+     * First Response End After Seconds
+     */
+    first_response_end_after_seconds?: number;
+    /**
+     * Strip Llm Markup
+     */
+    strip_llm_markup?: boolean;
+    [key: string]: unknown;
 };
 
 /**
@@ -1094,6 +1074,10 @@ export type CampaignResponse = {
      * Telephony Configuration Id
      */
     telephony_configuration_id?: number | null;
+    /**
+     * Transfer Destination
+     */
+    transfer_destination?: string | null;
     /**
      * Telephony Configuration Name
      */
@@ -1435,6 +1419,36 @@ export type CloudonixConfigurationResponse = {
 };
 
 /**
+ * CohortRow
+ */
+export type CohortRow = {
+    /**
+     * Cohort
+     */
+    cohort: string;
+    /**
+     * Runs
+     */
+    runs: number;
+    /**
+     * Converted
+     */
+    converted: number;
+    /**
+     * Conversion Pct
+     */
+    conversion_pct: number;
+    /**
+     * Avg P95 Latency Seconds
+     */
+    avg_p95_latency_seconds: number | null;
+    /**
+     * Runs With Latency
+     */
+    runs_with_latency: number;
+};
+
+/**
  * ContextDestinationMappingConfig
  *
  * Resolve an external-PBX destination from gathered context.
@@ -1472,6 +1486,40 @@ export type ContextDestinationRoute = {
      * Destination
      */
     destination: string;
+};
+
+/**
+ * ConversionCohortsResponse
+ */
+export type ConversionCohortsResponse = {
+    /**
+     * Start Date
+     */
+    start_date: string;
+    /**
+     * End Date
+     */
+    end_date: string;
+    /**
+     * Timezone
+     */
+    timezone: string;
+    /**
+     * Workflow Id
+     */
+    workflow_id: number | null;
+    /**
+     * Dimension
+     */
+    dimension: string;
+    /**
+     * Conversion Dispositions
+     */
+    conversion_dispositions: Array<string>;
+    /**
+     * Cohorts
+     */
+    cohorts: Array<CohortRow>;
 };
 
 /**
@@ -1534,6 +1582,10 @@ export type CreateCampaignRequest = {
      * Telephony Configuration Id
      */
     telephony_configuration_id?: number | null;
+    /**
+     * Transfer Destination
+     */
+    transfer_destination?: string | null;
     retry_config?: RetryConfigRequest | null;
     /**
      * Max Concurrency
@@ -1860,6 +1912,38 @@ export type CurrentUsageResponse = {
      * Price Per Second Usd
      */
     price_per_second_usd?: number | null;
+};
+
+/**
+ * DTMFConfiguration
+ *
+ * Keypad handling for telephony calls.
+ *
+ * Capture is on by default and costs nothing: a caller who presses keys
+ * instead of speaking is currently ignored entirely.
+ *
+ * Sending is opt-in because it puts a tool on every node — worth it for
+ * outbound calls into business phone menus, where an agent that can't press
+ * "2 for sales" never reaches a human, and noise for consumer calls.
+ */
+export type DtmfConfiguration = {
+    /**
+     * Capture Enabled
+     */
+    capture_enabled?: boolean;
+    /**
+     * Send Enabled
+     */
+    send_enabled?: boolean;
+    /**
+     * Interdigit Timeout Seconds
+     */
+    interdigit_timeout_seconds?: number;
+    /**
+     * Max Digits
+     */
+    max_digits?: number;
+    [key: string]: unknown;
 };
 
 /**
@@ -2680,6 +2764,58 @@ export type FileMetadataResponse = {
 };
 
 /**
+ * Fish Audio
+ *
+ * Fish Audio streaming TTS with instant and pro voice cloning.
+ */
+export type FishAudioTtsConfiguration = {
+    /**
+     * Provider
+     */
+    provider?: 'fish';
+    /**
+     * Api Key
+     */
+    api_key: string | Array<string>;
+    /**
+     * Model
+     *
+     * Fish Audio TTS model. s2.1-pro-free is the same model as s2.1-pro at $0, but WITHOUT a time-to-first-audio guarantee — fine for the Voice Studio and pilot dialing, a real risk of dead air on production outbound. Switch to s2.1-pro when you go to volume.
+     */
+    model?: string;
+    /**
+     * Voice
+     *
+     * Pick a local-accent voice, or 'Auto — local accent by area code' to match each prospect's area code on every call. You can still paste any Fish reference_id.
+     */
+    voice?: string;
+    /**
+     * Latency
+     *
+     * Fish streaming latency mode. 'balanced' (Fish's default) is the LOWER latency option at ~300ms time-to-first-audio — keep it for dialing. 'normal' is more stable but slower, for narration. Note this reads backwards from the names; it matches Fish's docs, not pipecat's docstring, which has them inverted.
+     */
+    latency?: string;
+    /**
+     * Speed
+     *
+     * Speech speed multiplier (0.5 to 2.0).
+     */
+    speed?: number;
+    /**
+     * Volume
+     *
+     * Volume adjustment in dB (-20 to 20).
+     */
+    volume?: number;
+    /**
+     * Normalize
+     *
+     * Let Fish normalize numbers, dates and currency before synthesis. Leave this ON: phoneme tags survive normalization, and turning it off makes Fish read prices, dates and phone numbers unreliably — which is most of what an insurance agent says.
+     */
+    normalize?: boolean;
+};
+
+/**
  * FolderResponse
  */
 export type FolderResponse = {
@@ -2695,6 +2831,44 @@ export type FolderResponse = {
      * Created At
      */
     created_at: string;
+};
+
+/**
+ * FunnelStep
+ */
+export type FunnelStep = {
+    /**
+     * Node Id
+     */
+    node_id: string;
+    /**
+     * Node Name
+     */
+    node_name: string;
+    /**
+     * Reached
+     */
+    reached: number;
+    /**
+     * Reached Pct Of Runs
+     */
+    reached_pct_of_runs: number;
+    /**
+     * Dropped From Previous
+     */
+    dropped_from_previous: number;
+    /**
+     * Drop Off Pct From Previous
+     */
+    drop_off_pct_from_previous: number;
+    /**
+     * Converted
+     */
+    converted: number;
+    /**
+     * Conversion Pct Of Reached
+     */
+    conversion_pct_of_reached: number;
 };
 
 /**
@@ -3098,6 +3272,54 @@ export type HealthResponse = {
 };
 
 /**
+ * Hopvoice
+ *
+ * Hopwhistle first-party persistent-streaming neural TTS. Requires the Hopvoice GPU sidecar and HOPVOICE_ENABLED=true on the AI Voice runtime.
+ */
+export type HopvoiceTtsConfiguration = {
+    /**
+     * Provider
+     */
+    provider?: 'hopvoice';
+    /**
+     * Api Key
+     *
+     * Optional Hopvoice bearer token. Recommended outside an isolated private network.
+     */
+    api_key?: string | Array<string> | null;
+    /**
+     * Model
+     *
+     * Hopvoice model profile. native-fast targets the 0.6B streaming Base worker; native-premium targets the 1.7B Base worker.
+     */
+    model?: string;
+    /**
+     * Voice
+     *
+     * Hopvoice voice_id from the sidecar voice registry (services/hopvoice/voices/voices.json). alex_fec_v1 is Alex, the Final Expense Center agent voice. The ID must resolve to a voice asset with synthetic-use rights.
+     */
+    voice?: string;
+    /**
+     * Language
+     *
+     * Language hint carried with the persistent TTS session.
+     */
+    language?: string;
+    /**
+     * Endpoint
+     *
+     * Hopvoice service base URL. The native adapter normalizes this to the persistent /v1/tts/ws WebSocket endpoint.
+     */
+    endpoint?: string;
+    /**
+     * Voice Delivery Instructions
+     *
+     * Delivery-only guidance sent to Hopvoice for prosody and style. It must never change the factual text supplied by the agent.
+     */
+    voice_instructions?: string | null;
+};
+
+/**
  * HttpApiConfig
  *
  * Configuration for HTTP API tools.
@@ -3321,6 +3543,52 @@ export type HuggingFaceSttConfiguration = {
      * Request timestamp chunks when supported by the selected provider/model.
      */
     return_timestamps?: boolean;
+};
+
+/**
+ * IdleBehaviorConfiguration
+ *
+ * How the agent escalates when the caller stops responding.
+ *
+ * The default gives the caller one more chance than a straight
+ * nudge-then-hang-up, and makes the first nudge instant instead of waiting on
+ * a model round trip at exactly the moment attention is slipping.
+ */
+export type IdleBehaviorConfiguration = {
+    /**
+     * Enabled
+     */
+    enabled?: boolean;
+    /**
+     * Nudges
+     */
+    nudges?: Array<IdleNudgeConfiguration>;
+    [key: string]: unknown;
+};
+
+/**
+ * IdleNudgeConfiguration
+ *
+ * One step in the escalating response to a caller going quiet.
+ */
+export type IdleNudgeConfiguration = {
+    /**
+     * After Seconds
+     */
+    after_seconds?: number | null;
+    /**
+     * Message
+     */
+    message?: string | null;
+    /**
+     * Llm Instruction
+     */
+    llm_instruction?: string | null;
+    /**
+     * End Call
+     */
+    end_call?: boolean;
+    [key: string]: unknown;
 };
 
 /**
@@ -4020,6 +4288,48 @@ export type NodeExample = {
 };
 
 /**
+ * NodeFunnelResponse
+ */
+export type NodeFunnelResponse = {
+    /**
+     * Start Date
+     */
+    start_date: string;
+    /**
+     * End Date
+     */
+    end_date: string;
+    /**
+     * Timezone
+     */
+    timezone: string;
+    /**
+     * Workflow Id
+     */
+    workflow_id: number | null;
+    /**
+     * Definition Id
+     */
+    definition_id: number | null;
+    /**
+     * Total Runs
+     */
+    total_runs: number;
+    /**
+     * Runs With Node Path
+     */
+    runs_with_node_path: number;
+    /**
+     * Conversion Dispositions
+     */
+    conversion_dispositions: Array<string>;
+    /**
+     * Steps
+     */
+    steps: Array<FunnelStep>;
+};
+
+/**
  * NodeSpec
  *
  * Single source of truth for a node type.
@@ -4201,6 +4511,58 @@ export type OpenAillmService = {
 };
 
 /**
+ * OpenAI GPT-Live
+ *
+ * OpenAI GPT-Live — full-duplex conversational voice. GPT-Live handles listening, speaking and interruptions; your workflow engine stays authoritative for tools and business logic via client delegation.
+ */
+export type OpenAiLiveLlmConfiguration = {
+    /**
+     * Provider
+     */
+    provider?: 'openai_live';
+    /**
+     * Api Key
+     */
+    api_key: string | Array<string>;
+    /**
+     * Model
+     *
+     * OpenAI GPT-Live model.
+     */
+    model?: string;
+    /**
+     * Voice Type
+     *
+     * Built-in GPT-Live voice, or a Custom OpenAI Voice ID.
+     */
+    voice_type?: 'builtin' | 'custom';
+    /**
+     * Voice
+     *
+     * GPT-Live voice. The voice is fixed for the duration of a call.
+     */
+    voice?: string;
+    /**
+     * Voice ID
+     *
+     * Custom OpenAI Voice ID (e.g. voice_123abc). Requires a project with Custom Voice access.
+     */
+    custom_voice_id?: string | null;
+    /**
+     * Voice Delivery Instructions
+     *
+     * Optional voice delivery instructions (accent, pace, tone). Applied to how the voice sounds only — keep workflow/business logic in your node prompts.
+     */
+    voice_instructions?: string | null;
+    /**
+     * Backend Model
+     *
+     * OpenAI model that reasons for GPT-Live (workflow prompt + tool calls). Tool calls run in Dograh — the model never executes them.
+     */
+    backend_model?: string;
+};
+
+/**
  * OpenAI Realtime
  */
 export type OpenAiRealtimeLlmConfiguration = {
@@ -4219,11 +4581,29 @@ export type OpenAiRealtimeLlmConfiguration = {
      */
     model?: string;
     /**
+     * Voice Type
+     *
+     * Built-in OpenAI voice, or a Custom OpenAI Voice ID.
+     */
+    voice_type?: 'builtin' | 'custom';
+    /**
      * Voice
      *
-     * Voice the model speaks in.
+     * Voice the model speaks in. Marin and Cedar are recommended.
      */
     voice?: string;
+    /**
+     * Voice ID
+     *
+     * Custom OpenAI Voice ID (e.g. voice_123abc). Requires a project with Custom Voice access.
+     */
+    custom_voice_id?: string | null;
+    /**
+     * Voice Delivery Instructions
+     *
+     * Optional voice delivery instructions (accent, pace, tone). Applied to how the voice sounds only — keep workflow/business logic in your node prompts.
+     */
+    voice_instructions?: string | null;
     /**
      * Language
      *
@@ -4277,11 +4657,29 @@ export type OpenAittsService = {
      */
     model?: string;
     /**
+     * Voice Type
+     *
+     * Built-in OpenAI voice, or a Custom OpenAI Voice ID.
+     */
+    voice_type?: 'builtin' | 'custom';
+    /**
      * Voice
      *
-     * OpenAI TTS voice name.
+     * OpenAI TTS voice. Marin and Cedar are recommended.
      */
     voice?: string;
+    /**
+     * Voice ID
+     *
+     * Custom OpenAI Voice ID (e.g. voice_123abc). Requires a project with Custom Voice access.
+     */
+    custom_voice_id?: string | null;
+    /**
+     * Voice Delivery Instructions
+     *
+     * Optional voice delivery instructions (accent, pace, tone). Applied to how the voice sounds only — keep workflow/business logic in your node prompts.
+     */
+    voice_instructions?: string | null;
     /**
      * Base Url
      *
@@ -4585,6 +4983,50 @@ export type PhoneNumberUpdateRequest = {
     extra_metadata?: {
         [key: string]: unknown;
     } | null;
+};
+
+/**
+ * PlayAudioConfig
+ *
+ * Configuration for Play Audio tools.
+ */
+export type PlayAudioConfig = {
+    /**
+     * Audio Url
+     *
+     * Public http(s) URL of the audio file (mp3, wav, ...) to play to the caller. It is fetched and converted to the call's sample rate.
+     */
+    audio_url: string;
+    /**
+     * Terminal Chain
+     *
+     * When enabled, the application silences the AI voice from the moment playback starts until the workflow moves to another node. Follow-up tools (e.g. send SMS, end call) still run, but nothing is spoken. Enforced in code, not in the prompt.
+     */
+    terminal_chain?: boolean;
+};
+
+/**
+ * PlayAudioToolDefinition
+ *
+ * Tool definition for Play Audio tools.
+ */
+export type PlayAudioToolDefinition = {
+    /**
+     * Schema Version
+     *
+     * Schema version.
+     */
+    schema_version?: number;
+    /**
+     * Type
+     *
+     * Tool type.
+     */
+    type: 'play_audio';
+    /**
+     * Play Audio configuration.
+     */
+    config: PlayAudioConfig;
 };
 
 /**
@@ -5363,6 +5805,56 @@ export type ScheduleConfigResponse = {
 };
 
 /**
+ * SendSmsConfig
+ *
+ * Configuration for Send SMS tools (FracTEL provider).
+ */
+export type SendSmsConfig = {
+    /**
+     * Credential Uuid
+     *
+     * Reference to a Basic Auth credential holding the FracTEL API username and password.
+     */
+    credential_uuid?: string | null;
+    /**
+     * From Numbers
+     *
+     * 10-digit sender DIDs registered with FracTEL (10DLC). With more than one, messages rotate round-robin across them.
+     */
+    from_numbers?: Array<string>;
+    /**
+     * Append Links
+     *
+     * http(s) links added to the end of every text, one per line. A link already present in the message is not added again.
+     */
+    append_links?: Array<string>;
+};
+
+/**
+ * SendSmsToolDefinition
+ *
+ * Tool definition for Send SMS tools.
+ */
+export type SendSmsToolDefinition = {
+    /**
+     * Schema Version
+     *
+     * Schema version.
+     */
+    schema_version?: number;
+    /**
+     * Type
+     *
+     * Tool type.
+     */
+    type: 'send_sms';
+    /**
+     * Send SMS configuration.
+     */
+    config: SendSmsConfig;
+};
+
+/**
  * ServiceKeyResponse
  */
 export type ServiceKeyResponse = {
@@ -6130,6 +6622,33 @@ export type TimeSlotResponse = {
 };
 
 /**
+ * ToolFillerConfiguration
+ *
+ * Short holding phrase spoken when a tool call outruns its deadline.
+ *
+ * Tools can already be configured to speak a message *before* they run, but
+ * that fires even when the call returns in 50ms — so the agent sounds slow
+ * on fast tools and silent on slow ones. This speaks only once a call has
+ * actually taken too long, and covers every tool (HTTP, MCP) rather than
+ * only the ones someone remembered to configure.
+ */
+export type ToolFillerConfiguration = {
+    /**
+     * Enabled
+     */
+    enabled?: boolean;
+    /**
+     * Delay Seconds
+     */
+    delay_seconds?: number;
+    /**
+     * Phrases
+     */
+    phrases?: Array<string>;
+    [key: string]: unknown;
+};
+
+/**
  * ToolParameter
  *
  * A parameter that the tool accepts from the model at call time.
@@ -6296,6 +6815,66 @@ export type ToolTestResponse = {
      * Duration Ms
      */
     duration_ms: number;
+};
+
+/**
+ * TranscriptSearchResponse
+ */
+export type TranscriptSearchResponse = {
+    /**
+     * Query
+     */
+    query: string;
+    /**
+     * Total
+     */
+    total: number;
+    /**
+     * Limit
+     */
+    limit: number;
+    /**
+     * Offset
+     */
+    offset: number;
+    /**
+     * Results
+     */
+    results: Array<TranscriptSearchResult>;
+};
+
+/**
+ * TranscriptSearchResult
+ */
+export type TranscriptSearchResult = {
+    /**
+     * Run Id
+     */
+    run_id: number;
+    /**
+     * Run Name
+     */
+    run_name: string;
+    /**
+     * Workflow Id
+     */
+    workflow_id: number;
+    /**
+     * Workflow Name
+     */
+    workflow_name: string;
+    /**
+     * Call Type
+     */
+    call_type: string;
+    /**
+     * Created At
+     */
+    created_at: string | null;
+    /**
+     * Excerpt
+     */
+    excerpt: string;
 };
 
 /**
@@ -7040,6 +7619,16 @@ export type VoicesResponse = {
  * VonageConfigurationRequest
  *
  * Request schema for Vonage configuration.
+ *
+ * Feature → credential map:
+ *
+ * * Outbound calls, hangup, transfers: ``application_id`` + ``private_key``
+ * (RS256 JWT on the Voice API).
+ * * Signed answer/event webhooks and the authenticated media WebSocket:
+ * ``signature_secret`` (HS256) + ``api_key`` (``api_key`` claim, and the
+ * account id used to route inbound webhooks to this configuration).
+ * * Programmatic inbound setup (Application API): ``api_key`` +
+ * ``api_secret``.
  */
 export type VonageConfigurationRequest = {
     /**
@@ -7142,6 +7731,10 @@ export type WebhookCredentialType = 'none' | 'api_key' | 'bearer_token' | 'basic
  */
 export type WorkflowConfigurationDefaults = {
     ambient_noise_configuration?: AmbientNoiseConfigurationDefaults;
+    tool_filler?: ToolFillerConfiguration;
+    idle_behavior?: IdleBehaviorConfiguration;
+    dtmf?: DtmfConfiguration;
+    call_hygiene?: CallHygieneConfiguration;
     /**
      * Max Call Duration
      */
@@ -7178,6 +7771,18 @@ export type WorkflowConfigurationDefaults = {
      * Context Compaction Enabled
      */
     context_compaction_enabled?: boolean;
+    /**
+     * Buffer Muted Speech
+     */
+    buffer_muted_speech?: boolean;
+    /**
+     * Speak During Transition
+     */
+    speak_during_transition?: boolean;
+    /**
+     * Prevent Repeats
+     */
+    prevent_repeats?: boolean;
     /**
      * External Pbx Field Mappings
      */
@@ -8341,6 +8946,38 @@ export type HandleVonageEventsWithoutRunApiV1TelephonyVonageEventsPostErrors = {
 };
 
 export type HandleVonageEventsWithoutRunApiV1TelephonyVonageEventsPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
+export type HandleVonageTransferEventsApiV1TelephonyVonageTransferEventsTransferIdPostData = {
+    body?: never;
+    path: {
+        /**
+         * Transfer Id
+         */
+        transfer_id: string;
+    };
+    query?: never;
+    url: '/api/v1/telephony/vonage/transfer-events/{transfer_id}';
+};
+
+export type HandleVonageTransferEventsApiV1TelephonyVonageTransferEventsTransferIdPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type HandleVonageTransferEventsApiV1TelephonyVonageTransferEventsTransferIdPostError = HandleVonageTransferEventsApiV1TelephonyVonageTransferEventsTransferIdPostErrors[keyof HandleVonageTransferEventsApiV1TelephonyVonageTransferEventsTransferIdPostErrors];
+
+export type HandleVonageTransferEventsApiV1TelephonyVonageTransferEventsTransferIdPostResponses = {
     /**
      * Successful Response
      */
@@ -10046,7 +10683,7 @@ export type GetVoicesApiV1UserConfigurationsVoicesProviderGetData = {
         /**
          * Provider
          */
-        provider: 'elevenlabs' | 'deepgram' | 'sarvam' | 'cartesia' | 'dograh' | 'rime';
+        provider: 'elevenlabs' | 'deepgram' | 'sarvam' | 'cartesia' | 'dograh' | 'rime' | 'fish';
     };
     query?: {
         /**
@@ -13242,6 +13879,368 @@ export type GetDailyRunsDetailApiV1OrganizationsReportsDailyRunsGetResponses = {
 
 export type GetDailyRunsDetailApiV1OrganizationsReportsDailyRunsGetResponse = GetDailyRunsDetailApiV1OrganizationsReportsDailyRunsGetResponses[keyof GetDailyRunsDetailApiV1OrganizationsReportsDailyRunsGetResponses];
 
+export type GetNodeFunnelApiV1OrganizationsReportsFunnelGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query: {
+        /**
+         * Start Date
+         *
+         * Start date in YYYY-MM-DD format
+         */
+        start_date: string;
+        /**
+         * End Date
+         *
+         * End date in YYYY-MM-DD format
+         */
+        end_date: string;
+        /**
+         * Timezone
+         *
+         * IANA timezone the dates are in
+         */
+        timezone?: string;
+        /**
+         * Workflow Id
+         *
+         * Filter to one workflow
+         */
+        workflow_id?: number | null;
+        /**
+         * Definition Id
+         *
+         * Filter to one workflow version
+         */
+        definition_id?: number | null;
+        /**
+         * Conversion Dispositions
+         *
+         * Comma-separated disposition codes that count as a conversion. Defaults to XFER.
+         */
+        conversion_dispositions?: string | null;
+    };
+    url: '/api/v1/organizations/reports/funnel';
+};
+
+export type GetNodeFunnelApiV1OrganizationsReportsFunnelGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetNodeFunnelApiV1OrganizationsReportsFunnelGetError = GetNodeFunnelApiV1OrganizationsReportsFunnelGetErrors[keyof GetNodeFunnelApiV1OrganizationsReportsFunnelGetErrors];
+
+export type GetNodeFunnelApiV1OrganizationsReportsFunnelGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: NodeFunnelResponse;
+};
+
+export type GetNodeFunnelApiV1OrganizationsReportsFunnelGetResponse = GetNodeFunnelApiV1OrganizationsReportsFunnelGetResponses[keyof GetNodeFunnelApiV1OrganizationsReportsFunnelGetResponses];
+
+export type GetConversionCohortsApiV1OrganizationsReportsCohortsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query: {
+        /**
+         * Start Date
+         *
+         * Start date in YYYY-MM-DD format
+         */
+        start_date: string;
+        /**
+         * End Date
+         *
+         * End date in YYYY-MM-DD format
+         */
+        end_date: string;
+        /**
+         * Dimension
+         *
+         * One of: definition_version, llm_model, tts_model, stt_model, daypart, weekday, call_type, disposition
+         */
+        dimension: string;
+        /**
+         * Timezone
+         *
+         * IANA timezone the dates are in
+         */
+        timezone?: string;
+        /**
+         * Workflow Id
+         *
+         * Filter to one workflow
+         */
+        workflow_id?: number | null;
+        /**
+         * Conversion Dispositions
+         *
+         * Comma-separated disposition codes that count as a conversion. Defaults to XFER.
+         */
+        conversion_dispositions?: string | null;
+    };
+    url: '/api/v1/organizations/reports/cohorts';
+};
+
+export type GetConversionCohortsApiV1OrganizationsReportsCohortsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetConversionCohortsApiV1OrganizationsReportsCohortsGetError = GetConversionCohortsApiV1OrganizationsReportsCohortsGetErrors[keyof GetConversionCohortsApiV1OrganizationsReportsCohortsGetErrors];
+
+export type GetConversionCohortsApiV1OrganizationsReportsCohortsGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: ConversionCohortsResponse;
+};
+
+export type GetConversionCohortsApiV1OrganizationsReportsCohortsGetResponse = GetConversionCohortsApiV1OrganizationsReportsCohortsGetResponses[keyof GetConversionCohortsApiV1OrganizationsReportsCohortsGetResponses];
+
+export type SearchTranscriptsApiV1OrganizationsReportsTranscriptsSearchGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query: {
+        /**
+         * Q
+         *
+         * Search text, e.g. 'too expensive'
+         */
+        q: string;
+        /**
+         * Workflow Id
+         *
+         * Filter to one workflow
+         */
+        workflow_id?: number | null;
+        /**
+         * Start Date
+         *
+         * Start date (YYYY-MM-DD)
+         */
+        start_date?: string | null;
+        /**
+         * End Date
+         *
+         * End date (YYYY-MM-DD)
+         */
+        end_date?: string | null;
+        /**
+         * Timezone
+         *
+         * IANA timezone the dates are in
+         */
+        timezone?: string;
+        /**
+         * Limit
+         */
+        limit?: number;
+        /**
+         * Offset
+         */
+        offset?: number;
+    };
+    url: '/api/v1/organizations/reports/transcripts/search';
+};
+
+export type SearchTranscriptsApiV1OrganizationsReportsTranscriptsSearchGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SearchTranscriptsApiV1OrganizationsReportsTranscriptsSearchGetError = SearchTranscriptsApiV1OrganizationsReportsTranscriptsSearchGetErrors[keyof SearchTranscriptsApiV1OrganizationsReportsTranscriptsSearchGetErrors];
+
+export type SearchTranscriptsApiV1OrganizationsReportsTranscriptsSearchGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: TranscriptSearchResponse;
+};
+
+export type SearchTranscriptsApiV1OrganizationsReportsTranscriptsSearchGetResponse = SearchTranscriptsApiV1OrganizationsReportsTranscriptsSearchGetResponses[keyof SearchTranscriptsApiV1OrganizationsReportsTranscriptsSearchGetResponses];
+
+export type GetCampaignInsightsApiV1OrganizationsReportsCampaignInsightsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Date
+         *
+         * Single date YYYY-MM-DD (legacy; use start_date/end_date for a range)
+         */
+        date?: string | null;
+        /**
+         * Start Date
+         *
+         * Range start YYYY-MM-DD (inclusive)
+         */
+        start_date?: string | null;
+        /**
+         * End Date
+         *
+         * Range end YYYY-MM-DD (inclusive)
+         */
+        end_date?: string | null;
+        /**
+         * Timezone
+         *
+         * IANA timezone
+         */
+        timezone?: string;
+        /**
+         * Workflow Id
+         */
+        workflow_id?: number | null;
+    };
+    url: '/api/v1/organizations/reports/campaign-insights';
+};
+
+export type GetCampaignInsightsApiV1OrganizationsReportsCampaignInsightsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetCampaignInsightsApiV1OrganizationsReportsCampaignInsightsGetError = GetCampaignInsightsApiV1OrganizationsReportsCampaignInsightsGetErrors[keyof GetCampaignInsightsApiV1OrganizationsReportsCampaignInsightsGetErrors];
+
+export type GetCampaignInsightsApiV1OrganizationsReportsCampaignInsightsGetResponses = {
+    /**
+     * Response Get Campaign Insights Api V1 Organizations Reports Campaign Insights Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type GetCampaignInsightsApiV1OrganizationsReportsCampaignInsightsGetResponse = GetCampaignInsightsApiV1OrganizationsReportsCampaignInsightsGetResponses[keyof GetCampaignInsightsApiV1OrganizationsReportsCampaignInsightsGetResponses];
+
+export type DownloadTransferCallsCsvApiV1OrganizationsReportsCampaignInsightsTransfersCsvGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query: {
+        /**
+         * Start Date
+         *
+         * Range start YYYY-MM-DD (inclusive)
+         */
+        start_date: string;
+        /**
+         * End Date
+         *
+         * Range end YYYY-MM-DD (inclusive)
+         */
+        end_date: string;
+        /**
+         * Timezone
+         *
+         * IANA timezone
+         */
+        timezone?: string;
+        /**
+         * Workflow Id
+         */
+        workflow_id?: number | null;
+    };
+    url: '/api/v1/organizations/reports/campaign-insights/transfers.csv';
+};
+
+export type DownloadTransferCallsCsvApiV1OrganizationsReportsCampaignInsightsTransfersCsvGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DownloadTransferCallsCsvApiV1OrganizationsReportsCampaignInsightsTransfersCsvGetError = DownloadTransferCallsCsvApiV1OrganizationsReportsCampaignInsightsTransfersCsvGetErrors[keyof DownloadTransferCallsCsvApiV1OrganizationsReportsCampaignInsightsTransfersCsvGetErrors];
+
+export type DownloadTransferCallsCsvApiV1OrganizationsReportsCampaignInsightsTransfersCsvGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
 export type GetTurnCredentialsApiV1TurnCredentialsGetData = {
     body?: never;
     headers?: {
@@ -13660,6 +14659,38 @@ export type DownloadWorkflowArtifactApiV1PublicDownloadWorkflowTokenArtifactType
 export type DownloadWorkflowArtifactApiV1PublicDownloadWorkflowTokenArtifactTypeGetError = DownloadWorkflowArtifactApiV1PublicDownloadWorkflowTokenArtifactTypeGetErrors[keyof DownloadWorkflowArtifactApiV1PublicDownloadWorkflowTokenArtifactTypeGetErrors];
 
 export type DownloadWorkflowArtifactApiV1PublicDownloadWorkflowTokenArtifactTypeGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
+export type GetAccentVoicePreviewApiV1PublicAccentVoicesPreviewsFilenameGetData = {
+    body?: never;
+    path: {
+        /**
+         * Filename
+         */
+        filename: string;
+    };
+    query?: never;
+    url: '/api/v1/public/accent-voices/previews/{filename}';
+};
+
+export type GetAccentVoicePreviewApiV1PublicAccentVoicesPreviewsFilenameGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetAccentVoicePreviewApiV1PublicAccentVoicesPreviewsFilenameGetError = GetAccentVoicePreviewApiV1PublicAccentVoicesPreviewsFilenameGetErrors[keyof GetAccentVoicePreviewApiV1PublicAccentVoicesPreviewsFilenameGetErrors];
+
+export type GetAccentVoicePreviewApiV1PublicAccentVoicesPreviewsFilenameGetResponses = {
     /**
      * Successful Response
      */

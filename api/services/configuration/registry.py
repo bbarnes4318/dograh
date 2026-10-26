@@ -1655,11 +1655,11 @@ class FishAudioTTSConfiguration(BaseTTSConfiguration):
     voice: str = Field(
         default="",
         description=(
-            "Fish Audio reference_id — the 32-char hex voice-model id from the Fish "
-            "voice library or one of your own cloned voices. Empty uses Fish's "
-            "default voice."
+            "Pick a local-accent voice, or 'Auto — local accent by area code' to "
+            "match each prospect's area code on every call. You can still paste "
+            "any Fish reference_id."
         ),
-        json_schema_extra={"allow_custom_input": True},
+        json_schema_extra={"allow_custom_input": False},
     )
     latency: str = Field(
         default="balanced",
