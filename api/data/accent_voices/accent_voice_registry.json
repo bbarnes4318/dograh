@@ -192,5 +192,1908 @@
       "preview_ms": 8452,
       "source": "api"
     }
+  },
+  "5": {
+    "accent_id": 5,
+    "name": "Rhode Island / Southeastern New England",
+    "states": "RI",
+    "area_codes": [
+      "401"
+    ],
+    "male": {
+      "voice_id": "2116b57253724a938419108e6b648d46",
+      "title": "US Accent 05 - Rhode Island / Southeastern New England (Male)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 7663,
+      "source": "api"
+    },
+    "female": {
+      "voice_id": "841f658f6a614576b3032d04f4352f73",
+      "title": "US Accent 05 - Rhode Island / Southeastern New England (Female)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8034,
+      "source": "api"
+    }
+  },
+  "7": {
+    "accent_id": 7,
+    "name": "Long Island",
+    "states": "NY",
+    "area_codes": [
+      "363",
+      "516",
+      "631",
+      "934"
+    ],
+    "male": {
+      "voice_id": "f928e68f4c324669bbaf18533efd0505",
+      "title": "US Accent 07 - Long Island (Male)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8870,
+      "source": "api"
+    },
+    "female": {
+      "voice_id": "7c40e2fe16bc45b99190b41ae408a53d",
+      "title": "US Accent 07 - Long Island (Female)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8452,
+      "source": "api"
+    }
+  },
+  "8": {
+    "accent_id": 8,
+    "name": "Hudson Valley / Capital District New York",
+    "states": "NY",
+    "area_codes": [
+      "329",
+      "518",
+      "838",
+      "845",
+      "914"
+    ],
+    "male": {
+      "voice_id": "c93ce1e8399942a79feb311402dc5a85",
+      "title": "US Accent 08 - Hudson Valley / Capital District New York (Male)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8452,
+      "source": "api"
+    },
+    "female": {
+      "voice_id": "9523537769a4464d90e14474632f9fa5",
+      "title": "US Accent 08 - Hudson Valley / Capital District New York (Female)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8870,
+      "source": "api"
+    }
+  },
+  "9": {
+    "accent_id": 9,
+    "name": "Central & Western New York / Inland North",
+    "states": "NY",
+    "area_codes": [
+      "315",
+      "585",
+      "607",
+      "624",
+      "680",
+      "716"
+    ],
+    "male": {
+      "voice_id": "fb423f2188d442a2ad78204c1fd2fec7",
+      "title": "US Accent 09 - Central & Western New York / Inland North (Male)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8870,
+      "source": "api"
+    },
+    "female": {
+      "voice_id": "8de8f46a7cca4bb89b0522f2477e4ff7",
+      "title": "US Accent 09 - Central & Western New York / Inland North (Female)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8452,
+      "source": "api"
+    }
+  },
+  "10": {
+    "accent_id": 10,
+    "name": "North Jersey / NYC-influenced",
+    "states": "NJ",
+    "area_codes": [
+      "201",
+      "551",
+      "862",
+      "908",
+      "973"
+    ],
+    "male": {
+      "voice_id": "1d10520c397647ffbb3651b35fcb3adb",
+      "title": "US Accent 10 - North Jersey / NYC-influenced (Male)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8034,
+      "source": "api"
+    },
+    "female": {
+      "voice_id": "01ad5202b1d448e8baa4a94802495d77",
+      "title": "US Accent 10 - North Jersey / NYC-influenced (Female)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8034,
+      "source": "api"
+    }
+  },
+  "11": {
+    "accent_id": 11,
+    "name": "South & Central Jersey / Delaware Valley",
+    "states": "NJ, DE",
+    "area_codes": [
+      "302",
+      "609",
+      "640",
+      "732",
+      "848",
+      "856"
+    ],
+    "male": {
+      "voice_id": "ab464973cf1442fd856c91767aa7e8e1",
+      "title": "US Accent 11 - South & Central Jersey / Delaware Valley (Male)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8870,
+      "source": "api"
+    },
+    "female": {
+      "voice_id": "70b6587ab5724c89986d4d46e00708d4",
+      "title": "US Accent 11 - South & Central Jersey / Delaware Valley (Female)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8870,
+      "source": "api"
+    }
+  },
+  "12": {
+    "accent_id": 12,
+    "name": "Philadelphia / Delaware Valley",
+    "states": "PA",
+    "area_codes": [
+      "215",
+      "267",
+      "445",
+      "484",
+      "610",
+      "835"
+    ],
+    "male": {
+      "voice_id": "490fd91a75f5487f83917264f5efef83",
+      "title": "US Accent 12 - Philadelphia / Delaware Valley (Male)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8034,
+      "source": "api"
+    },
+    "female": {
+      "voice_id": "4f4b972837b648dcb21dca7f19bbac2f",
+      "title": "US Accent 12 - Philadelphia / Delaware Valley (Female)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8034,
+      "source": "api"
+    }
+  },
+  "13": {
+    "accent_id": 13,
+    "name": "Central & Northeastern Pennsylvania",
+    "states": "PA",
+    "area_codes": [
+      "223",
+      "272",
+      "570",
+      "582",
+      "717",
+      "814"
+    ],
+    "male": {
+      "voice_id": "a1190c3eeda2478c8f67e9c7e3e68fe6",
+      "title": "US Accent 13 - Central & Northeastern Pennsylvania (Male)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8870,
+      "source": "api"
+    },
+    "female": {
+      "voice_id": "5b50384f3cf14436866908f7188a60dc",
+      "title": "US Accent 13 - Central & Northeastern Pennsylvania (Female)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8870,
+      "source": "api"
+    }
+  },
+  "14": {
+    "accent_id": 14,
+    "name": "Pittsburgh / Western Pennsylvania",
+    "states": "PA",
+    "area_codes": [
+      "412",
+      "724",
+      "878"
+    ],
+    "male": {
+      "voice_id": "0fec6faaba5745a4af2d7a4c4a6b99db",
+      "title": "US Accent 14 - Pittsburgh / Western Pennsylvania (Male)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8870,
+      "source": "api"
+    },
+    "female": {
+      "voice_id": "44fd02573acf4293839f35dd9d858fb1",
+      "title": "US Accent 14 - Pittsburgh / Western Pennsylvania (Female)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8452,
+      "source": "api"
+    }
+  },
+  "15": {
+    "accent_id": 15,
+    "name": "Baltimore / Chesapeake Maryland",
+    "states": "MD",
+    "area_codes": [
+      "410",
+      "443",
+      "667"
+    ],
+    "male": {
+      "voice_id": "8b5c4896aa1b40f9ac021b08a5ab403d",
+      "title": "US Accent 15 - Baltimore / Chesapeake Maryland (Male)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8034,
+      "source": "api"
+    },
+    "female": {
+      "voice_id": "39976a972fc84c13866c16941e1afc6b",
+      "title": "US Accent 15 - Baltimore / Chesapeake Maryland (Female)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8452,
+      "source": "api"
+    }
+  },
+  "16": {
+    "accent_id": 16,
+    "name": "Washington DC / DMV",
+    "states": "DC, MD, VA",
+    "area_codes": [
+      "202",
+      "227",
+      "240",
+      "301",
+      "571",
+      "703",
+      "771"
+    ],
+    "male": {
+      "voice_id": "267c39c0b8af49e9997d350dd8f3733b",
+      "title": "US Accent 16 - Washington DC / DMV (Male)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8452,
+      "source": "api"
+    },
+    "female": {
+      "voice_id": "032fce3519cf4fb8a7c1d773fd4b3e6d",
+      "title": "US Accent 16 - Washington DC / DMV (Female)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8452,
+      "source": "api"
+    }
+  },
+  "17": {
+    "accent_id": 17,
+    "name": "Virginia Tidewater / Hampton Roads",
+    "states": "VA",
+    "area_codes": [
+      "757",
+      "948"
+    ],
+    "male": {
+      "voice_id": "1f61a2d9f7684b62a4cd5f9b58a6937e",
+      "title": "US Accent 17 - Virginia Tidewater / Hampton Roads (Male)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8452,
+      "source": "api"
+    },
+    "female": {
+      "voice_id": "ab1cc5a8116344a8b3bd11ea89248f5c",
+      "title": "US Accent 17 - Virginia Tidewater / Hampton Roads (Female)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8870,
+      "source": "api"
+    }
+  },
+  "18": {
+    "accent_id": 18,
+    "name": "Virginia Piedmont / Richmond / Shenandoah",
+    "states": "VA",
+    "area_codes": [
+      "434",
+      "540",
+      "686",
+      "804",
+      "826"
+    ],
+    "male": {
+      "voice_id": "e1b4918ee0fe4d1695affff93bc845df",
+      "title": "US Accent 18 - Virginia Piedmont / Richmond / Shenandoah (Male)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8870,
+      "source": "api"
+    },
+    "female": {
+      "voice_id": "b2aad97850cb416183423e1bc3fb49d8",
+      "title": "US Accent 18 - Virginia Piedmont / Richmond / Shenandoah (Female)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8870,
+      "source": "api"
+    }
+  },
+  "19": {
+    "accent_id": 19,
+    "name": "Central Appalachia (SW Virginia / West Virginia / Eastern Kentucky)",
+    "states": "VA, WV, KY",
+    "area_codes": [
+      "276",
+      "304",
+      "606",
+      "681"
+    ],
+    "male": {
+      "voice_id": "f9c2e97c96de4cf788b991608e94e608",
+      "title": "US Accent 19 - Central Appalachia (SW Virginia / West Virginia / Eastern Kentucky) (Male)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 9938,
+      "source": "api"
+    },
+    "female": {
+      "voice_id": "b98186b524f246059e0677299f8c1fbe",
+      "title": "US Accent 19 - Central Appalachia (SW Virginia / West Virginia / Eastern Kentucky) (Female)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 10542,
+      "source": "api"
+    }
+  },
+  "20": {
+    "accent_id": 20,
+    "name": "Kentucky Upper South / Bluegrass",
+    "states": "KY",
+    "area_codes": [
+      "270",
+      "364",
+      "502",
+      "859"
+    ],
+    "male": {
+      "voice_id": "06504ad1301d4607b8ee0a86176899d3",
+      "title": "US Accent 20 - Kentucky Upper South / Bluegrass (Male)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8870,
+      "source": "api"
+    },
+    "female": {
+      "voice_id": "caecee0f487a4961925bcbb7eaf3a872",
+      "title": "US Accent 20 - Kentucky Upper South / Bluegrass (Female)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8870,
+      "source": "api"
+    }
+  },
+  "22": {
+    "accent_id": 22,
+    "name": "Nashville / Middle Tennessee",
+    "states": "TN",
+    "area_codes": [
+      "615",
+      "629",
+      "931"
+    ],
+    "male": {
+      "voice_id": "1730761c921d49f9bbb8a4b24759f26d",
+      "title": "US Accent 22 - Nashville / Middle Tennessee (Male)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8870,
+      "source": "api"
+    },
+    "female": {
+      "voice_id": "7c16066805f74250b055f3782af480e4",
+      "title": "US Accent 22 - Nashville / Middle Tennessee (Female)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8452,
+      "source": "api"
+    }
+  },
+  "23": {
+    "accent_id": 23,
+    "name": "Memphis / West Tennessee",
+    "states": "TN",
+    "area_codes": [
+      "731",
+      "901"
+    ],
+    "male": {
+      "voice_id": "a69265547c9c4a70a54516b42d633631",
+      "title": "US Accent 23 - Memphis / West Tennessee (Male)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 9938,
+      "source": "api"
+    },
+    "female": {
+      "voice_id": "183f4f6bf7df42bda592126ee9890b13",
+      "title": "US Accent 23 - Memphis / West Tennessee (Female)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 10542,
+      "source": "api"
+    }
+  },
+  "24": {
+    "accent_id": 24,
+    "name": "Western North Carolina Appalachian",
+    "states": "NC",
+    "area_codes": [
+      "828"
+    ],
+    "male": {
+      "voice_id": "756f2dbf4ec74bebb1d8f56e1ebe64b0",
+      "title": "US Accent 24 - Western North Carolina Appalachian (Male)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 9938,
+      "source": "api"
+    },
+    "female": {
+      "voice_id": "eae7283681714fc0a17cb52e6ad60363",
+      "title": "US Accent 24 - Western North Carolina Appalachian (Female)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 9938,
+      "source": "api"
+    }
+  },
+  "25": {
+    "accent_id": 25,
+    "name": "North Carolina Piedmont",
+    "states": "NC",
+    "area_codes": [
+      "336",
+      "704",
+      "743",
+      "919",
+      "980",
+      "984"
+    ],
+    "male": {
+      "voice_id": "dda44edb720d4f30bd1f713ac631ac74",
+      "title": "US Accent 25 - North Carolina Piedmont (Male)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8870,
+      "source": "api"
+    },
+    "female": {
+      "voice_id": "7932140f4f8e477a9d660672084e2b49",
+      "title": "US Accent 25 - North Carolina Piedmont (Female)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8452,
+      "source": "api"
+    }
+  },
+  "26": {
+    "accent_id": 26,
+    "name": "Coastal / Eastern North Carolina",
+    "states": "NC",
+    "area_codes": [
+      "252",
+      "472",
+      "910"
+    ],
+    "male": {
+      "voice_id": "eb965f6760f043fbb483eb2b45a36640",
+      "title": "US Accent 26 - Coastal / Eastern North Carolina (Male)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8452,
+      "source": "api"
+    },
+    "female": {
+      "voice_id": "5bd7869c65864b9c9fbec4d0aee35625",
+      "title": "US Accent 26 - Coastal / Eastern North Carolina (Female)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8452,
+      "source": "api"
+    }
+  },
+  "27": {
+    "accent_id": 27,
+    "name": "South Carolina Upstate / Midlands",
+    "states": "SC",
+    "area_codes": [
+      "803",
+      "821",
+      "839",
+      "864"
+    ],
+    "male": {
+      "voice_id": "2310b787771b4708bbfc162a1591ef19",
+      "title": "US Accent 27 - South Carolina Upstate / Midlands (Male)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8870,
+      "source": "api"
+    },
+    "female": {
+      "voice_id": "add19d0b3d7249c98237c9a2ee5294d5",
+      "title": "US Accent 27 - South Carolina Upstate / Midlands (Female)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8870,
+      "source": "api"
+    }
+  },
+  "28": {
+    "accent_id": 28,
+    "name": "Charleston / South Carolina Lowcountry",
+    "states": "SC",
+    "area_codes": [
+      "843",
+      "854"
+    ],
+    "male": {
+      "voice_id": "2a444435dd924295abd7000d98228ebf",
+      "title": "US Accent 28 - Charleston / South Carolina Lowcountry (Male)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 9938,
+      "source": "api"
+    },
+    "female": {
+      "voice_id": "6192a1a4358a40278dcc64c03425ca2d",
+      "title": "US Accent 28 - Charleston / South Carolina Lowcountry (Female)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 10542,
+      "source": "api"
+    }
+  },
+  "29": {
+    "accent_id": 29,
+    "name": "Atlanta / North Georgia Piedmont",
+    "states": "GA",
+    "area_codes": [
+      "404",
+      "470",
+      "678",
+      "706",
+      "762",
+      "770",
+      "943"
+    ],
+    "male": {
+      "voice_id": "a5450cbb08c8450ea8bf805633725de7",
+      "title": "US Accent 29 - Atlanta / North Georgia Piedmont (Male)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8452,
+      "source": "api"
+    },
+    "female": {
+      "voice_id": "ad6fb59e7e9b4feaa8688e52907c6200",
+      "title": "US Accent 29 - Atlanta / North Georgia Piedmont (Female)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8870,
+      "source": "api"
+    }
+  },
+  "30": {
+    "accent_id": 30,
+    "name": "South & Coastal Georgia",
+    "states": "GA",
+    "area_codes": [
+      "229",
+      "478",
+      "912"
+    ],
+    "male": {
+      "voice_id": "375d40e51fb540809cc53fe628f20802",
+      "title": "US Accent 30 - South & Coastal Georgia (Male)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 11238,
+      "source": "api"
+    },
+    "female": {
+      "voice_id": "6d88a9d84fd44776938116fe88766d03",
+      "title": "US Accent 30 - South & Coastal Georgia (Female)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 10263,
+      "source": "api"
+    }
+  },
+  "31": {
+    "accent_id": 31,
+    "name": "Alabama Inland / Gulf South",
+    "states": "AL",
+    "area_codes": [
+      "205",
+      "251",
+      "256",
+      "334",
+      "483",
+      "659",
+      "938"
+    ],
+    "male": {
+      "voice_id": "8858bd9590434dbba9413e68dcadfc11",
+      "title": "US Accent 31 - Alabama Inland / Gulf South (Male)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 9938,
+      "source": "api"
+    },
+    "female": {
+      "voice_id": "7a1dc3d2d4cb4353a3a4bdc7deddb57d",
+      "title": "US Accent 31 - Alabama Inland / Gulf South (Female)",
+      "state": "trained",
+      "prompt_used": "fallback",
+      "preview_ms": 8870,
+      "source": "api"
+    }
+  },
+  "32": {
+    "accent_id": 32,
+    "name": "Mississippi Deep South / Delta",
+    "states": "MS",
+    "area_codes": [
+      "228",
+      "471",
+      "601",
+      "662",
+      "769"
+    ],
+    "female": {
+      "voice_id": "554ead90c12649dba7fe545c03d659bd",
+      "title": "US Accent 32 - Mississippi Deep South / Delta (Female)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 9938,
+      "source": "api"
+    },
+    "male": {
+      "voice_id": "11b9f16ccc6d4386b1e9b06d65e6cd15",
+      "title": "US Accent 32 - Mississippi Deep South / Delta (Male)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 10820,
+      "source": "api"
+    }
+  },
+  "33": {
+    "accent_id": 33,
+    "name": "New Orleans / Yat-influenced English",
+    "states": "LA",
+    "area_codes": [
+      "504"
+    ],
+    "male": {
+      "voice_id": "0ac75397ef914583a037072df1db572d",
+      "title": "US Accent 33 - New Orleans / Yat-influenced English (Male)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8034,
+      "source": "api"
+    },
+    "female": {
+      "voice_id": "42f46e636cc9485882f7555c24751c70",
+      "title": "US Accent 33 - New Orleans / Yat-influenced English (Female)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8034,
+      "source": "api"
+    }
+  },
+  "34": {
+    "accent_id": 34,
+    "name": "South Louisiana / Cajun-influenced English",
+    "states": "LA",
+    "area_codes": [
+      "225",
+      "337",
+      "985"
+    ],
+    "male": {
+      "voice_id": "cbb7380f7771410d8ce5eee312859ddb",
+      "title": "US Accent 34 - South Louisiana / Cajun-influenced English (Male)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 9938,
+      "source": "api"
+    },
+    "female": {
+      "voice_id": "a75545228c464c4c9ee28fe94539d449",
+      "title": "US Accent 34 - South Louisiana / Cajun-influenced English (Female)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 10542,
+      "source": "api"
+    }
+  },
+  "35": {
+    "accent_id": 35,
+    "name": "North Louisiana / Ark-La-Tex",
+    "states": "LA",
+    "area_codes": [
+      "318",
+      "457"
+    ],
+    "male": {
+      "voice_id": "602427e170224af7aada696e17731345",
+      "title": "US Accent 35 - North Louisiana / Ark-La-Tex (Male)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 10542,
+      "source": "api"
+    },
+    "female": {
+      "voice_id": "fd6f8bea886048e28f33a08150ede477",
+      "title": "US Accent 35 - North Louisiana / Ark-La-Tex (Female)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 9938,
+      "source": "api"
+    }
+  },
+  "36": {
+    "accent_id": 36,
+    "name": "Ozarks",
+    "states": "AR, MO",
+    "area_codes": [
+      "417",
+      "479"
+    ],
+    "male": {
+      "voice_id": "4219e986f85d422ea75dff6fc22e1da0",
+      "title": "US Accent 36 - Ozarks (Male)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 9938,
+      "source": "api"
+    },
+    "female": {
+      "voice_id": "5eb7e46c3424431bbe362f2e653521d2",
+      "title": "US Accent 36 - Ozarks (Female)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 9938,
+      "source": "api"
+    }
+  },
+  "37": {
+    "accent_id": 37,
+    "name": "Central & Eastern Arkansas / Mid-South",
+    "states": "AR",
+    "area_codes": [
+      "327",
+      "501",
+      "870"
+    ],
+    "male": {
+      "voice_id": "f8af73c303564ae6b7cc780c69ee77fc",
+      "title": "US Accent 37 - Central & Eastern Arkansas / Mid-South (Male)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 10542,
+      "source": "api"
+    },
+    "female": {
+      "voice_id": "29212a20d3ca43349dadd22c9808b7dd",
+      "title": "US Accent 37 - Central & Eastern Arkansas / Mid-South (Female)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 9938,
+      "source": "api"
+    }
+  },
+  "38": {
+    "accent_id": 38,
+    "name": "Oklahoma South Midland / Plains",
+    "states": "OK",
+    "area_codes": [
+      "405",
+      "539",
+      "572",
+      "580",
+      "918"
+    ],
+    "male": {
+      "voice_id": "832c9ebee3a147dc8d6579a039617089",
+      "title": "US Accent 38 - Oklahoma South Midland / Plains (Male)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8452,
+      "source": "api"
+    },
+    "female": {
+      "voice_id": "a26e8ec515da4ddbbfc1ea65fe9ede80",
+      "title": "US Accent 38 - Oklahoma South Midland / Plains (Female)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8870,
+      "source": "api"
+    }
+  },
+  "39": {
+    "accent_id": 39,
+    "name": "St. Louis / Eastern Missouri",
+    "states": "MO",
+    "area_codes": [
+      "314",
+      "557",
+      "636"
+    ],
+    "male": {
+      "voice_id": "cf3978968851405cb644f15b57d53e8e",
+      "title": "US Accent 39 - St. Louis / Eastern Missouri (Male)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 7663,
+      "source": "api"
+    },
+    "female": {
+      "voice_id": "30bc1efb918c4dcea4a4c46b0ad60221",
+      "title": "US Accent 39 - St. Louis / Eastern Missouri (Female)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8034,
+      "source": "api"
+    }
+  },
+  "40": {
+    "accent_id": 40,
+    "name": "Kansas City / Western Missouri",
+    "states": "MO, KS",
+    "area_codes": [
+      "816",
+      "913",
+      "975"
+    ],
+    "male": {
+      "voice_id": "1b6337e84de245bc97abe0235d6c3837",
+      "title": "US Accent 40 - Kansas City / Western Missouri (Male)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8870,
+      "source": "api"
+    },
+    "female": {
+      "voice_id": "f6696a399d484b8fa31ebd5836ccf77f",
+      "title": "US Accent 40 - Kansas City / Western Missouri (Female)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8870,
+      "source": "api"
+    }
+  },
+  "41": {
+    "accent_id": 41,
+    "name": "Central Plains / Midland",
+    "states": "MO, IA, KS, NE",
+    "area_codes": [
+      "235",
+      "308",
+      "316",
+      "319",
+      "402",
+      "515",
+      "531",
+      "563",
+      "573",
+      "620",
+      "641",
+      "660",
+      "712",
+      "785"
+    ],
+    "male": {
+      "voice_id": "a17777cc7a064b88872ed51d79ce439e",
+      "title": "US Accent 41 - Central Plains / Midland (Male)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8870,
+      "source": "api"
+    },
+    "female": {
+      "voice_id": "1989161ba9d54041ba47a86fd672541a",
+      "title": "US Accent 41 - Central Plains / Midland (Female)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8452,
+      "source": "api"
+    }
+  },
+  "42": {
+    "accent_id": 42,
+    "name": "Minnesota / North Central",
+    "states": "MN",
+    "area_codes": [
+      "218",
+      "320",
+      "507",
+      "612",
+      "651",
+      "763",
+      "924",
+      "952"
+    ],
+    "male": {
+      "voice_id": "4a0c1ac884bc49639f108848717c14ef",
+      "title": "US Accent 42 - Minnesota / North Central (Male)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8452,
+      "source": "api"
+    },
+    "female": {
+      "voice_id": "f1367f6292474a568bb16837cd92eea0",
+      "title": "US Accent 42 - Minnesota / North Central (Female)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8452,
+      "source": "api"
+    }
+  },
+  "43": {
+    "accent_id": 43,
+    "name": "Dakotas / North Central Plains",
+    "states": "ND, SD",
+    "area_codes": [
+      "605",
+      "701"
+    ],
+    "male": {
+      "voice_id": "697f8de13c2c4be19fd7341d94299369",
+      "title": "US Accent 43 - Dakotas / North Central Plains (Male)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8870,
+      "source": "api"
+    },
+    "female": {
+      "voice_id": "c6e5a109641d47778b68ed629025f72b",
+      "title": "US Accent 43 - Dakotas / North Central Plains (Female)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8870,
+      "source": "api"
+    }
+  },
+  "44": {
+    "accent_id": 44,
+    "name": "Wisconsin / Upper Midwest",
+    "states": "WI",
+    "area_codes": [
+      "262",
+      "274",
+      "353",
+      "414",
+      "534",
+      "608",
+      "715",
+      "920"
+    ],
+    "male": {
+      "voice_id": "783ec6b341e04ab1898a514239dee661",
+      "title": "US Accent 44 - Wisconsin / Upper Midwest (Male)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8870,
+      "source": "api"
+    },
+    "female": {
+      "voice_id": "e55b89f9b7b14326bbd5e782f9bf9c25",
+      "title": "US Accent 44 - Wisconsin / Upper Midwest (Female)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8870,
+      "source": "api"
+    }
+  },
+  "45": {
+    "accent_id": 45,
+    "name": "Chicago / Inland North",
+    "states": "IL",
+    "area_codes": [
+      "224",
+      "312",
+      "331",
+      "464",
+      "630",
+      "708",
+      "773",
+      "847",
+      "872"
+    ],
+    "male": {
+      "voice_id": "19914262385d4924b7bcd433049a29e5",
+      "title": "US Accent 45 - Chicago / Inland North (Male)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8452,
+      "source": "api"
+    },
+    "female": {
+      "voice_id": "c4d2e22940f6428499e24e8cbf465c56",
+      "title": "US Accent 45 - Chicago / Inland North (Female)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 7663,
+      "source": "api"
+    }
+  },
+  "46": {
+    "accent_id": 46,
+    "name": "Illinois Midland / Downstate",
+    "states": "IL",
+    "area_codes": [
+      "217",
+      "309",
+      "447",
+      "618",
+      "730",
+      "779",
+      "815",
+      "861"
+    ],
+    "male": {
+      "voice_id": "46be1d4d182c465797fc2d261b021601",
+      "title": "US Accent 46 - Illinois Midland / Downstate (Male)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8452,
+      "source": "api"
+    },
+    "female": {
+      "voice_id": "8dc578d8d81e465d9f12469550cc3c1e",
+      "title": "US Accent 46 - Illinois Midland / Downstate (Female)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8870,
+      "source": "api"
+    }
+  },
+  "47": {
+    "accent_id": 47,
+    "name": "Detroit / Southeast Michigan",
+    "states": "MI",
+    "area_codes": [
+      "248",
+      "313",
+      "586",
+      "679",
+      "734",
+      "810",
+      "947"
+    ],
+    "male": {
+      "voice_id": "e3256baf37e142df9d75aa161c306f47",
+      "title": "US Accent 47 - Detroit / Southeast Michigan (Male)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8452,
+      "source": "api"
+    },
+    "female": {
+      "voice_id": "2602727858434d50bc47dfb610f03303",
+      "title": "US Accent 47 - Detroit / Southeast Michigan (Female)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8034,
+      "source": "api"
+    }
+  },
+  "48": {
+    "accent_id": 48,
+    "name": "West & Northern Lower Michigan",
+    "states": "MI",
+    "area_codes": [
+      "231",
+      "269",
+      "517",
+      "616",
+      "989"
+    ],
+    "male": {
+      "voice_id": "0512a9c711b7418bbca5c4798de165a7",
+      "title": "US Accent 48 - West & Northern Lower Michigan (Male)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8870,
+      "source": "api"
+    },
+    "female": {
+      "voice_id": "4c2123b3a9ea4ceb9bbed95f2b71afd4",
+      "title": "US Accent 48 - West & Northern Lower Michigan (Female)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8870,
+      "source": "api"
+    }
+  },
+  "49": {
+    "accent_id": 49,
+    "name": "Upper Peninsula Michigan / Yooper",
+    "states": "MI",
+    "area_codes": [
+      "906"
+    ],
+    "male": {
+      "voice_id": "77089441ae624624b13a43de097eaea1",
+      "title": "US Accent 49 - Upper Peninsula Michigan / Yooper (Male)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 9938,
+      "source": "api"
+    },
+    "female": {
+      "voice_id": "229af815bb7f47a89096252b1f65edee",
+      "title": "US Accent 49 - Upper Peninsula Michigan / Yooper (Female)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 10542,
+      "source": "api"
+    }
+  },
+  "50": {
+    "accent_id": 50,
+    "name": "Northern Ohio / Great Lakes",
+    "states": "OH",
+    "area_codes": [
+      "216",
+      "234",
+      "330",
+      "419",
+      "436",
+      "440",
+      "567"
+    ],
+    "male": {
+      "voice_id": "3d80c4b51192489a8162616c82bc92b3",
+      "title": "US Accent 50 - Northern Ohio / Great Lakes (Male)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8034,
+      "source": "api"
+    },
+    "female": {
+      "voice_id": "5c838fa5b438465190d38b4ff6817cce",
+      "title": "US Accent 50 - Northern Ohio / Great Lakes (Female)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8870,
+      "source": "api"
+    }
+  },
+  "51": {
+    "accent_id": 51,
+    "name": "Central & Southern Ohio / Midland",
+    "states": "OH",
+    "area_codes": [
+      "220",
+      "283",
+      "326",
+      "380",
+      "513",
+      "614",
+      "740",
+      "937"
+    ],
+    "male": {
+      "voice_id": "6dadf7af8ef14fbbaf3c4972e8d13fe0",
+      "title": "US Accent 51 - Central & Southern Ohio / Midland (Male)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8870,
+      "source": "api"
+    },
+    "female": {
+      "voice_id": "513c61c954784b9fa6a309fbb364b98a",
+      "title": "US Accent 51 - Central & Southern Ohio / Midland (Female)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8452,
+      "source": "api"
+    }
+  },
+  "52": {
+    "accent_id": 52,
+    "name": "Indiana Midland / Great Lakes Transition",
+    "states": "IN",
+    "area_codes": [
+      "219",
+      "260",
+      "317",
+      "463",
+      "574",
+      "765",
+      "812",
+      "930"
+    ],
+    "male": {
+      "voice_id": "d39ee2cfc31a43408c8523eeb51b1644",
+      "title": "US Accent 52 - Indiana Midland / Great Lakes Transition (Male)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8870,
+      "source": "api"
+    },
+    "female": {
+      "voice_id": "e92b0f95e189443782b5f86ca609f20e",
+      "title": "US Accent 52 - Indiana Midland / Great Lakes Transition (Female)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8452,
+      "source": "api"
+    }
+  },
+  "53": {
+    "accent_id": 53,
+    "name": "North Florida / Panhandle Southern",
+    "states": "FL",
+    "area_codes": [
+      "324",
+      "352",
+      "386",
+      "448",
+      "850",
+      "904"
+    ],
+    "male": {
+      "voice_id": "dbecadaea47a4b85a413362e743270da",
+      "title": "US Accent 53 - North Florida / Panhandle Southern (Male)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 10542,
+      "source": "api"
+    },
+    "female": {
+      "voice_id": "3ad4b052acb84869964ad97391c404ec",
+      "title": "US Accent 53 - North Florida / Panhandle Southern (Female)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 10542,
+      "source": "api"
+    }
+  },
+  "54": {
+    "accent_id": 54,
+    "name": "Central Florida / Sunbelt",
+    "states": "FL",
+    "area_codes": [
+      "239",
+      "321",
+      "407",
+      "656",
+      "689",
+      "727",
+      "772",
+      "813",
+      "863",
+      "941"
+    ],
+    "male": {
+      "voice_id": "a129a1b699d54ec99b6f8cf2849cec47",
+      "title": "US Accent 54 - Central Florida / Sunbelt (Male)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8452,
+      "source": "api"
+    },
+    "female": {
+      "voice_id": "a415ce1e040741d7be2a2e859b4df239",
+      "title": "US Accent 54 - Central Florida / Sunbelt (Female)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8870,
+      "source": "api"
+    }
+  },
+  "55": {
+    "accent_id": 55,
+    "name": "South Florida / Miami English",
+    "states": "FL",
+    "area_codes": [
+      "305",
+      "561",
+      "645",
+      "728",
+      "754",
+      "786",
+      "954"
+    ],
+    "male": {
+      "voice_id": "7345ee76024f4e8b9634afb4a144f287",
+      "title": "US Accent 55 - South Florida / Miami English (Male)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8452,
+      "source": "api"
+    },
+    "female": {
+      "voice_id": "0d24df4252a4487b879c6b488d93d71f",
+      "title": "US Accent 55 - South Florida / Miami English (Female)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8452,
+      "source": "api"
+    }
+  },
+  "56": {
+    "accent_id": 56,
+    "name": "North & East Texas",
+    "states": "TX",
+    "area_codes": [
+      "214",
+      "430",
+      "469",
+      "682",
+      "817",
+      "903",
+      "936",
+      "940",
+      "945",
+      "972"
+    ],
+    "male": {
+      "voice_id": "2fb2d2b1af2c40799352023b132f64d4",
+      "title": "US Accent 56 - North & East Texas (Male)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 9938,
+      "source": "api"
+    },
+    "female": {
+      "voice_id": "883aca8ae403404da1b4adeb3073d57b",
+      "title": "US Accent 56 - North & East Texas (Female)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 10542,
+      "source": "api"
+    }
+  },
+  "57": {
+    "accent_id": 57,
+    "name": "Houston / Gulf Texas",
+    "states": "TX",
+    "area_codes": [
+      "281",
+      "346",
+      "409",
+      "621",
+      "713",
+      "832",
+      "979"
+    ],
+    "male": {
+      "voice_id": "7acb6ef133ed4e69bfb0036953b8dd10",
+      "title": "US Accent 57 - Houston / Gulf Texas (Male)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8452,
+      "source": "api"
+    },
+    "female": {
+      "voice_id": "45f216e6c9b84328a6de84ffc97f2965",
+      "title": "US Accent 57 - Houston / Gulf Texas (Female)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8452,
+      "source": "api"
+    }
+  },
+  "58": {
+    "accent_id": 58,
+    "name": "Central Texas / Austin / Hill Country",
+    "states": "TX",
+    "area_codes": [
+      "210",
+      "254",
+      "512",
+      "726",
+      "737",
+      "830"
+    ],
+    "male": {
+      "voice_id": "ceec5ac62afe482095f0d5d89aed79c6",
+      "title": "US Accent 58 - Central Texas / Austin / Hill Country (Male)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 9938,
+      "source": "api"
+    },
+    "female": {
+      "voice_id": "0df46eae2b0d47869613743397efd1b6",
+      "title": "US Accent 58 - Central Texas / Austin / Hill Country (Female)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 9938,
+      "source": "api"
+    }
+  },
+  "59": {
+    "accent_id": 59,
+    "name": "South Texas / Rio Grande Valley / Coastal Bend",
+    "states": "TX",
+    "area_codes": [
+      "361",
+      "956"
+    ],
+    "male": {
+      "voice_id": "10a827bc856b441e9fc33f9aa786a872",
+      "title": "US Accent 59 - South Texas / Rio Grande Valley / Coastal Bend (Male)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8870,
+      "source": "api"
+    },
+    "female": {
+      "voice_id": "7a9fb42cea574b2eb89f0910760569f6",
+      "title": "US Accent 59 - South Texas / Rio Grande Valley / Coastal Bend (Female)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8870,
+      "source": "api"
+    }
+  },
+  "60": {
+    "accent_id": 60,
+    "name": "West Texas / Panhandle",
+    "states": "TX",
+    "area_codes": [
+      "325",
+      "432",
+      "806"
+    ],
+    "male": {
+      "voice_id": "d44c6b6969844bac98390a562b048f4a",
+      "title": "US Accent 60 - West Texas / Panhandle (Male)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 10542,
+      "source": "api"
+    },
+    "female": {
+      "voice_id": "e8806b36ab524176a2b762db9c6f9bae",
+      "title": "US Accent 60 - West Texas / Panhandle (Female)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 9938,
+      "source": "api"
+    }
+  },
+  "61": {
+    "accent_id": 61,
+    "name": "El Paso / Southwestern",
+    "states": "TX",
+    "area_codes": [
+      "915"
+    ],
+    "male": {
+      "voice_id": "e5983aa19bf441ba9b1f1145ad3d5a6d",
+      "title": "US Accent 61 - El Paso / Southwestern (Male)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8870,
+      "source": "api"
+    },
+    "female": {
+      "voice_id": "e981d25151ba43f2af68dd30b4cf2855",
+      "title": "US Accent 61 - El Paso / Southwestern (Female)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8452,
+      "source": "api"
+    }
+  },
+  "62": {
+    "accent_id": 62,
+    "name": "Los Angeles / Southern California Coastal",
+    "states": "CA",
+    "area_codes": [
+      "213",
+      "310",
+      "323",
+      "424",
+      "562",
+      "619",
+      "626",
+      "657",
+      "714",
+      "738",
+      "747",
+      "805",
+      "818",
+      "820",
+      "858",
+      "949"
+    ],
+    "male": {
+      "voice_id": "d4aa7f81c19d4464bbc5cacb2ef34cb6",
+      "title": "US Accent 62 - Los Angeles / Southern California Coastal (Male)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8452,
+      "source": "api"
+    },
+    "female": {
+      "voice_id": "8f8470f09f1f4c6b8eefb86331d7f611",
+      "title": "US Accent 62 - Los Angeles / Southern California Coastal (Female)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8452,
+      "source": "api"
+    }
+  },
+  "63": {
+    "accent_id": 63,
+    "name": "Bay Area / Northern California Coastal",
+    "states": "CA",
+    "area_codes": [
+      "341",
+      "369",
+      "408",
+      "415",
+      "510",
+      "628",
+      "650",
+      "669",
+      "707",
+      "831",
+      "925"
+    ],
+    "male": {
+      "voice_id": "70fd910bc81742afb5e3fb0de389d558",
+      "title": "US Accent 63 - Bay Area / Northern California Coastal (Male)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8870,
+      "source": "api"
+    },
+    "female": {
+      "voice_id": "3113998f377347b7a331057c507db16c",
+      "title": "US Accent 63 - Bay Area / Northern California Coastal (Female)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8591,
+      "source": "api"
+    }
+  },
+  "64": {
+    "accent_id": 64,
+    "name": "Central Valley / Inland California",
+    "states": "CA",
+    "area_codes": [
+      "209",
+      "279",
+      "350",
+      "357",
+      "442",
+      "530",
+      "559",
+      "661",
+      "760",
+      "837",
+      "840",
+      "909",
+      "916",
+      "951"
+    ],
+    "male": {
+      "voice_id": "8605438d9d944ddabda8aefa82a46e3a",
+      "title": "US Accent 64 - Central Valley / Inland California (Male)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8452,
+      "source": "api"
+    },
+    "female": {
+      "voice_id": "d006b38fe55e4a3cba689f3f9a5b6ad5",
+      "title": "US Accent 64 - Central Valley / Inland California (Female)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8870,
+      "source": "api"
+    }
+  },
+  "65": {
+    "accent_id": 65,
+    "name": "Puget Sound / Western Washington",
+    "states": "WA",
+    "area_codes": [
+      "206",
+      "253",
+      "360",
+      "425",
+      "564"
+    ],
+    "male": {
+      "voice_id": "3f8164c311c44677992c5e192c31c435",
+      "title": "US Accent 65 - Puget Sound / Western Washington (Male)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8870,
+      "source": "api"
+    },
+    "female": {
+      "voice_id": "df4783e722f7445093c476b74636bfde",
+      "title": "US Accent 65 - Puget Sound / Western Washington (Female)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8870,
+      "source": "api"
+    }
+  },
+  "66": {
+    "accent_id": 66,
+    "name": "Oregon / Willamette / Pacific Northwest",
+    "states": "OR",
+    "area_codes": [
+      "458",
+      "503",
+      "541",
+      "971"
+    ],
+    "male": {
+      "voice_id": "fdc985b1a14a41e0a5f005569eb73d0b",
+      "title": "US Accent 66 - Oregon / Willamette / Pacific Northwest (Male)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8452,
+      "source": "api"
+    },
+    "female": {
+      "voice_id": "1f4eb316447d4d958865728efec6c4f3",
+      "title": "US Accent 66 - Oregon / Willamette / Pacific Northwest (Female)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8452,
+      "source": "api"
+    }
+  },
+  "67": {
+    "accent_id": 67,
+    "name": "Inland Northwest",
+    "states": "WA, ID",
+    "area_codes": [
+      "208",
+      "509",
+      "986"
+    ],
+    "male": {
+      "voice_id": "b50448d1b3874ad4b1491fe1b578bccb",
+      "title": "US Accent 67 - Inland Northwest (Male)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8452,
+      "source": "api"
+    },
+    "female": {
+      "voice_id": "dd7d6aea9c5f45ab9438b278db8b6695",
+      "title": "US Accent 67 - Inland Northwest (Female)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8870,
+      "source": "api"
+    }
+  },
+  "69": {
+    "accent_id": 69,
+    "name": "Utah / Intermountain West",
+    "states": "UT",
+    "area_codes": [
+      "385",
+      "435",
+      "801"
+    ],
+    "male": {
+      "voice_id": "ca52a5349efb44d9b7a6763effad411a",
+      "title": "US Accent 69 - Utah / Intermountain West (Male)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8870,
+      "source": "api"
+    },
+    "female": {
+      "voice_id": "8835db54cfe54488b469411374427eb0",
+      "title": "US Accent 69 - Utah / Intermountain West (Female)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8452,
+      "source": "api"
+    }
+  },
+  "70": {
+    "accent_id": 70,
+    "name": "Nevada / Great Basin",
+    "states": "NV",
+    "area_codes": [
+      "702",
+      "725",
+      "775"
+    ],
+    "male": {
+      "voice_id": "d0306388220d41f9a417926fe4c9803c",
+      "title": "US Accent 70 - Nevada / Great Basin (Male)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8452,
+      "source": "api"
+    },
+    "female": {
+      "voice_id": "f177b0ac22fb4e2bb93b937e479322ba",
+      "title": "US Accent 70 - Nevada / Great Basin (Female)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8870,
+      "source": "api"
+    }
+  },
+  "71": {
+    "accent_id": 71,
+    "name": "Arizona / Sonoran Southwest",
+    "states": "AZ",
+    "area_codes": [
+      "480",
+      "520",
+      "602",
+      "623",
+      "928"
+    ],
+    "male": {
+      "voice_id": "e908b68cb92649ab8072e80613d1ebec",
+      "title": "US Accent 71 - Arizona / Sonoran Southwest (Male)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8452,
+      "source": "api"
+    },
+    "female": {
+      "voice_id": "ed5814c380d24a04aa4ec886145b078d",
+      "title": "US Accent 71 - Arizona / Sonoran Southwest (Female)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8452,
+      "source": "api"
+    }
+  },
+  "72": {
+    "accent_id": 72,
+    "name": "New Mexico / Southwestern English",
+    "states": "NM",
+    "area_codes": [
+      "505",
+      "575"
+    ],
+    "male": {
+      "voice_id": "24a5355421e74babb10af8d5532b2b03",
+      "title": "US Accent 72 - New Mexico / Southwestern English (Male)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8870,
+      "source": "api"
+    },
+    "female": {
+      "voice_id": "6c05d6f2469142f1b62a1c02af58df3c",
+      "title": "US Accent 72 - New Mexico / Southwestern English (Female)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8452,
+      "source": "api"
+    }
+  },
+  "73": {
+    "accent_id": 73,
+    "name": "Montana / Wyoming Northern Rockies",
+    "states": "MT, WY",
+    "area_codes": [
+      "307",
+      "406"
+    ],
+    "male": {
+      "voice_id": "91478dc680e44fb398abafdc0cf78605",
+      "title": "US Accent 73 - Montana / Wyoming Northern Rockies (Male)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 9938,
+      "source": "api"
+    },
+    "female": {
+      "voice_id": "c65afdb2262148d9a77a5e5a4d80a9ee",
+      "title": "US Accent 73 - Montana / Wyoming Northern Rockies (Female)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 9567,
+      "source": "api"
+    }
+  },
+  "74": {
+    "accent_id": 74,
+    "name": "Alaska English",
+    "states": "AK",
+    "area_codes": [
+      "907"
+    ],
+    "male": {
+      "voice_id": "3f907de1dc0b43fd986ba144015142ee",
+      "title": "US Accent 74 - Alaska English (Male)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8870,
+      "source": "api"
+    },
+    "female": {
+      "voice_id": "770fb2c202054e5f9b5eca09cad9436e",
+      "title": "US Accent 74 - Alaska English (Female)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8870,
+      "source": "api"
+    }
+  },
+  "75": {
+    "accent_id": 75,
+    "name": "Hawaiʻi Local English",
+    "states": "HI",
+    "area_codes": [
+      "808"
+    ],
+    "male": {
+      "voice_id": "90d0161c50ca4f03a974c20ed7008d75",
+      "title": "US Accent 75 - Hawaiʻi Local English (Male)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8452,
+      "source": "api"
+    },
+    "female": {
+      "voice_id": "c3c50cbb39e549528fe1f0e0a9a36828",
+      "title": "US Accent 75 - Hawaiʻi Local English (Female)",
+      "state": "trained",
+      "prompt_used": "detailed",
+      "preview_ms": 8870,
+      "source": "api"
+    }
   }
 }
