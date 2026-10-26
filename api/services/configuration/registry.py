@@ -81,6 +81,10 @@ from api.services.configuration.options.openai import (
     VOICE_TYPE_CUSTOM,
     validate_openai_voice,
 )
+from api.services.voice_routing.blocked_voices import (
+    DEFAULT_FISH_VOICE,
+    is_blocked_fish_voice,
+)
 
 
 class ServiceType(Enum):
@@ -1653,13 +1657,13 @@ class FishAudioTTSConfiguration(BaseTTSConfiguration):
         },
     )
     voice: str = Field(
-        default="",
+        default=DEFAULT_FISH_VOICE,
         description=(
-            "Pick a local-accent voice, or 'Auto — local accent by area code' to "
-            "match each prospect's area code on every call. You can still paste "
-            "any Fish reference_id."
+            "Fish Audio reference_id — the 32-char hex voice-model id from the Fish "
+            "voice library or one of your own cloned voices. Empty uses the "
+            "standard voice."
         ),
-        json_schema_extra={"allow_custom_input": False},
+        json_schema_extra={"allow_custom_input": True},
     )
     latency: str = Field(
         default="balanced",
@@ -1696,6 +1700,13 @@ class FishAudioTTSConfiguration(BaseTTSConfiguration):
             "which is most of what an insurance agent says."
         ),
     )
+
+    @field_validator("voice")
+    @classmethod
+    def replace_removed_voice(cls, v):
+        # Configs saved with a removed local-accent voice load (and re-save)
+        # as the standard voice instead.
+        return DEFAULT_FISH_VOICE if is_blocked_fish_voice(v) else v
 
 
 # --- end HOPWHISTLE_FISH_TTS_V1 ------------------------------------------------

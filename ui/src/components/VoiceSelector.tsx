@@ -16,11 +16,9 @@ import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 
 // Providers that have MPS voice endpoints
-type TTSProviderWithVoices = "elevenlabs" | "deepgram" | "sarvam" | "cartesia" | "dograh" | "rime" | "fish";
-const MPS_VOICE_PROVIDERS: TTSProviderWithVoices[] = ["elevenlabs", "deepgram", "sarvam", "cartesia", "dograh", "rime", "fish"];
+type TTSProviderWithVoices = "elevenlabs" | "deepgram" | "sarvam" | "cartesia" | "dograh" | "rime";
+const MPS_VOICE_PROVIDERS: TTSProviderWithVoices[] = ["elevenlabs", "deepgram", "sarvam", "cartesia", "dograh", "rime"];
 const ALL_FILTER_VALUE = "__all__";
-// "Auto — local accent" entries (fish) stay at the top whatever the search/filters.
-const isPinnedVoice = (voice: VoiceInfo) => voice.voice_id.startsWith("auto:");
 
 interface VoiceSelectorProps {
     provider: string;
@@ -71,7 +69,6 @@ export const VoiceSelector: React.FC<VoiceSelectorProps> = ({
             cartesia: "cartesia",
             dograh: "dograh",
             rime: "rime",
-            fish: "fish",
         };
         return providerMap[providerName.toLowerCase()] || null;
     }, []);
@@ -153,7 +150,6 @@ export const VoiceSelector: React.FC<VoiceSelectorProps> = ({
     }, [currentAudio]);
 
     const filteredVoices = voices.filter((voice) => {
-        if (isPinnedVoice(voice)) return true;
         const searchLower = searchTerm.toLowerCase();
         const matchesSearch = (
             voice.name.toLowerCase().includes(searchLower) ||

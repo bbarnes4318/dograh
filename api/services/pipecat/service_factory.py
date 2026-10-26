@@ -25,9 +25,9 @@ from api.services.pipecat.gemini_json_schema_adapter import (
 )
 from api.services.pipecat.minimax_tts import MiniMaxOwnedSessionTTSService
 from api.services.pipecat.openai_tts import DograhOpenAITTSService
-from api.services.voice_routing.accent_voices import (
-    AUTO_VOICE_VALUES,
-    resolve_accent_voice,
+from api.services.voice_routing.blocked_voices import (
+    DEFAULT_FISH_VOICE,
+    is_blocked_fish_voice,
 )
 from api.utils.url_security import validate_user_configured_service_url
 from pipecat.services.assemblyai.stt import AssemblyAISTTService, AssemblyAISTTSettings
@@ -965,15 +965,16 @@ def create_tts_service(
             FishAudioTTSSettings,
         )
 
-        # Empty string -> None so Fish falls back to its default voice rather
-        # than rejecting a blank reference_id.
-        voice = getattr(user_config.tts, "voice", None) or None
-        if voice in AUTO_VOICE_VALUES:
-            # run_pipeline resolves auto:* per call from the prospect's area
-            # code; any other path lands here with it unresolved, so use the
-            # default accent rather than sending "auto:*" to Fish.
-            pick = resolve_accent_voice(voice, {})
-            voice = (pick or {}).get("voice_id") or None
+        # No voice set -> our standard voice, never Fish's own default.
+        voice = getattr(user_config.tts, "voice", None) or DEFAULT_FISH_VOICE
+        if is_blocked_fish_voice(voice):
+            # A removed local-accent voice (or its auto:* picker) is still
+            # stored on this config; never put it on a call.
+            logger.warning(
+                f"Fish voice {voice} is a removed local-accent voice; "
+                f"using the standard voice {DEFAULT_FISH_VOICE} instead."
+            )
+            voice = DEFAULT_FISH_VOICE
         model = getattr(user_config.tts, "model", None) or "s2.1-pro"
         latency = getattr(user_config.tts, "latency", None) or "balanced"
         speed = getattr(user_config.tts, "speed", None)

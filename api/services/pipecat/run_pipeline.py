@@ -87,7 +87,6 @@ from api.services.pipecat.transport_setup import create_webrtc_transport
 from api.services.pipecat.worker_runner import run_pipeline_worker
 from api.services.pipecat.ws_sender_registry import get_ws_sender
 from api.services.telephony import registry as telephony_registry
-from api.services.voice_routing.accent_voices import resolve_accent_voice
 from api.services.workflow.dto import ReactFlowDTO
 from api.services.workflow.pipecat_engine import PipecatEngine
 from api.services.workflow.workflow_graph import WorkflowGraph
@@ -703,8 +702,6 @@ async def _run_pipeline_impl(
     # Detect realtime mode (speech-to-speech services like OpenAI Realtime, Gemini Live)
     is_realtime = user_config.is_realtime and user_config.realtime is not None
 
-    accent_pick = None
-
     # Create services based on user configuration
     if is_realtime:
         llm = create_realtime_llm_service(
@@ -726,31 +723,6 @@ async def _run_pipeline_impl(
             keyterms=keyterms,
             correlation_id=mps_correlation_id,
         )
-        # "Auto — local accent": swap the auto:* placeholder for the accent
-        # voice matching the prospect's area code before Fish ever sees it.
-        if user_config.tts and user_config.tts.provider == ServiceProviders.FISH.value:
-            accent_pick = resolve_accent_voice(
-                user_config.tts.voice or "", merged_call_context_vars
-            )
-        if accent_pick:
-            user_config = user_config.model_copy(
-                update={
-                    "tts": user_config.tts.model_copy(
-                        update={"voice": accent_pick["voice_id"]}
-                    )
-                }
-            )
-            merged_call_context_vars["accent_voice"] = accent_pick
-            merged_call_context_vars.setdefault(
-                "accent_name", accent_pick["accent_name"]
-            )
-            logger.info(
-                f"Accent voice for workflow run {workflow_run_id}: "
-                f"accent_id={accent_pick['accent_id']} "
-                f"area_code={accent_pick['area_code']} "
-                f"source={accent_pick['source']} "
-                f"voice_set={bool(accent_pick['voice_id'])}"
-            )
         tts = create_tts_service(
             user_config,
             audio_config,
@@ -782,9 +754,6 @@ async def _run_pipeline_impl(
             "llm_provider": user_config.llm.provider,
             "llm_model": user_config.llm.model,
         }
-        if accent_pick:
-            runtime_configuration["accent_id"] = accent_pick["accent_id"]
-            runtime_configuration["accent_name"] = accent_pick["accent_name"]
     merged_call_context_vars = {
         **merged_call_context_vars,
         "runtime_configuration": runtime_configuration,
