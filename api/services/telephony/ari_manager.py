@@ -33,6 +33,7 @@ from api.services.call_concurrency import (
 from api.services.organization_preferences import external_pbx_integrations_enabled
 from api.services.quota_service import authorize_workflow_run_start
 from api.services.telephony.call_transfer_manager import get_call_transfer_manager
+from api.services.telephony.inbound_admission import ari_inbound_admitted
 from api.services.telephony.providers.ari.external_pbx import create_adapter
 from api.services.telephony.transfer_event_protocol import (
     TransferEvent,
@@ -592,6 +593,21 @@ class ARIConnection:
         called_number = channel.get("dialplan", {}).get("exten", "unknown")
         concurrency_slot = None
         workflow_run = None
+
+        # 0. Only callers Hopwhistle has already screened and handed over.
+        #    A call that reached Stasis any other way never passed its TCPA
+        #    litigator screen. See services/telephony/inbound_admission.py.
+        if not ari_inbound_admitted(channel.get("name")):
+            logger.warning(
+                f"[ARI org={self.organization_id}] Refusing inbound channel "
+                f"{channel_id} ({channel.get('name')}) to {called_number}: it did "
+                f"not arrive from Hopwhistle, so its caller was never screened"
+            )
+            try:
+                await self._delete_channel(channel_id)
+            except Exception:
+                pass
+            return
 
         try:
             # 1. Resolve the workflow from the called extension via the

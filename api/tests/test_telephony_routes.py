@@ -12,6 +12,13 @@ from api.services.auth.depends import get_user
 from api.services.call_concurrency import CallConcurrencyLimitError
 
 
+@pytest.fixture(autouse=True)
+def _direct_carrier_inbound_enabled(monkeypatch):
+    # These exercise the provider-webhook inbound path itself, which is off
+    # unless enabled (services/telephony/inbound_admission.py).
+    monkeypatch.setenv("DIRECT_CARRIER_INBOUND_ENABLED", "true")
+
+
 def _make_test_app() -> FastAPI:
     app = FastAPI()
     app.include_router(router)
