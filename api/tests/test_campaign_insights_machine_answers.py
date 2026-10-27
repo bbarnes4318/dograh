@@ -471,3 +471,66 @@ async def test_a_call_with_no_clear_direction_counts_as_outbound(insights, direc
 
     assert result["by_direction"]["outbound"]["kpis"]["dials"] == 1
     assert result["by_direction"]["inbound"]["kpis"]["dials"] == 0
+
+
+# ---------------------------------------------------------------------------
+# Every call with a recording gets a shareable recording link
+# ---------------------------------------------------------------------------
+
+
+class _MintingSession(_FakeSession):
+    """Serves the run rows, then records the token mint and echoes it back."""
+
+    def __init__(self, rows, minted):
+        super().__init__(rows)
+        self._minted = minted
+
+    async def execute(self, statement, params=None, **kwargs):
+        sql = str(statement).lower()
+        if sql.startswith("update workflow_runs"):
+            self._minted.update({p["id"]: p["tok"] for p in params})
+            return None
+        if "public_access_token from workflow_runs" in sql:
+            return [(rid, tok) for rid, tok in self._minted.items()]
+        return _FakeResult(self._rows)
+
+    async def commit(self):
+        return None
+
+
+async def test_every_call_with_a_recording_gets_a_recording_link(insights, monkeypatch):
+    rows = [
+        _row(40, dispo="user_hangup", tags=["user_speech"]),
+        _row(41, dispo="voicemail_detected", tags=["voicemail_detected"]),
+        _row(42, dispo="user_hangup", tags=["user_speech"]),
+        _row(43, dispo="user_hangup", tags=["user_speech"]),
+    ]
+    rows[0]["recording_url"] = "recordings/40.wav"
+    rows[1]["recording_url"] = "recordings/41.wav"
+    rows[2]["recording_url"] = "recordings/42.wav"
+    rows[2]["public_token"] = "existing-token"
+    minted = {}
+
+    async def call(rows, texts):
+        monkeypatch.setattr(
+            reports.db_client, "async_session", lambda: _MintingSession(rows, minted)
+        )
+        return await reports.get_campaign_insights(
+            date="2026-10-16",
+            start_date=None,
+            end_date=None,
+            timezone="America/New_York",
+            workflow_id=None,
+            user=SimpleNamespace(selected_organization_id=1),
+        )
+
+    result = await call(rows, {r["id"]: HUMAN_SOUNDING for r in rows})
+    links = {c["run_id"]: c["recording_link"] for c in result["calls"]}
+
+    # Non-transfer calls, machine answers included, get a link; an existing
+    # token is reused rather than replaced; a call with no recording has none.
+    assert set(minted) == {40, 41}
+    assert links[40].endswith(f"/public/download/workflow/{minted[40]}/recording")
+    assert links[41].endswith(f"/public/download/workflow/{minted[41]}/recording")
+    assert links[42].endswith("/public/download/workflow/existing-token/recording")
+    assert links[43] is None

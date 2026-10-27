@@ -1109,19 +1109,16 @@ async def get_campaign_insights(
         if stored > 0:
             cached[r["id"]] = {**c, "duration": int(round(stored))}
 
-    # ---- shareable recording links for transfers
-    # A transfer is the call people want to hand to a buyer or a manager, so
-    # each one with a recording gets a public token (the same login-free link
-    # the run reports use). Other calls keep whatever token they already have.
+    # ---- shareable recording links
+    # Every call with a recording gets a public token (the same login-free
+    # link the run reports use), so the page's CSV export can carry a link
+    # anyone can click to play or download the call. A token is minted once,
+    # the first time the call is listed; later polls reuse it.
     tokens: Dict[int, str] = {
         r["id"]: r["public_token"] for r in completed_rows if r["public_token"]
     }
     to_mint = [
-        r["id"]
-        for r in completed_rows
-        if r["recording_url"]
-        and r["id"] not in tokens
-        and cached.get(r["id"], {}).get("fired_transfer")
+        r["id"] for r in completed_rows if r["recording_url"] and r["id"] not in tokens
     ]
     if to_mint:
         minted = {rid: str(_uuid.uuid4()) for rid in to_mint}
