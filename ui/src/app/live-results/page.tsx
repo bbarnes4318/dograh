@@ -68,6 +68,8 @@ interface CallRow {
   result: string;
   reason: string | null;
   recording_url: string | null;
+  /** Login-free link to the recording, null when the call has none. */
+  recording_link?: string | null;
   transcript_url: string | null;
   transcript?: string | null;
   transfer?: boolean;
@@ -326,13 +328,15 @@ export default function LiveResultsPage() {
 
   const exportCsv = () => {
     const rows = filteredCalls;
-    const header = ['time', 'phone', 'direction', 'duration_sec', 'who_answered', 'result', 'reason', 'transcript'];
+    const header = ['time', 'phone', 'direction', 'duration_sec', 'who_answered', 'result', 'reason', 'recording_url', 'transcript'];
     const esc = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`;
     const lines = [header.join(',')];
     for (const c of rows) {
       const t = format(new Date(c.time), 'yyyy-MM-dd HH:mm:ss');
       const cleanTranscript = (c.transcript || '').replace(/[\r\n]+/g, ' | ');
-      lines.push([t, c.phone || '', c.direction || '', c.duration, c.category, c.result, c.reason || '', cleanTranscript].map(esc).join(','));
+      // inline=true plays the call in the browser, which also offers a download.
+      const recording = c.recording_link ? `${c.recording_link}?inline=true` : '';
+      lines.push([t, c.phone || '', c.direction || '', c.duration, c.category, c.result, c.reason || '', recording, cleanTranscript].map(esc).join(','));
     }
     const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
