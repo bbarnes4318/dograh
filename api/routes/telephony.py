@@ -38,6 +38,7 @@ from api.services.telephony.factory import (
     get_telephony_provider_by_id,
     get_telephony_provider_for_run,
 )
+from api.services.telephony.inbound_admission import direct_carrier_inbound_admitted
 from api.services.telephony.transfer_event_protocol import (
     TransferEvent,
     TransferEventType,
@@ -761,6 +762,15 @@ async def handle_inbound_run(request: Request):
 
     logger.info("Inbound /run dispatch received")
 
+    # A provider webhook is a call straight from the PSTN that never passed
+    # Hopwhistle's TCPA litigator screen. See inbound_admission.py.
+    if not direct_carrier_inbound_admitted():
+        logger.warning(
+            "/inbound/run: refusing a direct carrier inbound call "
+            "(DIRECT_CARRIER_INBOUND_ENABLED is off; inbound callers come through Hopwhistle)"
+        )
+        return generic_hangup_response()
+
     try:
         webhook_data, raw_body = await parse_webhook_request(request)
         headers = dict(request.headers)
@@ -973,6 +983,13 @@ async def handle_inbound_telephony(
     logger.info(
         f"[legacy /inbound/{{workflow_id}}] Inbound call received for workflow_id: {workflow_id}"
     )
+
+    if not direct_carrier_inbound_admitted():
+        logger.warning(
+            f"[legacy /inbound/{{workflow_id}}] refusing a direct carrier inbound call "
+            f"for workflow {workflow_id} (DIRECT_CARRIER_INBOUND_ENABLED is off)"
+        )
+        return generic_hangup_response()
 
     try:
         webhook_data, raw_body = await parse_webhook_request(request)

@@ -47,6 +47,13 @@ async def _tenant(db, suffix, rsa_pem, api_key, secret, number):
     return SimpleNamespace(user=user, org=org, workflow=workflow, cfg=cfg, phone=phone)
 
 
+@pytest.fixture(autouse=True)
+def _direct_carrier_inbound_enabled(monkeypatch):
+    # These exercise the provider-webhook inbound path itself, which is off
+    # unless enabled (services/telephony/inbound_admission.py).
+    monkeypatch.setenv("DIRECT_CARRIER_INBOUND_ENABLED", "true")
+
+
 @pytest.fixture
 def dispatcher_patches():
     from api.routes import telephony as telephony_routes
