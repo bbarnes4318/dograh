@@ -25,6 +25,7 @@ from api.services.pipecat.gemini_json_schema_adapter import (
 )
 from api.services.pipecat.minimax_tts import MiniMaxOwnedSessionTTSService
 from api.services.pipecat.openai_tts import DograhOpenAITTSService
+from api.services.voice_routing.accent_voices import AUTO_LOCAL_ACCENT
 from api.services.voice_routing.blocked_voices import (
     DEFAULT_FISH_VOICE,
     is_blocked_fish_voice,
@@ -974,6 +975,11 @@ def create_tts_service(
                 f"Fish voice {voice} is a removed local-accent voice; "
                 f"using the standard voice {DEFAULT_FISH_VOICE} instead."
             )
+            voice = DEFAULT_FISH_VOICE
+        elif voice == AUTO_LOCAL_ACCENT:
+            # run_pipeline swaps this for the call's accent clone on agents
+            # with Local Accent Voice on; anything reaching here unresolved
+            # gets the standard voice, never the auto value.
             voice = DEFAULT_FISH_VOICE
         model = getattr(user_config.tts, "model", None) or "s2.1-pro"
         latency = getattr(user_config.tts, "latency", None) or "balanced"

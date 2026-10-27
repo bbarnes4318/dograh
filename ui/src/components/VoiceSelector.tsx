@@ -15,10 +15,17 @@ import { detailFromError } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 
-// Providers that have MPS voice endpoints
-type TTSProviderWithVoices = "elevenlabs" | "deepgram" | "sarvam" | "cartesia" | "dograh" | "rime";
-const MPS_VOICE_PROVIDERS: TTSProviderWithVoices[] = ["elevenlabs", "deepgram", "sarvam", "cartesia", "dograh", "rime"];
+// Providers with a browsable voice list (fish is served from our own
+// local-accent clone registry rather than MPS)
+type TTSProviderWithVoices = "elevenlabs" | "deepgram" | "sarvam" | "cartesia" | "dograh" | "rime" | "fish";
+const MPS_VOICE_PROVIDERS: TTSProviderWithVoices[] = ["elevenlabs", "deepgram", "sarvam", "cartesia", "dograh", "rime", "fish"];
 const ALL_FILTER_VALUE = "__all__";
+// "Auto — Local Accent by Area Code" (fish) stays at the top whatever the
+// search/filters: it is an instruction to pick a clone per call, not a voice.
+const isPinnedVoice = (voice: VoiceInfo) => voice.voice_id.startsWith("auto:");
+// Providers whose list is worth filtering by accent even when the caller
+// didn't ask for filters.
+const ACCENT_FILTER_PROVIDERS = ["fish"];
 
 interface VoiceSelectorProps {
     provider: string;
@@ -69,6 +76,7 @@ export const VoiceSelector: React.FC<VoiceSelectorProps> = ({
             cartesia: "cartesia",
             dograh: "dograh",
             rime: "rime",
+            fish: "fish",
         };
         return providerMap[providerName.toLowerCase()] || null;
     }, []);
@@ -150,6 +158,7 @@ export const VoiceSelector: React.FC<VoiceSelectorProps> = ({
     }, [currentAudio]);
 
     const filteredVoices = voices.filter((voice) => {
+        if (isPinnedVoice(voice)) return true;
         const searchLower = searchTerm.toLowerCase();
         const matchesSearch = (
             voice.name.toLowerCase().includes(searchLower) ||
@@ -175,6 +184,8 @@ export const VoiceSelector: React.FC<VoiceSelectorProps> = ({
     const accentOptions = Array.from(
         new Set(voices.map((voice) => voice.accent?.toLowerCase()).filter(Boolean) as string[]),
     ).sort();
+
+    const showFilterControls = showFilters || ACCENT_FILTER_PROVIDERS.includes(provider.toLowerCase());
 
     const handleSelectVoice = (voiceId: string) => {
         onChange(voiceId);
@@ -317,49 +328,55 @@ export const VoiceSelector: React.FC<VoiceSelectorProps> = ({
                             />
                         </div>
 
-                        {showFilters && (
+                        {showFilterControls && (
                             <div className="grid gap-2 sm:grid-cols-3">
-                                <Select value={genderFilter} onValueChange={setGenderFilter}>
-                                    <SelectTrigger className="h-8">
-                                        <SelectValue placeholder="Gender" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value={ALL_FILTER_VALUE}>All genders</SelectItem>
-                                        {genderOptions.map((gender) => (
-                                            <SelectItem key={gender} value={gender} className="capitalize">
-                                                {gender}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                                {genderOptions.length > 1 && (
+                                    <Select value={genderFilter} onValueChange={setGenderFilter}>
+                                        <SelectTrigger className="h-8">
+                                            <SelectValue placeholder="Gender" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value={ALL_FILTER_VALUE}>All genders</SelectItem>
+                                            {genderOptions.map((gender) => (
+                                                <SelectItem key={gender} value={gender} className="capitalize">
+                                                    {gender}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                )}
 
-                                <Select value={languageFilter} onValueChange={setLanguageFilter}>
-                                    <SelectTrigger className="h-8">
-                                        <SelectValue placeholder="Language" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value={ALL_FILTER_VALUE}>All languages</SelectItem>
-                                        {languageOptions.map((voiceLanguage) => (
-                                            <SelectItem key={voiceLanguage} value={voiceLanguage} className="uppercase">
-                                                {voiceLanguage}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                                {languageOptions.length > 1 && (
+                                    <Select value={languageFilter} onValueChange={setLanguageFilter}>
+                                        <SelectTrigger className="h-8">
+                                            <SelectValue placeholder="Language" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value={ALL_FILTER_VALUE}>All languages</SelectItem>
+                                            {languageOptions.map((voiceLanguage) => (
+                                                <SelectItem key={voiceLanguage} value={voiceLanguage} className="uppercase">
+                                                    {voiceLanguage}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                )}
 
-                                <Select value={accentFilter} onValueChange={setAccentFilter}>
-                                    <SelectTrigger className="h-8">
-                                        <SelectValue placeholder="Accent" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value={ALL_FILTER_VALUE}>All accents</SelectItem>
-                                        {accentOptions.map((accent) => (
-                                            <SelectItem key={accent} value={accent} className="uppercase">
-                                                {accent}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                                {accentOptions.length > 1 && (
+                                    <Select value={accentFilter} onValueChange={setAccentFilter}>
+                                        <SelectTrigger className="h-8">
+                                            <SelectValue placeholder="Accent" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value={ALL_FILTER_VALUE}>All accents</SelectItem>
+                                            {accentOptions.map((accent) => (
+                                                <SelectItem key={accent} value={accent} className="uppercase">
+                                                    {accent}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                )}
                             </div>
                         )}
 

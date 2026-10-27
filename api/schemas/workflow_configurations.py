@@ -89,6 +89,19 @@ class DTMFConfiguration(BaseModel):
     max_digits: int = Field(default=32, gt=0, le=64)
 
 
+class LocalAccentVoiceConfiguration(BaseModel):
+    """Answer each prospect in the Fish clone of their area code's accent.
+
+    Per agent, off by default. Only applies when the agent's TTS is Fish; the
+    agent's own Fish voice is the fallback for numbers that don't map to a
+    provisioned accent clone.
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    enabled: bool = False
+
+
 class CallHygieneConfiguration(BaseModel):
     """Guards that end calls the agent should not be sitting on.
 
@@ -202,6 +215,9 @@ class WorkflowConfigurationDefaults(BaseModel):
     dtmf: DTMFConfiguration = Field(default_factory=DTMFConfiguration)
     call_hygiene: CallHygieneConfiguration = Field(
         default_factory=CallHygieneConfiguration
+    )
+    local_accent_voice: LocalAccentVoiceConfiguration = Field(
+        default_factory=LocalAccentVoiceConfiguration
     )
     max_call_duration: int = Field(
         default=DEFAULT_MAX_CALL_DURATION_SECONDS,

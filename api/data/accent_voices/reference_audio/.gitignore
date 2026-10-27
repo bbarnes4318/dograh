@@ -1,0 +1,7 @@
+# Approved accent reference recordings are cloning inputs only. They are
+# protected source material: never commit them, never ship them in an image
+# (see the root .dockerignore), never serve them. Only this folder's README
+# is tracked.
+*
+!.gitignore
+!README.md

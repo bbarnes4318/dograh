@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 from typing import List, Literal, Optional, TypedDict, Union
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from loguru import logger
 from pydantic import BaseModel, ValidationError
 
@@ -37,6 +37,10 @@ from api.services.organization_preferences import (
 from api.services.user_onboarding import (
     get_onboarding_state,
     update_onboarding_state,
+)
+from api.services.voice_routing.accent_voices import (
+    fish_accent_voice_accents,
+    list_fish_accent_voices,
 )
 
 router = APIRouter(prefix="/user")
@@ -420,7 +424,9 @@ async def reactivate_api_key(
 
 
 # Voice Configuration Endpoints
-TTSProvider = Literal["elevenlabs", "deepgram", "sarvam", "cartesia", "dograh", "rime"]
+TTSProvider = Literal[
+    "elevenlabs", "deepgram", "sarvam", "cartesia", "dograh", "rime", "fish"
+]
 
 
 class VoiceInfo(BaseModel):
@@ -450,6 +456,7 @@ class VoicesResponse(BaseModel):
 @router.get("/configurations/voices/{provider}")
 async def get_voices(
     provider: TTSProvider,
+    request: Request,
     model: Optional[str] = None,
     language: Optional[str] = None,
     q: Optional[str] = None,
@@ -458,6 +465,18 @@ async def get_voices(
     user: UserModel = Depends(get_user),
 ) -> VoicesResponse:
     """Get available voices for a TTS provider."""
+    if provider == "fish":
+        # The Auto local-accent entry plus our provisioned regional clones,
+        # served from the local registry rather than MPS.
+        voices = list_fish_accent_voices(str(request.base_url), q=q, accent=accent)
+        return VoicesResponse(
+            provider="fish",
+            voices=[VoiceInfo(**voice) for voice in voices],
+            facets=VoiceFacets(
+                accents=fish_accent_voice_accents(),
+                languages=["en-US"],
+            ),
+        )
     try:
         result = await mps_service_key_client.get_voices(
             provider=provider,

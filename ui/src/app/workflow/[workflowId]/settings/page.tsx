@@ -1,7 +1,7 @@
 "use client";
 
 import { format } from "date-fns";
-import { ArrowLeft, BookA, Brain, CalendarIcon, Clipboard, Download, ExternalLink, FileDown, Fingerprint, Loader2, Mic, Pause, PhoneOff, Play, Plus, Rocket, Settings, ShieldCheck, Trash2Icon, Upload, Variable, X } from "lucide-react";
+import { ArrowLeft, BookA, Brain, CalendarIcon, Clipboard, Download, ExternalLink, FileDown, Fingerprint, Loader2, MapPin, Mic, Pause, PhoneOff, Play, Plus, Rocket, Settings, ShieldCheck, Trash2Icon, Upload, Variable, X } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -95,6 +95,7 @@ Respond with ONLY "CONVERSATION" if a person answered, or "VOICEMAIL" if it's vo
 const NAV_ITEMS = [
     { id: "general", label: "General", icon: Settings },
     { id: "models", label: "Model Overrides", icon: Brain },
+    { id: "local-accent", label: "Local Accent Voice", icon: MapPin },
     { id: "variables", label: "Template Variables", icon: Variable },
     { id: "dictionary", label: "Dictionary", icon: BookA },
     { id: "voicemail", label: "Voicemail Detection", icon: PhoneOff },
@@ -1248,6 +1249,113 @@ function VoicemailSection({
 }
 
 // ---------------------------------------------------------------------------
+// Section: Local Accent Voice
+// ---------------------------------------------------------------------------
+
+// The TTS provider this agent's calls will use, mirroring the backend: the
+// agent's model override wins, else the org configuration (plus any legacy
+// per-agent tts override). Null when it can't be told from here.
+function effectiveTtsProvider(
+    workflowConfigurations: WorkflowConfigurations,
+    organizationModelConfiguration: OrganizationAiModelConfigurationResponse | null,
+): string | null {
+    const override = workflowConfigurations.model_configuration_v2_override;
+    if (override) {
+        if (override.mode === "dograh") return "dograh";
+        if (override.byok?.mode === "realtime") return "realtime";
+        return override.byok?.pipeline?.tts?.provider ?? null;
+    }
+    const legacyProvider = workflowConfigurations.model_overrides?.tts?.provider;
+    if (legacyProvider) return legacyProvider;
+    const effective = organizationModelConfiguration?.effective_configuration as
+        | { is_realtime?: boolean; tts?: { provider?: string } | null }
+        | undefined;
+    if (!effective) return null;
+    if (effective.is_realtime) return "realtime";
+    return effective.tts?.provider ?? null;
+}
+
+function LocalAccentVoiceSection({
+    workflowConfigurations,
+    workflowName,
+    onSave,
+    organizationModelConfiguration,
+}: {
+    workflowConfigurations: WorkflowConfigurations;
+    workflowName: string;
+    onSave: (configurations: WorkflowConfigurations, workflowName: string) => Promise<void>;
+    organizationModelConfiguration: OrganizationAiModelConfigurationResponse | null;
+}) {
+    const savedEnabled = workflowConfigurations.local_accent_voice?.enabled === true;
+    const [enabled, setEnabled] = useState(savedEnabled);
+    const [isSaving, setIsSaving] = useState(false);
+
+    const isDirty = enabled !== savedEnabled;
+    useUnsavedChanges("local-accent", isDirty);
+
+    const ttsProvider = effectiveTtsProvider(workflowConfigurations, organizationModelConfiguration);
+    const notFish = ttsProvider !== null && ttsProvider !== "fish";
+
+    const handleSave = async () => {
+        setIsSaving(true);
+        try {
+            await onSave(
+                {
+                    ...workflowConfigurations,
+                    local_accent_voice: { ...workflowConfigurations.local_accent_voice, enabled },
+                },
+                workflowName,
+            );
+        } catch (error) {
+            console.error("Failed to save local accent voice setting:", error);
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    return (
+        <Card id="local-accent">
+            <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                    <MapPin className="h-4 w-4" />
+                    Local Accent Voice
+                </CardTitle>
+                <CardDescription>
+                    Answer each caller in the regional voice for their area code, on inbound and outbound
+                    calls. When it&apos;s off, this agent always uses its own voice.
+                </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                <div className="flex items-center space-x-2 rounded-md border bg-muted/20 p-2">
+                    <Switch id="local-accent-enabled" checked={enabled} onCheckedChange={setEnabled} />
+                    <Label htmlFor="local-accent-enabled">Use local accent voice by area code</Label>
+                </div>
+                {enabled && (
+                    <p className="text-xs text-muted-foreground">
+                        Numbers that are toll-free, outside the US, unknown, or in a region without a
+                        provisioned voice use the default regional voice, then this agent&apos;s own Fish
+                        voice.
+                    </p>
+                )}
+                {enabled && notFish && (
+                    <p className="rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200">
+                        This agent&apos;s voice provider is {ttsProvider}, not Fish Audio, so this setting has
+                        no effect until the agent uses Fish Audio for text-to-speech (in Model
+                        Configurations or this agent&apos;s Model Overrides).
+                    </p>
+                )}
+            </CardContent>
+            <CardFooter className="justify-end gap-3 border-t pt-6">
+                {isDirty && <span className="text-xs text-muted-foreground">Unsaved changes</span>}
+                <Button onClick={handleSave} disabled={isSaving || !isDirty}>
+                    {isSaving ? "Saving..." : "Save Local Accent Setting"}
+                </Button>
+            </CardFooter>
+        </Card>
+    );
+}
+
+// ---------------------------------------------------------------------------
 // Section: Call Hygiene
 // ---------------------------------------------------------------------------
 
@@ -1834,6 +1942,14 @@ function WorkflowSettingsInner({
                                 modelConfigurationPricing={modelConfigurationPricing}
                                 modelConfigurationLoading={modelConfigurationLoading}
                                 modelConfigurationError={modelConfigurationError}
+                            />
+
+                            {/* Local Accent Voice */}
+                            <LocalAccentVoiceSection
+                                workflowConfigurations={resolvedWorkflowConfigurationsForRender}
+                                workflowName={workflowName}
+                                onSave={saveWorkflowConfigurations}
+                                organizationModelConfiguration={organizationModelConfiguration}
                             />
 
                             {/* Template Variables */}

@@ -2786,7 +2786,7 @@ export type FishAudioTtsConfiguration = {
     /**
      * Voice
      *
-     * Fish Audio reference_id — the 32-char hex voice-model id from the Fish voice library or one of your own cloned voices. Empty uses the standard voice.
+     * Pick 'Auto — Local Accent by Area Code' to answer each prospect in the cloned regional voice for their area code, or a fixed regional voice. You can still enter any Fish reference_id manually. Empty uses the standard voice.
      */
     voice?: string;
     /**
@@ -3903,6 +3903,23 @@ export type LmntTtsConfiguration = {
      * Language code for synthesis (e.g. 'en', 'es', 'fr', 'de', 'pt', 'zh', 'ko', 'hi').
      */
     language?: string;
+};
+
+/**
+ * LocalAccentVoiceConfiguration
+ *
+ * Answer each prospect in the Fish clone of their area code's accent.
+ *
+ * Per agent, off by default. Only applies when the agent's TTS is Fish; the
+ * agent's own Fish voice is the fallback for numbers that don't map to a
+ * provisioned accent clone.
+ */
+export type LocalAccentVoiceConfiguration = {
+    /**
+     * Enabled
+     */
+    enabled?: boolean;
+    [key: string]: unknown;
 };
 
 /**
@@ -7775,6 +7792,7 @@ export type WorkflowConfigurationDefaults = {
     idle_behavior?: IdleBehaviorConfiguration;
     dtmf?: DtmfConfiguration;
     call_hygiene?: CallHygieneConfiguration;
+    local_accent_voice?: LocalAccentVoiceConfiguration;
     /**
      * Max Call Duration
      */
@@ -10723,7 +10741,7 @@ export type GetVoicesApiV1UserConfigurationsVoicesProviderGetData = {
         /**
          * Provider
          */
-        provider: 'elevenlabs' | 'deepgram' | 'sarvam' | 'cartesia' | 'dograh' | 'rime';
+        provider: 'elevenlabs' | 'deepgram' | 'sarvam' | 'cartesia' | 'dograh' | 'rime' | 'fish';
     };
     query?: {
         /**
@@ -14699,6 +14717,38 @@ export type DownloadWorkflowArtifactApiV1PublicDownloadWorkflowTokenArtifactType
 export type DownloadWorkflowArtifactApiV1PublicDownloadWorkflowTokenArtifactTypeGetError = DownloadWorkflowArtifactApiV1PublicDownloadWorkflowTokenArtifactTypeGetErrors[keyof DownloadWorkflowArtifactApiV1PublicDownloadWorkflowTokenArtifactTypeGetErrors];
 
 export type DownloadWorkflowArtifactApiV1PublicDownloadWorkflowTokenArtifactTypeGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
+export type GetAccentVoicePreviewApiV1PublicAccentVoicesPreviewsFilenameGetData = {
+    body?: never;
+    path: {
+        /**
+         * Filename
+         */
+        filename: string;
+    };
+    query?: never;
+    url: '/api/v1/public/accent-voices/previews/{filename}';
+};
+
+export type GetAccentVoicePreviewApiV1PublicAccentVoicesPreviewsFilenameGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetAccentVoicePreviewApiV1PublicAccentVoicesPreviewsFilenameGetError = GetAccentVoicePreviewApiV1PublicAccentVoicesPreviewsFilenameGetErrors[keyof GetAccentVoicePreviewApiV1PublicAccentVoicesPreviewsFilenameGetErrors];
+
+export type GetAccentVoicePreviewApiV1PublicAccentVoicesPreviewsFilenameGetResponses = {
     /**
      * Successful Response
      */
