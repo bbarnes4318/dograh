@@ -110,7 +110,7 @@ class TestServiceFactoryCamb:
                 mock_instance._settings = MagicMock()
                 MockCambTTS.return_value = mock_instance
 
-                tts = create_tts_service(user_config, audio_config)
+                create_tts_service(user_config, audio_config)
 
                 MockCambTTS.assert_called_once()
                 call_kwargs = MockCambTTS.call_args[1]

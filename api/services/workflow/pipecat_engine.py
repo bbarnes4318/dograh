@@ -736,7 +736,7 @@ class PipecatEngine:
         try:
             self.context.set_otel_span_name(f"llm-{node.name}")
         except AttributeError:
-            logger.warning(f"context has no set_otel_span_name method")
+            logger.warning("context has no set_otel_span_name method")
 
         # Register transition functions if not an end node
         if not node.is_end:

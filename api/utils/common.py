@@ -75,7 +75,7 @@ def _validate_url(url: str) -> None:
     # Check for empty or whitespace-only URLs
     if not url or not url.strip():
         raise ValueError(
-            f"Invalid BACKEND_API_ENDPOINT: URL cannot be empty or whitespace"
+            "Invalid BACKEND_API_ENDPOINT: URL cannot be empty or whitespace"
         )
 
     # Check for malformed schemes (single slash like http:/localhost)
@@ -167,12 +167,12 @@ async def get_backend_endpoints() -> tuple[str, str]:
                 tunnel_urls = await TunnelURLProvider.get_tunnel_urls()
                 if tunnel_urls:
                     logger.debug(
-                        f"Tunnel URLs available, using tunnel URLs instead of localhost"
+                        "Tunnel URLs available, using tunnel URLs instead of localhost"
                     )
                     return tunnel_urls
                 else:
                     logger.debug(
-                        f"Tunnel URLs returned None, proceeding with localhost endpoint"
+                        "Tunnel URLs returned None, proceeding with localhost endpoint"
                     )
             except Exception as e:
                 logger.debug(

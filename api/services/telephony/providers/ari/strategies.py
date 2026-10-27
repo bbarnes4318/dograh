@@ -97,7 +97,7 @@ class ARIBridgeSwapStrategy(TransferStrategy):
             destination_channel_id = transfer_context.call_sid
             if not destination_channel_id:
                 logger.error(
-                    f"[ARI Transfer] No destination channel in transfer context"
+                    "[ARI Transfer] No destination channel in transfer context"
                 )
                 return False
 

@@ -357,7 +357,6 @@ def _openai_realtime_usage_to_sts_metadata(usage: Dict[str, Any]) -> Dict[str, A
         return None
 
     total_in = int(_get_val(usage, "input_tokens", "inputTokens") or 0)
-    total_out = int(_get_val(usage, "output_tokens", "outputTokens") or 0)
 
     in_details = _get_val(usage, "input_token_details", "inputTokenDetails") or {}
     out_details = _get_val(usage, "output_token_details", "outputTokenDetails") or {}

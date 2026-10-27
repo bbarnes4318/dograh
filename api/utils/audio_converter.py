@@ -62,11 +62,9 @@ async def convert_audio_sample_rate(input_path: str, output_sample_rates: list[i
         if "24000" not in input_file.stem:
             output_name = f"{input_file.stem}-{target_rate}-mono"
 
-        # Save as MP3 using ffmpeg if available, otherwise WAV
-        output_path = input_file.parent / f"{output_name}.mp3"
         wav_path = input_file.parent / f"{output_name}.wav"
 
-        # First save as WAV
+        # Save as WAV
         sf.write(wav_path, resampled_data, target_rate, subtype="PCM_16")
         print(f"Saved WAV: {wav_path}")
 

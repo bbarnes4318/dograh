@@ -362,7 +362,7 @@ async def test_configure_inbound_clear_never_touches_shared_application(
 async def test_configure_inbound_reports_application_api_auth_error(
     vonage_provider, app_api
 ):
-    api = app_api({"name": "app", "capabilities": {}}, put_status=401)
+    app_api({"name": "app", "capabilities": {}}, put_status=401)
     result = await vonage_provider().configure_inbound(
         "+15551230002", "https://dograh.test/api/v1/telephony/inbound/run"
     )
