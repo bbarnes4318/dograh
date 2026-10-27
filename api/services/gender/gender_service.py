@@ -182,7 +182,7 @@ class GenderService:
 
                 # No need for additional debug log here as _call_gender_api logs with timing
                 return result
-            except Exception as e:
+            except Exception:
                 # Error already logged in _call_gender_api with timing
                 pass
 
@@ -267,7 +267,7 @@ class GenderService:
             else:
                 raise ValueError(f"GenderAPI HTTP error: {e.response.status_code}")
 
-        except httpx.TimeoutException as e:
+        except httpx.TimeoutException:
             elapsed_time = (
                 (time.perf_counter() - start_time) * 1000
                 if "start_time" in locals()
@@ -276,7 +276,7 @@ class GenderService:
             logger.error(
                 f"GenderAPI timeout for '{first_name}' after {elapsed_time:.2f}ms"
             )
-            raise ValueError(f"GenderAPI request timed out")
+            raise ValueError("GenderAPI request timed out")
 
         except Exception as e:
             elapsed_time = (

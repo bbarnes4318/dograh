@@ -4888,6 +4888,10 @@ export type OrganizationPreferences = {
      * External Pbx Integrations Enabled
      */
     external_pbx_integrations_enabled?: boolean;
+    /**
+     * Inbound Screening Required
+     */
+    inbound_screening_required?: boolean;
 };
 
 /**

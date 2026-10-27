@@ -293,7 +293,6 @@ class ARIProvider(TelephonyProvider):
         """Parse ARI event data into normalized inbound format."""
         channel = webhook_data.get("channel", {})
         caller = channel.get("caller", {})
-        connected = channel.get("connected", {})
 
         return NormalizedInboundData(
             provider=ARIProvider.PROVIDER_NAME,

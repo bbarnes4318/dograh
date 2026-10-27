@@ -52,6 +52,16 @@ async def external_pbx_integrations_enabled(
     return preferences.external_pbx_integrations_enabled
 
 
+async def inbound_screening_required(
+    organization_id: int | None,
+    db=None,
+) -> bool:
+    """Return whether the organization answers only Hopwhistle-screened callers."""
+
+    preferences = await get_organization_preferences(organization_id, db=db)
+    return preferences.inbound_screening_required
+
+
 async def _get_configuration(db, organization_id: int, key: str):
     row = db.get_configuration(organization_id, key)
     if isawaitable(row):

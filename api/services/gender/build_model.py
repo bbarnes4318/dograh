@@ -114,7 +114,7 @@ def save_model(model, output_path="model.txt"):
 
     print(f"\nModel saved to: {output_file}")
     print(f"File size: {file_size_mb:.2f} MB")
-    print(f"\nModel statistics:")
+    print("\nModel statistics:")
     print(f"  Total names: {model['metadata']['total_names']:,}")
     print(
         f"  High confidence names (≥{CONFIDENCE_THRESHOLD}): {model['metadata']['high_confidence_names']:,}"

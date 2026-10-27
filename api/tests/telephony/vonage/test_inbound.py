@@ -48,10 +48,13 @@ async def _tenant(db, suffix, rsa_pem, api_key, secret, number):
 
 
 @pytest.fixture(autouse=True)
-def _direct_carrier_inbound_enabled(monkeypatch):
-    # These exercise the provider-webhook inbound path itself, which is off
-    # unless enabled (services/telephony/inbound_admission.py).
-    monkeypatch.setenv("DIRECT_CARRIER_INBOUND_ENABLED", "true")
+def _inbound_screening_off(monkeypatch):
+    # These exercise the provider-webhook inbound path itself, which an org
+    # with inbound screening on refuses (services/telephony/inbound_admission.py).
+    # Screening is off by default; stub the setting instead of reading it.
+    monkeypatch.setattr(
+        "api.routes.telephony.screening_required", AsyncMock(return_value=False)
+    )
 
 
 @pytest.fixture
@@ -359,7 +362,7 @@ async def test_configure_inbound_clear_never_touches_shared_application(
 async def test_configure_inbound_reports_application_api_auth_error(
     vonage_provider, app_api
 ):
-    api = app_api({"name": "app", "capabilities": {}}, put_status=401)
+    app_api({"name": "app", "capabilities": {}}, put_status=401)
     result = await vonage_provider().configure_inbound(
         "+15551230002", "https://dograh.test/api/v1/telephony/inbound/run"
     )

@@ -38,7 +38,10 @@ from api.services.telephony.factory import (
     get_telephony_provider_by_id,
     get_telephony_provider_for_run,
 )
-from api.services.telephony.inbound_admission import direct_carrier_inbound_admitted
+from api.services.telephony.inbound_admission import (
+    direct_carrier_inbound_admitted,
+    screening_required,
+)
 from api.services.telephony.transfer_event_protocol import (
     TransferEvent,
     TransferEventType,
@@ -762,15 +765,6 @@ async def handle_inbound_run(request: Request):
 
     logger.info("Inbound /run dispatch received")
 
-    # A provider webhook is a call straight from the PSTN that never passed
-    # Hopwhistle's TCPA litigator screen. See inbound_admission.py.
-    if not direct_carrier_inbound_admitted():
-        logger.warning(
-            "/inbound/run: refusing a direct carrier inbound call "
-            "(DIRECT_CARRIER_INBOUND_ENABLED is off; inbound callers come through Hopwhistle)"
-        )
-        return generic_hangup_response()
-
     try:
         webhook_data, raw_body = await parse_webhook_request(request)
         headers = dict(request.headers)
@@ -822,6 +816,19 @@ async def handle_inbound_run(request: Request):
 
         config, phone_row = match
         telephony_configuration_id = config.id
+
+        # A provider webhook is a call straight from the PSTN that never
+        # passed Hopwhistle's TCPA litigator screen; orgs with inbound
+        # screening on don't answer it. See inbound_admission.py.
+        if not direct_carrier_inbound_admitted(
+            screening_required=await screening_required(config.organization_id)
+        ):
+            logger.warning(
+                f"/inbound/run: refusing a direct carrier inbound call for org "
+                f"{config.organization_id} (inbound screening is on; inbound "
+                f"callers come through Hopwhistle)"
+            )
+            return generic_hangup_response()
 
         if not phone_row.inbound_workflow_id:
             logger.warning(
@@ -984,13 +991,6 @@ async def handle_inbound_telephony(
         f"[legacy /inbound/{{workflow_id}}] Inbound call received for workflow_id: {workflow_id}"
     )
 
-    if not direct_carrier_inbound_admitted():
-        logger.warning(
-            f"[legacy /inbound/{{workflow_id}}] refusing a direct carrier inbound call "
-            f"for workflow {workflow_id} (DIRECT_CARRIER_INBOUND_ENABLED is off)"
-        )
-        return generic_hangup_response()
-
     try:
         webhook_data, raw_body = await parse_webhook_request(request)
         logger.info(f"Inbound call data: {dict(webhook_data)}")
@@ -1033,6 +1033,16 @@ async def handle_inbound_telephony(
 
         user_id = workflow_context["user_id"]
         organization_id = workflow_context["organization_id"]
+
+        if not direct_carrier_inbound_admitted(
+            screening_required=await screening_required(organization_id)
+        ):
+            logger.warning(
+                f"[legacy /inbound/{{workflow_id}}] refusing a direct carrier inbound "
+                f"call for workflow {workflow_id} (inbound screening is on)"
+            )
+            return generic_hangup_response()
+
         try:
             concurrency_slot = await call_concurrency.acquire_org_slot(
                 organization_id,

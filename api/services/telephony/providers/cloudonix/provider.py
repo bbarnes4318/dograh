@@ -993,7 +993,7 @@ class CloudonixProvider(TelephonyProvider):
     <Pause length="40"/>
 </Response>"""
 
-        logger.info(f"Cloudonix inbound CXML response content:")
+        logger.info("Cloudonix inbound CXML response content:")
         logger.info(cxml_content)
 
         response = Response(content=cxml_content, media_type="application/xml")
