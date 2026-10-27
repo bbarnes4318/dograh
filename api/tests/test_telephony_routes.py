@@ -13,10 +13,13 @@ from api.services.call_concurrency import CallConcurrencyLimitError
 
 
 @pytest.fixture(autouse=True)
-def _direct_carrier_inbound_enabled(monkeypatch):
-    # These exercise the provider-webhook inbound path itself, which is off
-    # unless enabled (services/telephony/inbound_admission.py).
-    monkeypatch.setenv("DIRECT_CARRIER_INBOUND_ENABLED", "true")
+def _inbound_screening_off(monkeypatch):
+    # These exercise the provider-webhook inbound path itself, which an org
+    # with inbound screening on refuses (services/telephony/inbound_admission.py).
+    # Screening is off by default; stub the setting instead of reading it.
+    monkeypatch.setattr(
+        "api.routes.telephony.screening_required", AsyncMock(return_value=False)
+    )
 
 
 def _make_test_app() -> FastAPI:

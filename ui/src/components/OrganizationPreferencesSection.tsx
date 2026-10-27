@@ -22,6 +22,7 @@ const emptyPreferences: OrganizationPreferences = {
   test_phone_number: "",
   timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
   external_pbx_integrations_enabled: false,
+  inbound_screening_required: false,
 };
 
 const timezoneSelectStyles = {
@@ -134,6 +135,8 @@ export function OrganizationPreferencesSection() {
         timezone: nextPreferences.timezone || emptyPreferences.timezone,
         external_pbx_integrations_enabled:
           nextPreferences.external_pbx_integrations_enabled ?? false,
+        inbound_screening_required:
+          nextPreferences.inbound_screening_required ?? false,
       });
       setTimezone(
         nextPreferences.timezone || emptyPreferences.timezone || "UTC",
@@ -157,6 +160,8 @@ export function OrganizationPreferencesSection() {
               timezone: getTimezoneValue(timezone),
               external_pbx_integrations_enabled:
                 preferences.external_pbx_integrations_enabled ?? false,
+              inbound_screening_required:
+                preferences.inbound_screening_required ?? false,
             },
           },
         );
@@ -175,6 +180,8 @@ export function OrganizationPreferencesSection() {
         timezone: result.data.timezone || emptyPreferences.timezone,
         external_pbx_integrations_enabled:
           result.data.external_pbx_integrations_enabled ?? false,
+        inbound_screening_required:
+          result.data.inbound_screening_required ?? false,
       });
       setTimezone(result.data.timezone || emptyPreferences.timezone || "UTC");
       await refreshConfig();
@@ -238,6 +245,29 @@ export function OrganizationPreferencesSection() {
             setPreferences({
               ...preferences,
               external_pbx_integrations_enabled: checked,
+            })
+          }
+        />
+      </div>
+      <div className="flex items-start justify-between gap-4 rounded-lg border p-4">
+        <div className="space-y-1">
+          <Label htmlFor="settings-inbound-screening">
+            Answer only callers screened by Hopwhistle
+          </Label>
+          <p className="text-xs text-muted-foreground">
+            When on, inbound calls are answered only if Hopwhistle screened the
+            caller (TCPA litigator list) and handed the call over. Calls that
+            reach Dograh any other way, straight from a carrier or a provider
+            webhook, are hung up. When off, every inbound call is answered.
+          </p>
+        </div>
+        <Switch
+          id="settings-inbound-screening"
+          checked={preferences.inbound_screening_required ?? false}
+          onCheckedChange={(checked) =>
+            setPreferences({
+              ...preferences,
+              inbound_screening_required: checked,
             })
           }
         />
