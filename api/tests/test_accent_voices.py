@@ -16,6 +16,7 @@ from fastapi.testclient import TestClient
 from api.routes import public_accent_voices
 from api.routes.user import get_voices
 from api.schemas.ai_model_configuration import EffectiveAIModelConfiguration
+from api.schemas.workflow_configurations import WorkflowConfigurationDefaults
 from api.services.configuration.registry import (
     DeepgramTTSConfiguration,
     FishAudioTTSConfiguration,
@@ -31,6 +32,7 @@ from api.services.voice_routing.accent_voices import (
     accent_runtime_configuration,
     apply_local_accent_voice,
     list_fish_accent_voices,
+    local_accent_enabled,
     resolve_accent_voice,
 )
 from api.services.voice_routing.blocked_voices import DEFAULT_FISH_VOICE
@@ -388,16 +390,21 @@ def _effective_config(voice):
     )
 
 
-def test_apply_swaps_auto_for_the_clone_and_records_it(catalog):
-    config = _effective_config(AUTO_LOCAL_ACCENT)
-    context = {"direction": "inbound", "caller_number": "+18655551234"}
+KNOXVILLE_CALL = {"direction": "inbound", "caller_number": "+18655551234"}
+AGENT_VOICE = "0123456789abcdef0123456789abcdef"
+
+
+@pytest.mark.parametrize("voice", [AGENT_VOICE, AUTO_LOCAL_ACCENT])
+def test_agent_with_setting_on_answers_in_the_area_code_clone(catalog, voice):
+    config = _effective_config(voice)
+    context = dict(KNOXVILLE_CALL)
 
     new_config, pick = apply_local_accent_voice(
-        config, context, workflow_run_id=7, catalog=catalog
+        config, context, enabled=True, workflow_run_id=7, catalog=catalog
     )
 
     assert new_config.tts.voice == FISH_IDS[EAST_TN]
-    assert config.tts.voice == AUTO_LOCAL_ACCENT  # the shared config is untouched
+    assert config.tts.voice == voice  # the shared config is untouched
     assert context["accent_voice"] == {
         "voice_id": FISH_IDS[EAST_TN],
         "accent_id": EAST_TN,
@@ -414,16 +421,88 @@ def test_apply_swaps_auto_for_the_clone_and_records_it(catalog):
     }
 
 
-def test_apply_leaves_fixed_and_non_fish_voices_alone(catalog):
-    context = {"called_number": "2125551234"}
-    fixed = _effective_config("xyz123")
-    assert apply_local_accent_voice(fixed, context, catalog=catalog) == (fixed, None)
+@pytest.mark.parametrize("voice", [AGENT_VOICE, "xyz123", DEFAULT_FISH_VOICE])
+def test_agent_with_setting_off_keeps_its_own_voice(catalog, voice):
+    config = _effective_config(voice)
+    context = dict(KNOXVILLE_CALL)
+
+    assert apply_local_accent_voice(
+        config, context, enabled=False, catalog=catalog
+    ) == (config, None)
+    assert "accent_voice" not in context and "accent_name" not in context
+
+
+def test_auto_voice_on_an_agent_with_setting_off_uses_standard_voice(catalog):
+    context = dict(KNOXVILLE_CALL)
+    new_config, pick = apply_local_accent_voice(
+        _effective_config(AUTO_LOCAL_ACCENT), context, enabled=False, catalog=catalog
+    )
+    assert pick is None
+    assert new_config.tts.voice == DEFAULT_FISH_VOICE
+    assert "accent_voice" not in context
+
+
+def test_agent_voice_is_the_fallback_when_no_clone_is_usable(tmp_path):
+    ids = {k: v for k, v in FISH_IDS.items() if k != DEFAULT}
+    catalog = AccentVoiceCatalog(_fixture_dir(tmp_path, ids))
+    context = {"called_number": "8005551234"}  # toll-free -> 68, not provisioned
+
+    new_config, pick = apply_local_accent_voice(
+        _effective_config(AGENT_VOICE), context, enabled=True, catalog=catalog
+    )
+
+    assert new_config.tts.voice == AGENT_VOICE
+    assert pick == {
+        "voice_id": AGENT_VOICE,
+        "accent_id": None,
+        "accent_name": "",
+        "area_code": None,
+        "source": "agent_voice",
+    }
+    # Without a fixed agent voice the standard voice is the last resort.
+    new_config, pick = apply_local_accent_voice(
+        _effective_config(AUTO_LOCAL_ACCENT), {}, enabled=True, catalog=catalog
+    )
+    assert new_config.tts.voice == DEFAULT_FISH_VOICE
+    assert pick["source"] == "standard_voice"
+
+
+def test_non_fish_agents_are_never_touched(catalog):
+    context = dict(KNOXVILLE_CALL)
     other = EffectiveAIModelConfiguration(
         tts=DeepgramTTSConfiguration(api_key="k", voice=AUTO_LOCAL_ACCENT)
     )
-    assert apply_local_accent_voice(other, context, catalog=catalog) == (other, None)
+    for enabled in (True, False):
+        assert apply_local_accent_voice(
+            other, context, enabled=enabled, catalog=catalog
+        ) == (other, None)
     assert "accent_voice" not in context
     assert accent_runtime_configuration(None) == {}
+
+
+@pytest.mark.parametrize(
+    "configurations, expected",
+    [
+        ({"local_accent_voice": {"enabled": True}}, True),
+        ({"local_accent_voice": {"enabled": False}}, False),
+        ({"local_accent_voice": {}}, False),
+        ({"local_accent_voice": {"enabled": "true"}}, False),
+        ({"local_accent_voice": True}, False),
+        ({}, False),
+        (None, False),
+    ],
+)
+def test_local_accent_enabled_reads_the_agent_setting(configurations, expected):
+    assert local_accent_enabled(configurations) is expected
+
+
+def test_setting_is_off_by_default_in_workflow_configurations():
+    defaults = WorkflowConfigurationDefaults()
+    assert defaults.local_accent_voice.enabled is False
+    assert local_accent_enabled(defaults.model_dump()) is False
+    assert WorkflowConfigurationDefaults.model_validate(
+        {"local_accent_voice": {"enabled": True}}
+    ).local_accent_voice.enabled
 
 
 def test_apply_never_logs_the_full_number(catalog):
@@ -434,7 +513,8 @@ def test_apply_never_logs_the_full_number(catalog):
     try:
         apply_local_accent_voice(
             _effective_config(AUTO_LOCAL_ACCENT),
-            {"direction": "inbound", "caller_number": "+18655551234"},
+            dict(KNOXVILLE_CALL),
+            enabled=True,
             workflow_run_id=42,
             catalog=catalog,
         )
@@ -469,7 +549,7 @@ def test_factory_never_sends_the_auto_value_to_fish(catalog, monkeypatch):
         transport_out_sample_rate=8000, transport_in_sample_rate=8000
     )
     service = create_tts_service(user_config, audio_config)
-    assert service._settings.voice == FISH_IDS[DEFAULT]
+    assert service._settings.voice == DEFAULT_FISH_VOICE
 
 
 # --- preview route ----------------------------------------------------------

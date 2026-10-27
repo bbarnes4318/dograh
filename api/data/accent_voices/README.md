@@ -1,8 +1,10 @@
 # Local accent voices
 
 One private Fish **instant clone** per US regional accent, chosen per call
-from the prospect's area code when a Fish TTS config uses the voice
-`auto:local-accent` ("Auto — Local Accent by Area Code").
+from the prospect's area code. It is switched on **per agent**: Workflow
+Settings → **Local Accent Voice** (`local_accent_voice.enabled` in the agent's
+workflow configuration, off by default). It only applies to agents whose TTS is
+Fish Audio; agents with it off always use their own voice.
 
 ```
 423 ─┐
@@ -23,8 +25,10 @@ from the prospect's area code when a Fish TTS config uses the voice
 
 Only entries with `"status": "ready"` are routed to. Unprovisioned accents, and
 toll-free / non-US / malformed / missing numbers, use accent 68; if 68 has no
-clone either, calls use the standard Fish voice. Nothing is cloned during a
-call.
+clone either, calls use the agent's own Fish voice (or the standard Fish voice
+when the agent's voice is "Auto — Local Accent by Area Code"). On agents with
+the setting off, that Auto voice is the standard voice. Nothing is cloned
+during a call.
 
 ## Provisioning
 

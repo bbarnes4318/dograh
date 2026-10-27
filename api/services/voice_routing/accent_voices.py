@@ -5,9 +5,10 @@ recording to Fish once and writes ``accent_clone_registry.json``
 (accent_id -> fish_voice_id). Many area codes share one accent, and so one
 clone: ``area_code_accent_map.json`` maps each area code to its accent_id.
 
-A Fish TTS config can store a concrete reference_id (that voice on every call)
-or ``AUTO_LOCAL_ACCENT``, in which case ``resolve_accent_voice`` picks the
-clone from the prospect's area code when the call's pipeline is built:
+Routing is switched on per agent (workflow) with the ``local_accent_voice``
+workflow configuration, off by default. For an agent with it on and a Fish TTS,
+``apply_local_accent_voice`` picks the clone from the prospect's area code when
+the call's pipeline is built:
 
 * inbound calls use ``caller_number``; outbound use ``called_number`` (or the
   legacy ``phone_number``) — never our own caller ID — via
@@ -15,7 +16,12 @@ clone from the prospect's area code when the call's pipeline is built:
 * toll-free, non-US, malformed, missing or unmapped numbers, and accents
   without a provisioned clone, use the default accent (68, Colorado / Central
   Rockies, the most neutral of the set);
-* if the default accent has no clone either, the standard Fish voice is used.
+* if the default accent has no clone either, the agent's own Fish voice is
+  used (or the standard Fish voice when the agent has none).
+
+``AUTO_LOCAL_ACCENT`` is a voice-picker value meaning "no fixed voice, always
+the local accent". It still only routes on agents with the setting on; on any
+other agent it falls back to the standard voice and is never sent to Fish.
 
 Call startup only does lookups (phone number -> area code -> accent_id ->
 reference_id); nothing is cloned in the call path. The data files are loaded
@@ -37,7 +43,10 @@ from api.services.sms.recipient import (
     resolve_call_recipient,
     snapshot_call_parties,
 )
-from api.services.voice_routing.blocked_voices import DEFAULT_FISH_VOICE
+from api.services.voice_routing.blocked_voices import (
+    DEFAULT_FISH_VOICE,
+    is_blocked_fish_voice,
+)
 
 DATA_DIR = Path(__file__).resolve().parents[2] / "data" / "accent_voices"
 REGISTRY_FILE = "accent_clone_registry.json"
@@ -53,6 +62,7 @@ STATUS_READY = "ready"
 SOURCE_AREA_CODE = "area_code"
 SOURCE_DEFAULT = "default"
 SOURCE_STANDARD_VOICE = "standard_voice"
+SOURCE_AGENT_VOICE = "agent_voice"
 
 PREVIEW_ROUTE = "api/v1/public/accent-voices/previews"
 PREVIEW_FILENAME_RE = re.compile(r"^\d{3}\.mp3$")
@@ -169,8 +179,9 @@ def _auto_entry(catalog: AccentVoiceCatalog) -> dict:
         "language": "en-US",
         "description": (
             "Picks the cloned regional voice matching each prospect's area code "
-            "when the call starts, inbound and outbound. Toll-free, unknown or "
-            f"unmapped numbers use {default_name}. "
+            "when the call starts, on agents with Local Accent Voice turned on "
+            "in their settings (others use the standard voice). Toll-free, "
+            f"unknown or unmapped numbers use {default_name}. "
             f"{ready} regional voices provisioned."
         ),
     }
@@ -268,14 +279,16 @@ def resolve_accent_voice(
     voice_value: str,
     call_context: Optional[Mapping[str, Any]],
     *,
+    fallback_voice: Optional[str] = None,
     catalog: Optional[AccentVoiceCatalog] = None,
 ) -> Optional[dict]:
     """Pick the clone for ``AUTO_LOCAL_ACCENT``, or None to pass the voice through.
 
     Returns ``{voice_id, accent_id, accent_name, area_code, source}`` where
-    source is "area_code" (the prospect's own accent), "default" (accent 68)
-    or "standard_voice" (no usable clone; accent_id is None). ``voice_id`` is
-    always a real Fish reference_id, never the auto value. Never raises.
+    source is "area_code" (the prospect's own accent), "default" (accent 68),
+    or, when no clone is usable (accent_id None), "agent_voice"
+    (``fallback_voice``) or "standard_voice". ``voice_id`` is always a real
+    Fish reference_id, never the auto value. Never raises.
     """
     if voice_value != AUTO_LOCAL_ACCENT:
         return None
@@ -296,11 +309,11 @@ def resolve_accent_voice(
     voice_id = catalog.voice_id(accent_id)
     if not voice_id:
         return {
-            "voice_id": DEFAULT_FISH_VOICE,
+            "voice_id": fallback_voice or DEFAULT_FISH_VOICE,
             "accent_id": None,
             "accent_name": "",
             "area_code": area_code,
-            "source": SOURCE_STANDARD_VOICE,
+            "source": SOURCE_AGENT_VOICE if fallback_voice else SOURCE_STANDARD_VOICE,
         }
     return {
         "voice_id": voice_id,
@@ -311,33 +324,58 @@ def resolve_accent_voice(
     }
 
 
+def local_accent_enabled(workflow_configurations: Optional[Mapping[str, Any]]) -> bool:
+    """Whether an agent's workflow configuration turns local accent voices on."""
+    setting = (workflow_configurations or {}).get("local_accent_voice")
+    return isinstance(setting, Mapping) and setting.get("enabled") is True
+
+
+def _with_voice(user_config: Any, voice: str) -> Any:
+    tts = user_config.tts
+    return user_config.model_copy(
+        update={"tts": tts.model_copy(update={"voice": voice})}
+    )
+
+
 def apply_local_accent_voice(
     user_config: Any,
     call_context: dict,
     *,
+    enabled: bool,
     workflow_run_id: Any = None,
     catalog: Optional[AccentVoiceCatalog] = None,
 ) -> tuple[Any, Optional[dict]]:
-    """Swap a Fish ``auto:local-accent`` voice for this call's accent clone.
+    """Give a Fish agent with local accents ``enabled`` this call's accent clone.
 
-    Returns ``(user_config, pick)``. When the config is not Fish on auto,
-    ``user_config`` is returned untouched and ``pick`` is None. Otherwise the
-    returned config is a copy whose ``tts.voice`` is the resolved reference_id,
-    and the pick is recorded on ``call_context`` as ``accent_voice`` and
-    ``accent_name`` (so prompts can use ``{{accent_name}}``).
+    Returns ``(user_config, pick)``. For non-Fish configs, and Fish agents with
+    the setting off, ``pick`` is None and the voice is unchanged, except that
+    an ``auto:local-accent`` voice becomes the standard voice. Otherwise the
+    returned config is a copy whose ``tts.voice`` is the resolved reference_id
+    (the agent's own voice is the fallback), and the pick is recorded on
+    ``call_context`` as ``accent_voice`` and ``accent_name`` (so prompts can
+    use ``{{accent_name}}``).
     """
     tts = getattr(user_config, "tts", None)
     if tts is None or getattr(tts, "provider", None) != "fish":
         return user_config, None
-    pick = resolve_accent_voice(
-        getattr(tts, "voice", None) or "", call_context, catalog=catalog
-    )
-    if not pick:
+    voice = getattr(tts, "voice", None) or ""
+
+    if not enabled:
+        if voice == AUTO_LOCAL_ACCENT:
+            logger.info(
+                f"Local accent voice is off for workflow_run_id={workflow_run_id}; "
+                f"using the standard voice instead of {AUTO_LOCAL_ACCENT}"
+            )
+            return _with_voice(user_config, DEFAULT_FISH_VOICE), None
         return user_config, None
 
-    user_config = user_config.model_copy(
-        update={"tts": tts.model_copy(update={"voice": pick["voice_id"]})}
+    fallback = None
+    if voice and voice != AUTO_LOCAL_ACCENT and not is_blocked_fish_voice(voice):
+        fallback = voice
+    pick = resolve_accent_voice(
+        AUTO_LOCAL_ACCENT, call_context, fallback_voice=fallback, catalog=catalog
     )
+    user_config = _with_voice(user_config, pick["voice_id"])
     call_context["accent_voice"] = dict(pick)
     call_context["accent_name"] = pick["accent_name"]
     # Area code only: the prospect's full number is never logged for routing.

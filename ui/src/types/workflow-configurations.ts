@@ -1,5 +1,6 @@
 import type {
     AmbientNoiseConfigurationDefaults,
+    LocalAccentVoiceConfiguration,
     OrganizationAiModelConfigurationV2,
     WorkflowConfigurationDefaults as GeneratedWorkflowConfigurationDefaults,
 } from "@/client/types.gen";
@@ -147,6 +148,7 @@ type WorkflowConfigurationBase = Omit<
     | "context_compaction_enabled"
     | "external_pbx_field_mappings"
     | "call_hygiene"
+    | "local_accent_voice"
 >;
 
 export type WorkflowConfigurations = WorkflowConfigurationBase & {
@@ -161,6 +163,7 @@ export type WorkflowConfigurations = WorkflowConfigurationBase & {
     dictionary?: string;  // Comma-separated words for voice agent to listen for
     voicemail_detection?: VoicemailDetectionConfiguration;
     call_hygiene?: CallHygieneConfiguration;
+    local_accent_voice?: LocalAccentVoiceConfiguration;  // Per-agent area-code accent voices (Fish TTS only)
     transcript_configuration: TranscriptConfiguration;
     context_compaction_enabled: boolean;  // Summarize context on node transitions to remove stale tool calls
     external_pbx_field_mappings: ExternalPBXFieldMapping[];

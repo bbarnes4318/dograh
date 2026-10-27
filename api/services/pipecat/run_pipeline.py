@@ -90,6 +90,7 @@ from api.services.telephony import registry as telephony_registry
 from api.services.voice_routing.accent_voices import (
     accent_runtime_configuration,
     apply_local_accent_voice,
+    local_accent_enabled,
 )
 from api.services.workflow.dto import ReactFlowDTO
 from api.services.workflow.pipecat_engine import PipecatEngine
@@ -729,10 +730,13 @@ async def _run_pipeline_impl(
             keyterms=keyterms,
             correlation_id=mps_correlation_id,
         )
-        # "Auto — Local Accent by Area Code": swap auto:local-accent for the
-        # Fish clone of the prospect's regional accent before Fish sees it.
+        # Agents with Local Accent Voice on answer in the Fish clone of the
+        # prospect's regional accent; resolved before the Fish TTS is built.
         user_config, accent_pick = apply_local_accent_voice(
-            user_config, merged_call_context_vars, workflow_run_id=workflow_run_id
+            user_config,
+            merged_call_context_vars,
+            enabled=local_accent_enabled(run_configs),
+            workflow_run_id=workflow_run_id,
         )
         tts = create_tts_service(
             user_config,
