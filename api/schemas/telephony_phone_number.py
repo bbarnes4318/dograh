@@ -99,6 +99,9 @@ class PhoneNumberResponse(BaseModel):
     label: Optional[str] = None
     inbound_workflow_id: Optional[int] = None
     inbound_workflow_name: Optional[str] = None
+    # Set when the number is in an inbound routing group, which then decides
+    # the agent; inbound_workflow_id is the fallback.
+    inbound_routing_group_id: Optional[int] = None
     is_active: bool
     is_default_caller_id: bool
     extra_metadata: Dict[str, Any]

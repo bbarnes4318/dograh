@@ -1,6 +1,7 @@
 "use client";
 
-import { ExternalLink } from "lucide-react";
+import { ChevronRight, ExternalLink } from "lucide-react";
+import Link from "next/link";
 
 import { MCPSection } from "@/components/MCPSection";
 import { OrganizationPreferencesSection } from "@/components/OrganizationPreferencesSection";
@@ -34,6 +35,24 @@ export default function SettingsPage() {
           </CardHeader>
           <CardContent>
             <OrganizationPreferencesSection />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Inbound Routing</CardTitle>
+            <CardDescription>
+              Choose which agents answer inbound callbacks on a group of numbers,
+              including a percentage split across several agents.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Link
+              href="/inbound-routing"
+              className="inline-flex items-center gap-1 text-sm font-medium underline"
+            >
+              Open Inbound Routing <ChevronRight className="h-4 w-4" />
+            </Link>
           </CardContent>
         </Card>
 

@@ -5,6 +5,7 @@ from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
     JSON,
     Boolean,
+    CheckConstraint,
     Column,
     DateTime,
     Enum,
@@ -281,6 +282,14 @@ class TelephonyPhoneNumberModel(Base):
         ForeignKey("workflows.id", ondelete="SET NULL"),
         nullable=True,
     )
+    # When set and the group is active with weighted targets, inbound calls
+    # are split across the group's workflows; inbound_workflow_id stays the
+    # fallback. See services/telephony/inbound_routing.py.
+    inbound_routing_group_id = Column(
+        Integer,
+        ForeignKey("inbound_routing_groups.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     is_active = Column(
         Boolean, nullable=False, default=True, server_default=text("true")
     )
@@ -310,6 +319,11 @@ class TelephonyPhoneNumberModel(Base):
         ),
         Index("ix_phone_numbers_config", "telephony_configuration_id"),
         Index(
+            "ix_phone_numbers_routing_group",
+            "inbound_routing_group_id",
+            postgresql_where=text("inbound_routing_group_id IS NOT NULL"),
+        ),
+        Index(
             "ix_phone_numbers_workflow",
             "inbound_workflow_id",
             postgresql_where=text("inbound_workflow_id IS NOT NULL"),
@@ -326,6 +340,104 @@ class TelephonyPhoneNumberModel(Base):
             unique=True,
             postgresql_where=text("is_default_caller_id = true"),
         ),
+    )
+
+
+class InboundRoutingGroupModel(Base):
+    """A set of phone numbers whose inbound calls are split across several
+    workflows by weight (e.g. 50% agent 15 / 50% agent 25)."""
+
+    __tablename__ = "inbound_routing_groups"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    name = Column(String(255), nullable=False)
+    is_active = Column(
+        Boolean, nullable=False, default=True, server_default=text("true")
+    )
+    # True: the same caller always reaches the same workflow while the weights
+    # stay the same (hash of the caller's number). False: weighted random.
+    sticky_by_caller = Column(
+        Boolean, nullable=False, default=True, server_default=text("true")
+    )
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
+
+    targets = relationship(
+        "InboundRoutingTargetModel",
+        back_populates="group",
+        cascade="all, delete-orphan",
+        order_by="InboundRoutingTargetModel.workflow_id",
+    )
+
+    __table_args__ = (Index("ix_inbound_routing_groups_org", "organization_id"),)
+
+
+class InboundRoutingTargetModel(Base):
+    __tablename__ = "inbound_routing_targets"
+
+    id = Column(Integer, primary_key=True, index=True)
+    group_id = Column(
+        Integer,
+        ForeignKey("inbound_routing_groups.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    workflow_id = Column(
+        Integer, ForeignKey("workflows.id", ondelete="CASCADE"), nullable=False
+    )
+    weight = Column(Integer, nullable=False, default=0)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
+
+    group = relationship("InboundRoutingGroupModel", back_populates="targets")
+
+    __table_args__ = (
+        UniqueConstraint(
+            "group_id", "workflow_id", name="uq_inbound_routing_targets_group_workflow"
+        ),
+        CheckConstraint(
+            "weight >= 0 AND weight <= 100", name="ck_inbound_routing_targets_weight"
+        ),
+    )
+
+
+class InboundRoutingAuditModel(Base):
+    """Who changed which routing group, and how."""
+
+    __tablename__ = "inbound_routing_audit"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    group_id = Column(
+        Integer,
+        ForeignKey("inbound_routing_groups.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    action = Column(String(64), nullable=False)
+    details = Column(
+        JSON, nullable=False, default=dict, server_default=text("'{}'::json")
+    )
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
+    user = relationship("UserModel")
+
+    __table_args__ = (
+        Index("ix_inbound_routing_audit_org_created", "organization_id", "created_at"),
     )
 
 

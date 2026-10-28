@@ -42,6 +42,10 @@ from api.services.telephony.inbound_admission import (
     direct_carrier_inbound_admitted,
     screening_required,
 )
+from api.services.telephony.inbound_routing import (
+    ROUTING_META_KEY,
+    resolve_inbound_workflow_id,
+)
 from api.services.telephony.transfer_event_protocol import (
     TransferEvent,
     TransferEventType,
@@ -465,6 +469,7 @@ async def _create_inbound_workflow_run(
     normalized_data,
     telephony_configuration_id: int,
     from_phone_number_id: Optional[int] = None,
+    routing_meta: Optional[dict] = None,
 ) -> int:
     """Create workflow run for inbound call and return run ID"""
     call_id = normalized_data.call_id
@@ -489,6 +494,7 @@ async def _create_inbound_workflow_run(
             "direction": "inbound",
             "provider": provider,
             "telephony_configuration_id": telephony_configuration_id,
+            **({ROUTING_META_KEY: routing_meta} if routing_meta else {}),
         },
         gathered_context={
             "call_id": call_id,
@@ -830,7 +836,11 @@ async def handle_inbound_run(request: Request):
             )
             return generic_hangup_response()
 
-        if not phone_row.inbound_workflow_id:
+        # Routing group split (if any), else the number's inbound_workflow_id.
+        workflow_id, routing_meta = await resolve_inbound_workflow_id(
+            phone_row, normalized_data.from_number
+        )
+        if not workflow_id:
             logger.warning(
                 f"/inbound/run: number {normalized_data.to_number} has no "
                 f"inbound_workflow_id assigned"
@@ -839,7 +849,6 @@ async def handle_inbound_run(request: Request):
                 TelephonyError.WORKFLOW_NOT_FOUND
             )
 
-        workflow_id = phone_row.inbound_workflow_id
         workflow = await db_client.get_workflow(
             workflow_id, organization_id=config.organization_id
         )
@@ -891,6 +900,7 @@ async def handle_inbound_run(request: Request):
                 normalized_data,
                 telephony_configuration_id=telephony_configuration_id,
                 from_phone_number_id=phone_row.id,
+                routing_meta=routing_meta,
             )
             await call_concurrency.bind_workflow_run(concurrency_slot, workflow_run_id)
 
