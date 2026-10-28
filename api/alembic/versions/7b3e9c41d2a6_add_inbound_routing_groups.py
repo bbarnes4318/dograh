@@ -44,9 +44,7 @@ def upgrade() -> None:
         ),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index(
-        op.f("ix_inbound_routing_groups_id"), "inbound_routing_groups", ["id"]
-    )
+    op.create_index("ix_inbound_routing_groups_id", "inbound_routing_groups", ["id"])
     op.create_index(
         "ix_inbound_routing_groups_org", "inbound_routing_groups", ["organization_id"]
     )
@@ -71,9 +69,7 @@ def upgrade() -> None:
             "group_id", "workflow_id", name="uq_inbound_routing_targets_group_workflow"
         ),
     )
-    op.create_index(
-        op.f("ix_inbound_routing_targets_id"), "inbound_routing_targets", ["id"]
-    )
+    op.create_index("ix_inbound_routing_targets_id", "inbound_routing_targets", ["id"])
 
     op.create_table(
         "inbound_routing_audit",
@@ -95,9 +91,7 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="SET NULL"),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index(
-        op.f("ix_inbound_routing_audit_id"), "inbound_routing_audit", ["id"]
-    )
+    op.create_index("ix_inbound_routing_audit_id", "inbound_routing_audit", ["id"])
     op.create_index(
         "ix_inbound_routing_audit_org_created",
         "inbound_routing_audit",
@@ -108,15 +102,16 @@ def upgrade() -> None:
     # existing number keeps routing to its inbound_workflow_id.
     op.add_column(
         "telephony_phone_numbers",
-        sa.Column("inbound_routing_group_id", sa.Integer(), nullable=True),
-    )
-    op.create_foreign_key(
-        "fk_phone_numbers_inbound_routing_group",
-        "telephony_phone_numbers",
-        "inbound_routing_groups",
-        ["inbound_routing_group_id"],
-        ["id"],
-        ondelete="SET NULL",
+        sa.Column(
+            "inbound_routing_group_id",
+            sa.Integer(),
+            sa.ForeignKey(
+                "inbound_routing_groups.id",
+                name="fk_phone_numbers_inbound_routing_group",
+                ondelete="SET NULL",
+            ),
+            nullable=True,
+        ),
     )
     op.create_index(
         "ix_phone_numbers_routing_group",
@@ -139,16 +134,10 @@ def downgrade() -> None:
     op.drop_index(
         "ix_inbound_routing_audit_org_created", table_name="inbound_routing_audit"
     )
-    op.drop_index(
-        op.f("ix_inbound_routing_audit_id"), table_name="inbound_routing_audit"
-    )
+    op.drop_index("ix_inbound_routing_audit_id", table_name="inbound_routing_audit")
     op.drop_table("inbound_routing_audit")
-    op.drop_index(
-        op.f("ix_inbound_routing_targets_id"), table_name="inbound_routing_targets"
-    )
+    op.drop_index("ix_inbound_routing_targets_id", table_name="inbound_routing_targets")
     op.drop_table("inbound_routing_targets")
     op.drop_index("ix_inbound_routing_groups_org", table_name="inbound_routing_groups")
-    op.drop_index(
-        op.f("ix_inbound_routing_groups_id"), table_name="inbound_routing_groups"
-    )
+    op.drop_index("ix_inbound_routing_groups_id", table_name="inbound_routing_groups")
     op.drop_table("inbound_routing_groups")
