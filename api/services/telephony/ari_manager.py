@@ -32,6 +32,7 @@ from api.services.call_concurrency import (
 )
 from api.services.organization_preferences import external_pbx_integrations_enabled
 from api.services.quota_service import authorize_workflow_run_start
+from api.services.telephony.blocked_numbers import is_blocked_number
 from api.services.telephony.call_transfer_manager import get_call_transfer_manager
 from api.services.telephony.inbound_admission import (
     ari_inbound_admitted,
@@ -597,7 +598,19 @@ class ARIConnection:
         concurrency_slot = None
         workflow_run = None
 
-        # 0. With inbound screening on (Platform Settings, off by default),
+        # 0. Never answer a caller on the platform block list.
+        if is_blocked_number(caller_number):
+            logger.warning(
+                f"[ARI org={self.organization_id}] Refusing inbound channel "
+                f"{channel_id} from {caller_number}: on the platform block list"
+            )
+            try:
+                await self._delete_channel(channel_id)
+            except Exception:
+                pass
+            return
+
+        # 0b. With inbound screening on (Platform Settings, off by default),
         #    only callers Hopwhistle has already screened and handed over: a
         #    call that reached Stasis any other way never passed its TCPA
         #    litigator screen. See services/telephony/inbound_admission.py.

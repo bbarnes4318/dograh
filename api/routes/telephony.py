@@ -31,6 +31,7 @@ from api.services.call_concurrency import (
     call_concurrency,
 )
 from api.services.quota_service import authorize_workflow_run_start
+from api.services.telephony.blocked_numbers import is_blocked_number
 from api.services.telephony.call_transfer_manager import get_call_transfer_manager
 from api.services.telephony.factory import (
     get_all_telephony_providers,
@@ -137,6 +138,11 @@ async def initiate_call(
         raise HTTPException(
             status_code=400,
             detail="Phone number must be provided in request or set in organization preferences",
+        )
+
+    if is_blocked_number(phone_number):
+        raise HTTPException(
+            status_code=403, detail="Phone number is on the platform block list"
         )
 
     workflow = await db_client.get_workflow(
@@ -786,6 +792,13 @@ async def handle_inbound_run(request: Request):
             )
             return generic_hangup_response()
 
+        if is_blocked_number(normalized_data.from_number):
+            logger.warning(
+                f"/inbound/run: refusing caller {normalized_data.from_number}: "
+                "on the platform block list"
+            )
+            return generic_hangup_response()
+
         # 1. Resolve (config, phone_number) in a single SQL roundtrip that
         # joins telephony_configurations and telephony_phone_numbers and
         # filters on (provider, credentials[account_id_field], called number
@@ -1010,6 +1023,13 @@ async def handle_inbound_telephony(
         # Validate inbound direction
         if normalized_data.direction != "inbound":
             logger.warning(f"Non-inbound call received: {normalized_data.direction}")
+            return generic_hangup_response()
+
+        if is_blocked_number(normalized_data.from_number):
+            logger.warning(
+                f"[legacy /inbound/{{workflow_id}}] refusing caller "
+                f"{normalized_data.from_number}: on the platform block list"
+            )
             return generic_hangup_response()
 
         (
