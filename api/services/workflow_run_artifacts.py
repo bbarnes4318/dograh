@@ -9,6 +9,7 @@ in storage.
 
 from loguru import logger
 
+from api.constants import UPLOAD_SEPARATE_TRACKS
 from api.db import db_client
 from api.services.storage import get_current_storage_backend, storage_fs
 
@@ -57,6 +58,9 @@ async def upload_workflow_run_artifacts(
     remaining artifacts are still attempted.
     """
     storage_backend = get_current_storage_backend()
+
+    if not UPLOAD_SEPARATE_TRACKS:
+        user_audio_wav = bot_audio_wav = None
 
     recordings_metadata: dict[str, dict] = {}
 

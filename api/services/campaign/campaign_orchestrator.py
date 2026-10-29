@@ -374,10 +374,11 @@ class CampaignOrchestrator:
     async def _schedule_next_batch(self, campaign_id: int):
         """Schedule next batch immediately if work available."""
 
-        # Prevent duplicate scheduling with in-memory lock
+        # Prevent duplicate scheduling with in-memory lock. 0.5 s is what
+        # hopwhistle-prod-ash has run (upstream uses 5 s).
         if campaign_id in self._processing_locks:
             lock_time = self._processing_locks[campaign_id]
-            if (datetime.now(UTC) - lock_time).total_seconds() < 5:
+            if (datetime.now(UTC) - lock_time).total_seconds() < 0.5:
                 logger.debug(
                     f"campaign_id: {campaign_id} - Batch already scheduled recently"
                 )
