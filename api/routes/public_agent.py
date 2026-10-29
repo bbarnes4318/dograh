@@ -19,6 +19,7 @@ from api.services.call_concurrency import (
     call_concurrency,
 )
 from api.services.quota_service import authorize_workflow_run_start
+from api.services.telephony.blocked_numbers import is_blocked_number
 from api.services.telephony.factory import (
     get_default_telephony_provider,
     get_telephony_provider_by_id,
@@ -190,6 +191,11 @@ async def _execute_resolved_target(
     api_key_created_by: int | None,
 ) -> TriggerCallResponse:
     """Shared execution path once the target workflow has been resolved."""
+    if is_blocked_number(request.phone_number):
+        raise HTTPException(
+            status_code=403, detail="Phone number is on the platform block list"
+        )
+
     execution_user_id = _get_execution_user_id(target.workflow)
 
     # Get telephony provider — either the caller-specified config (validated

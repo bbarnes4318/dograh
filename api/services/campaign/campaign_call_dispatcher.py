@@ -29,6 +29,7 @@ from api.services.campaign.errors import (
 )
 from api.services.campaign.rate_limiter import rate_limiter
 from api.services.quota_service import authorize_workflow_run_start
+from api.services.telephony.blocked_numbers import is_blocked_number
 from api.services.workflow.run_creation import prepare_workflow_run_inputs
 from api.utils.common import get_backend_endpoints
 from api.utils.telephony_address import is_dialable_pstn
@@ -418,6 +419,11 @@ class CampaignCallDispatcher:
             if not is_dialable_pstn(phone_number):
                 raise ValueError(
                     f"Undialable phone number in queued run {queued_run.id}"
+                )
+            if is_blocked_number(phone_number):
+                raise ValueError(
+                    f"Phone number in queued run {queued_run.id} is on the "
+                    "platform block list"
                 )
 
             # Get provider for this campaign's pinned telephony config.
