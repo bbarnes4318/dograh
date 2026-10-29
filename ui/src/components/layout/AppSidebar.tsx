@@ -17,6 +17,7 @@ import {
   Megaphone,
   Phone,
   Settings,
+  Split,
   TrendingUp,
   UserRound,
   Workflow,
@@ -108,6 +109,11 @@ const NAV_SECTIONS: SidebarNavSection[] = [
         url: "/telephony-configurations",
         icon: Phone,
         showsTelephonyWarning: true,
+      },
+      {
+        title: "Inbound Routing",
+        url: "/inbound-routing",
+        icon: Split,
       },
       {
         title: "Tools",

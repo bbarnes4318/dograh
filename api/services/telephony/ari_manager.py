@@ -38,6 +38,10 @@ from api.services.telephony.inbound_admission import (
     ari_inbound_admitted,
     screening_required,
 )
+from api.services.telephony.inbound_routing import (
+    ROUTING_META_KEY,
+    resolve_inbound_workflow_id,
+)
 from api.services.telephony.providers.ari.external_pbx import create_adapter
 from api.services.telephony.transfer_event_protocol import (
     TransferEvent,
@@ -649,7 +653,10 @@ class ARIConnection:
                 await self._delete_channel(channel_id)
                 return
 
-            inbound_workflow_id = phone_row.inbound_workflow_id
+            # Routing group split (if any), else the number's inbound_workflow_id.
+            inbound_workflow_id, routing_meta = await resolve_inbound_workflow_id(
+                phone_row, caller_number
+            )
             if not inbound_workflow_id:
                 logger.warning(
                     f"[ARI org={self.organization_id}] Inbound call to extension "
@@ -708,6 +715,7 @@ class ARIConnection:
                     "provider": "ari",
                     "telephony_configuration_id": self.telephony_configuration_id,
                     "external_pbx_call": external_pbx_call,
+                    **({ROUTING_META_KEY: routing_meta} if routing_meta else {}),
                 },
                 gathered_context={
                     "call_id": call_id,

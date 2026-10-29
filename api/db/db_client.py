@@ -3,6 +3,7 @@ from api.db.api_key_client import APIKeyClient
 from api.db.campaign_client import CampaignClient
 from api.db.embed_token_client import EmbedTokenClient
 from api.db.folder_client import FolderClient
+from api.db.inbound_routing_client import InboundRoutingClient
 from api.db.integration_client import IntegrationClient
 from api.db.knowledge_base_client import KnowledgeBaseClient
 from api.db.organization_client import OrganizationClient
@@ -44,6 +45,7 @@ class DBClient(
     WorkflowRecordingClient,
     TelephonyConfigurationClient,
     TelephonyPhoneNumberClient,
+    InboundRoutingClient,
     FolderClient,
 ):
     """
@@ -67,6 +69,7 @@ class DBClient(
     - WebhookDeliveryClient: handles durable outbound webhook delivery records
     - ToolClient: handles tool operations for reusable HTTP API tools
     - KnowledgeBaseClient: handles knowledge base document and vector search operations
+    - InboundRoutingClient: handles inbound routing groups (weighted call splits)
     - FolderClient: handles folder operations for grouping workflows (agents)
     """
 

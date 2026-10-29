@@ -3670,6 +3670,170 @@ export type ImpersonateResponse = {
 };
 
 /**
+ * InboundRoutingAuditEntry
+ */
+export type InboundRoutingAuditEntry = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Group Id
+     */
+    group_id?: number | null;
+    /**
+     * User Id
+     */
+    user_id?: number | null;
+    /**
+     * User Email
+     */
+    user_email?: string | null;
+    /**
+     * Action
+     */
+    action: string;
+    /**
+     * Details
+     */
+    details: {
+        [key: string]: unknown;
+    };
+    /**
+     * Created At
+     */
+    created_at: string;
+};
+
+/**
+ * InboundRoutingAuditResponse
+ */
+export type InboundRoutingAuditResponse = {
+    /**
+     * Entries
+     */
+    entries: Array<InboundRoutingAuditEntry>;
+};
+
+/**
+ * InboundRoutingGroupCreateRequest
+ */
+export type InboundRoutingGroupCreateRequest = {
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Is Active
+     */
+    is_active?: boolean;
+    /**
+     * Sticky By Caller
+     */
+    sticky_by_caller?: boolean;
+    /**
+     * Targets
+     */
+    targets: Array<RoutingTarget>;
+};
+
+/**
+ * InboundRoutingGroupListResponse
+ */
+export type InboundRoutingGroupListResponse = {
+    /**
+     * Groups
+     */
+    groups: Array<InboundRoutingGroupResponse>;
+};
+
+/**
+ * InboundRoutingGroupResponse
+ */
+export type InboundRoutingGroupResponse = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Is Active
+     */
+    is_active: boolean;
+    /**
+     * Sticky By Caller
+     */
+    sticky_by_caller: boolean;
+    /**
+     * Number Count
+     */
+    number_count?: number;
+    /**
+     * Targets
+     */
+    targets: Array<RoutingTargetResponse>;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * InboundRoutingGroupUpdateRequest
+ */
+export type InboundRoutingGroupUpdateRequest = {
+    /**
+     * Name
+     */
+    name?: string | null;
+    /**
+     * Is Active
+     */
+    is_active?: boolean | null;
+    /**
+     * Sticky By Caller
+     */
+    sticky_by_caller?: boolean | null;
+    /**
+     * Targets
+     */
+    targets?: Array<RoutingTarget> | null;
+};
+
+/**
+ * InboundRoutingStatsResponse
+ */
+export type InboundRoutingStatsResponse = {
+    /**
+     * Group Id
+     */
+    group_id: number;
+    /**
+     * Hours
+     */
+    hours: number;
+    /**
+     * Since
+     */
+    since: string;
+    /**
+     * Total Calls
+     */
+    total_calls: number;
+    /**
+     * Targets
+     */
+    targets: Array<RoutingTargetStats>;
+};
+
+/**
  * Inception
  *
  * Inception Mercury diffusion LLMs. Mercury 2.5 decodes tokens in parallel for very low time-to-first-token, and exposes a reasoning effort knob to trade latency against depth.
@@ -4987,6 +5151,10 @@ export type PhoneNumberResponse = {
      */
     inbound_workflow_name?: string | null;
     /**
+     * Inbound Routing Group Id
+     */
+    inbound_routing_group_id?: number | null;
+    /**
      * Is Active
      */
     is_active: boolean;
@@ -5723,6 +5891,180 @@ export type RimeTtsConfiguration = {
      * ISO 639-1 language code.
      */
     language?: string;
+};
+
+/**
+ * RoutingConfigNumberSummary
+ */
+export type RoutingConfigNumberSummary = {
+    /**
+     * Telephony Configuration Id
+     */
+    telephony_configuration_id: number;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Provider
+     */
+    provider: string;
+    /**
+     * Total Numbers
+     */
+    total_numbers: number;
+    /**
+     * In This Group
+     */
+    in_this_group: number;
+    /**
+     * In Other Group
+     */
+    in_other_group: number;
+};
+
+/**
+ * RoutingNumberDetachRequest
+ */
+export type RoutingNumberDetachRequest = {
+    /**
+     * Telephony Configuration Ids
+     */
+    telephony_configuration_ids?: Array<number>;
+    /**
+     * Phone Number Ids
+     */
+    phone_number_ids?: Array<number>;
+    /**
+     * Inbound Workflow Id
+     */
+    inbound_workflow_id?: number | null;
+    /**
+     * Dry Run
+     */
+    dry_run?: boolean;
+    /**
+     * Detach All
+     */
+    detach_all?: boolean;
+};
+
+/**
+ * RoutingNumberSelection
+ *
+ * Numbers matching ANY selector are affected. Always org-scoped.
+ */
+export type RoutingNumberSelection = {
+    /**
+     * Telephony Configuration Ids
+     */
+    telephony_configuration_ids?: Array<number>;
+    /**
+     * Phone Number Ids
+     */
+    phone_number_ids?: Array<number>;
+    /**
+     * Inbound Workflow Id
+     */
+    inbound_workflow_id?: number | null;
+    /**
+     * Dry Run
+     */
+    dry_run?: boolean;
+};
+
+/**
+ * RoutingNumbersChangeResponse
+ */
+export type RoutingNumbersChangeResponse = {
+    /**
+     * Affected
+     */
+    affected: number;
+    /**
+     * Dry Run
+     */
+    dry_run: boolean;
+    /**
+     * Number Count
+     */
+    number_count: number;
+};
+
+/**
+ * RoutingNumbersSummaryResponse
+ */
+export type RoutingNumbersSummaryResponse = {
+    /**
+     * Number Count
+     */
+    number_count: number;
+    /**
+     * Configurations
+     */
+    configurations: Array<RoutingConfigNumberSummary>;
+};
+
+/**
+ * RoutingTarget
+ */
+export type RoutingTarget = {
+    /**
+     * Workflow Id
+     */
+    workflow_id: number;
+    /**
+     * Weight
+     */
+    weight: number;
+};
+
+/**
+ * RoutingTargetResponse
+ */
+export type RoutingTargetResponse = {
+    /**
+     * Workflow Id
+     */
+    workflow_id: number;
+    /**
+     * Workflow Name
+     */
+    workflow_name?: string | null;
+    /**
+     * Weight
+     */
+    weight: number;
+};
+
+/**
+ * RoutingTargetStats
+ */
+export type RoutingTargetStats = {
+    /**
+     * Workflow Id
+     */
+    workflow_id: number;
+    /**
+     * Workflow Name
+     */
+    workflow_name?: string | null;
+    /**
+     * Calls
+     */
+    calls: number;
+    /**
+     * Actual Percent
+     */
+    actual_percent: number;
+    /**
+     * Target Percent
+     */
+    target_percent: number;
+    /**
+     * Is Target
+     */
+    is_target?: boolean;
 };
 
 /**
@@ -15590,6 +15932,443 @@ export type RenameFolderApiV1FolderFolderIdPutResponses = {
 };
 
 export type RenameFolderApiV1FolderFolderIdPutResponse = RenameFolderApiV1FolderFolderIdPutResponses[keyof RenameFolderApiV1FolderFolderIdPutResponses];
+
+export type ListInboundRoutingGroupsApiV1InboundRoutingGroupsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/inbound-routing-groups';
+};
+
+export type ListInboundRoutingGroupsApiV1InboundRoutingGroupsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListInboundRoutingGroupsApiV1InboundRoutingGroupsGetError = ListInboundRoutingGroupsApiV1InboundRoutingGroupsGetErrors[keyof ListInboundRoutingGroupsApiV1InboundRoutingGroupsGetErrors];
+
+export type ListInboundRoutingGroupsApiV1InboundRoutingGroupsGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: InboundRoutingGroupListResponse;
+};
+
+export type ListInboundRoutingGroupsApiV1InboundRoutingGroupsGetResponse = ListInboundRoutingGroupsApiV1InboundRoutingGroupsGetResponses[keyof ListInboundRoutingGroupsApiV1InboundRoutingGroupsGetResponses];
+
+export type CreateInboundRoutingGroupApiV1InboundRoutingGroupsPostData = {
+    body: InboundRoutingGroupCreateRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/inbound-routing-groups';
+};
+
+export type CreateInboundRoutingGroupApiV1InboundRoutingGroupsPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateInboundRoutingGroupApiV1InboundRoutingGroupsPostError = CreateInboundRoutingGroupApiV1InboundRoutingGroupsPostErrors[keyof CreateInboundRoutingGroupApiV1InboundRoutingGroupsPostErrors];
+
+export type CreateInboundRoutingGroupApiV1InboundRoutingGroupsPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: InboundRoutingGroupResponse;
+};
+
+export type CreateInboundRoutingGroupApiV1InboundRoutingGroupsPostResponse = CreateInboundRoutingGroupApiV1InboundRoutingGroupsPostResponses[keyof CreateInboundRoutingGroupApiV1InboundRoutingGroupsPostResponses];
+
+export type ListInboundRoutingAuditApiV1InboundRoutingGroupsAuditGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Group Id
+         */
+        group_id?: number | null;
+        /**
+         * Limit
+         */
+        limit?: number;
+    };
+    url: '/api/v1/inbound-routing-groups/audit';
+};
+
+export type ListInboundRoutingAuditApiV1InboundRoutingGroupsAuditGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListInboundRoutingAuditApiV1InboundRoutingGroupsAuditGetError = ListInboundRoutingAuditApiV1InboundRoutingGroupsAuditGetErrors[keyof ListInboundRoutingAuditApiV1InboundRoutingGroupsAuditGetErrors];
+
+export type ListInboundRoutingAuditApiV1InboundRoutingGroupsAuditGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: InboundRoutingAuditResponse;
+};
+
+export type ListInboundRoutingAuditApiV1InboundRoutingGroupsAuditGetResponse = ListInboundRoutingAuditApiV1InboundRoutingGroupsAuditGetResponses[keyof ListInboundRoutingAuditApiV1InboundRoutingGroupsAuditGetResponses];
+
+export type DeleteInboundRoutingGroupApiV1InboundRoutingGroupsGroupIdDeleteData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Group Id
+         */
+        group_id: number;
+    };
+    query?: never;
+    url: '/api/v1/inbound-routing-groups/{group_id}';
+};
+
+export type DeleteInboundRoutingGroupApiV1InboundRoutingGroupsGroupIdDeleteErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteInboundRoutingGroupApiV1InboundRoutingGroupsGroupIdDeleteError = DeleteInboundRoutingGroupApiV1InboundRoutingGroupsGroupIdDeleteErrors[keyof DeleteInboundRoutingGroupApiV1InboundRoutingGroupsGroupIdDeleteErrors];
+
+export type DeleteInboundRoutingGroupApiV1InboundRoutingGroupsGroupIdDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
+export type GetInboundRoutingGroupApiV1InboundRoutingGroupsGroupIdGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Group Id
+         */
+        group_id: number;
+    };
+    query?: never;
+    url: '/api/v1/inbound-routing-groups/{group_id}';
+};
+
+export type GetInboundRoutingGroupApiV1InboundRoutingGroupsGroupIdGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetInboundRoutingGroupApiV1InboundRoutingGroupsGroupIdGetError = GetInboundRoutingGroupApiV1InboundRoutingGroupsGroupIdGetErrors[keyof GetInboundRoutingGroupApiV1InboundRoutingGroupsGroupIdGetErrors];
+
+export type GetInboundRoutingGroupApiV1InboundRoutingGroupsGroupIdGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: InboundRoutingGroupResponse;
+};
+
+export type GetInboundRoutingGroupApiV1InboundRoutingGroupsGroupIdGetResponse = GetInboundRoutingGroupApiV1InboundRoutingGroupsGroupIdGetResponses[keyof GetInboundRoutingGroupApiV1InboundRoutingGroupsGroupIdGetResponses];
+
+export type UpdateInboundRoutingGroupApiV1InboundRoutingGroupsGroupIdPatchData = {
+    body: InboundRoutingGroupUpdateRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Group Id
+         */
+        group_id: number;
+    };
+    query?: never;
+    url: '/api/v1/inbound-routing-groups/{group_id}';
+};
+
+export type UpdateInboundRoutingGroupApiV1InboundRoutingGroupsGroupIdPatchErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateInboundRoutingGroupApiV1InboundRoutingGroupsGroupIdPatchError = UpdateInboundRoutingGroupApiV1InboundRoutingGroupsGroupIdPatchErrors[keyof UpdateInboundRoutingGroupApiV1InboundRoutingGroupsGroupIdPatchErrors];
+
+export type UpdateInboundRoutingGroupApiV1InboundRoutingGroupsGroupIdPatchResponses = {
+    /**
+     * Successful Response
+     */
+    200: InboundRoutingGroupResponse;
+};
+
+export type UpdateInboundRoutingGroupApiV1InboundRoutingGroupsGroupIdPatchResponse = UpdateInboundRoutingGroupApiV1InboundRoutingGroupsGroupIdPatchResponses[keyof UpdateInboundRoutingGroupApiV1InboundRoutingGroupsGroupIdPatchResponses];
+
+export type SummarizeInboundRoutingGroupNumbersApiV1InboundRoutingGroupsGroupIdNumbersGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Group Id
+         */
+        group_id: number;
+    };
+    query?: never;
+    url: '/api/v1/inbound-routing-groups/{group_id}/numbers';
+};
+
+export type SummarizeInboundRoutingGroupNumbersApiV1InboundRoutingGroupsGroupIdNumbersGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SummarizeInboundRoutingGroupNumbersApiV1InboundRoutingGroupsGroupIdNumbersGetError = SummarizeInboundRoutingGroupNumbersApiV1InboundRoutingGroupsGroupIdNumbersGetErrors[keyof SummarizeInboundRoutingGroupNumbersApiV1InboundRoutingGroupsGroupIdNumbersGetErrors];
+
+export type SummarizeInboundRoutingGroupNumbersApiV1InboundRoutingGroupsGroupIdNumbersGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: RoutingNumbersSummaryResponse;
+};
+
+export type SummarizeInboundRoutingGroupNumbersApiV1InboundRoutingGroupsGroupIdNumbersGetResponse = SummarizeInboundRoutingGroupNumbersApiV1InboundRoutingGroupsGroupIdNumbersGetResponses[keyof SummarizeInboundRoutingGroupNumbersApiV1InboundRoutingGroupsGroupIdNumbersGetResponses];
+
+export type AttachNumbersToInboundRoutingGroupApiV1InboundRoutingGroupsGroupIdNumbersPostData = {
+    body: RoutingNumberSelection;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Group Id
+         */
+        group_id: number;
+    };
+    query?: never;
+    url: '/api/v1/inbound-routing-groups/{group_id}/numbers';
+};
+
+export type AttachNumbersToInboundRoutingGroupApiV1InboundRoutingGroupsGroupIdNumbersPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AttachNumbersToInboundRoutingGroupApiV1InboundRoutingGroupsGroupIdNumbersPostError = AttachNumbersToInboundRoutingGroupApiV1InboundRoutingGroupsGroupIdNumbersPostErrors[keyof AttachNumbersToInboundRoutingGroupApiV1InboundRoutingGroupsGroupIdNumbersPostErrors];
+
+export type AttachNumbersToInboundRoutingGroupApiV1InboundRoutingGroupsGroupIdNumbersPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: RoutingNumbersChangeResponse;
+};
+
+export type AttachNumbersToInboundRoutingGroupApiV1InboundRoutingGroupsGroupIdNumbersPostResponse = AttachNumbersToInboundRoutingGroupApiV1InboundRoutingGroupsGroupIdNumbersPostResponses[keyof AttachNumbersToInboundRoutingGroupApiV1InboundRoutingGroupsGroupIdNumbersPostResponses];
+
+export type DetachNumbersFromInboundRoutingGroupApiV1InboundRoutingGroupsGroupIdNumbersDetachPostData = {
+    body: RoutingNumberDetachRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Group Id
+         */
+        group_id: number;
+    };
+    query?: never;
+    url: '/api/v1/inbound-routing-groups/{group_id}/numbers/detach';
+};
+
+export type DetachNumbersFromInboundRoutingGroupApiV1InboundRoutingGroupsGroupIdNumbersDetachPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DetachNumbersFromInboundRoutingGroupApiV1InboundRoutingGroupsGroupIdNumbersDetachPostError = DetachNumbersFromInboundRoutingGroupApiV1InboundRoutingGroupsGroupIdNumbersDetachPostErrors[keyof DetachNumbersFromInboundRoutingGroupApiV1InboundRoutingGroupsGroupIdNumbersDetachPostErrors];
+
+export type DetachNumbersFromInboundRoutingGroupApiV1InboundRoutingGroupsGroupIdNumbersDetachPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: RoutingNumbersChangeResponse;
+};
+
+export type DetachNumbersFromInboundRoutingGroupApiV1InboundRoutingGroupsGroupIdNumbersDetachPostResponse = DetachNumbersFromInboundRoutingGroupApiV1InboundRoutingGroupsGroupIdNumbersDetachPostResponses[keyof DetachNumbersFromInboundRoutingGroupApiV1InboundRoutingGroupsGroupIdNumbersDetachPostResponses];
+
+export type GetInboundRoutingGroupStatsApiV1InboundRoutingGroupsGroupIdStatsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Group Id
+         */
+        group_id: number;
+    };
+    query?: {
+        /**
+         * Hours
+         */
+        hours?: number;
+    };
+    url: '/api/v1/inbound-routing-groups/{group_id}/stats';
+};
+
+export type GetInboundRoutingGroupStatsApiV1InboundRoutingGroupsGroupIdStatsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetInboundRoutingGroupStatsApiV1InboundRoutingGroupsGroupIdStatsGetError = GetInboundRoutingGroupStatsApiV1InboundRoutingGroupsGroupIdStatsGetErrors[keyof GetInboundRoutingGroupStatsApiV1InboundRoutingGroupsGroupIdStatsGetErrors];
+
+export type GetInboundRoutingGroupStatsApiV1InboundRoutingGroupsGroupIdStatsGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: InboundRoutingStatsResponse;
+};
+
+export type GetInboundRoutingGroupStatsApiV1InboundRoutingGroupsGroupIdStatsGetResponse = GetInboundRoutingGroupStatsApiV1InboundRoutingGroupsGroupIdStatsGetResponses[keyof GetInboundRoutingGroupStatsApiV1InboundRoutingGroupsGroupIdStatsGetResponses];
 
 export type SignupApiV1AuthSignupPostData = {
     body: SignupRequest;
