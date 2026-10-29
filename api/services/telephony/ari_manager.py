@@ -634,21 +634,20 @@ class ARIConnection:
             return
 
         try:
-            # 1. Resolve the workflow from the called extension via the
-            #    telephony_phone_numbers row scoped to this connection's config.
+            # 1. (HOPWHISTLE_ARI_INBOUND_ANY_CONFIG) Resolve the workflow from the
+            #    called extension via the org's
+            #    active ARI telephony_phone_numbers row. Every ARI config of an
+            #    org shares one Stasis app and only one connection receives its
+            #    events, so the number may belong to another of the org's ARI
+            #    configs than this connection's.
             phone_row = await db_client.find_active_phone_number_for_inbound(
                 self.organization_id, called_number, "ari"
             )
-            if (
-                not phone_row
-                or phone_row.telephony_configuration_id
-                != self.telephony_configuration_id
-            ):
+            if not phone_row:
                 logger.warning(
                     f"[ARI org={self.organization_id}] Inbound call to extension "
-                    f"{called_number} on channel {channel_id} — no matching phone "
-                    f"number registered for config {self.telephony_configuration_id}, "
-                    f"hanging up"
+                    f"{called_number} on channel {channel_id} — no matching ARI "
+                    f"phone number registered in this organization, hanging up"
                 )
                 await self._delete_channel(channel_id)
                 return

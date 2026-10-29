@@ -89,6 +89,17 @@ class ARIConfigurationRequest(BaseModel):
         default_factory=list,
         description="List of SIP extensions/numbers for outbound calls (optional)",
     )
+    outbound_carrier: Literal["fractel", "mash"] = Field(
+        default="fractel",
+        description="Carrier for outbound AI calls: FracTEL, or Mash through the PVN SBC",
+    )
+    pool_numbers: List[str] = Field(
+        default_factory=list,
+        description=(
+            "Caller-ID slots for this configuration instead of its phone numbers "
+            "(Mash: the SBC's DID pool)"
+        ),
+    )
 
 
 class ARIConfigurationResponse(BaseModel):
@@ -101,3 +112,5 @@ class ARIConfigurationResponse(BaseModel):
     ws_client_name: str = ""
     external_pbx: Optional[VicidialExternalPBXConfiguration] = None
     from_numbers: List[str]
+    outbound_carrier: Literal["fractel", "mash"] = "fractel"
+    pool_numbers: List[str] = Field(default_factory=list)

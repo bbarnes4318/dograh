@@ -27,6 +27,7 @@ from api.services.telephony.providers.ari.dialing import (
     transfer_endpoint,
 )
 from api.services.telephony.providers.ari.external_pbx import create_adapter
+from api.services.telephony.providers.ari.stir_shaken import identity_variables
 
 if TYPE_CHECKING:
     from fastapi import WebSocket
@@ -63,6 +64,13 @@ class ARIProvider(TelephonyProvider):
         if isinstance(self.from_numbers, str):
             self.from_numbers = [self.from_numbers]
 
+        # "fractel" (default) or "mash" (through the PVN SBC).
+        self.outbound_carrier = config.get("outbound_carrier") or "fractel"
+        # Caller-ID slots from the config itself instead of the phone-number
+        # table (Mash: the SBC's DID pool; the SBC sets the real caller ID).
+        if config.get("pool_numbers"):
+            self.from_numbers = list(config["pool_numbers"])
+
         self.base_url = f"{self.ari_endpoint}/ari"
 
     def _get_auth(self) -> aiohttp.BasicAuth:
@@ -90,7 +98,9 @@ class ARIProvider(TelephonyProvider):
         endpoint = f"{self.base_url}/channels"
 
         # to_number can be a dial string, a SIP URI or an extension.
-        sip_endpoint = outbound_endpoint(to_number, from_number)
+        sip_endpoint = outbound_endpoint(
+            to_number, from_number, carrier=self.outbound_carrier
+        )
 
         # Prepare channel creation data
         params = {
@@ -115,10 +125,14 @@ class ARIProvider(TelephonyProvider):
             f"via app={self.app_name}, workflow_run_id={workflow_run_id}"
         )
 
+        # STIR/SHAKEN Identity header for FracTEL-bound calls, when enabled.
+        identity = identity_variables(sip_endpoint, from_number)
+
         async with aiohttp.ClientSession() as session:
             async with session.post(
                 endpoint,
                 params=params,
+                json={"variables": identity} if identity else None,
                 auth=self._get_auth(),
             ) as response:
                 response_text = await response.text()

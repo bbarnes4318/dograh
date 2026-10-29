@@ -214,3 +214,7 @@ OSS_JWT_SECRET = os.getenv("OSS_JWT_SECRET", "change-me-in-production")
 OSS_JWT_EXPIRY_HOURS = int(os.getenv("OSS_JWT_EXPIRY_HOURS", "720"))  # 30 days
 
 TUNER_BASE_URL = os.getenv("TUNER_BASE_URL", "https://api.usetuner.ai")
+
+# Upload the separate caller and bot recordings next to the mixed one. Off by
+# default: they were about 2/3 of recording storage and nothing reads them.
+UPLOAD_SEPARATE_TRACKS = os.getenv("UPLOAD_SEPARATE_TRACKS", "false").lower() == "true"

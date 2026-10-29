@@ -201,12 +201,101 @@ def test_dispatcher_with_unknown_transfer_logic_blocks():
 
 
 def test_unknown_mount_blocks_with_actionable_reason():
-    res = run([("/app/api/services/telephony/ari_manager.py", "x = 1\n")])
+    res = run([("/app/api/services/telephony/call_transfer_manager.py", "x = 1\n")])
     assert res.results[0].action == "block"
     assert (
         "mount_manifest.json" in res.blockers[0]
         and "cutover_plan.py diff" in res.blockers[0]
     )
+
+
+# The box-local patches on hopwhistle-prod-ash, reduced to the lines the
+# manifest keys on (see /opt/dograh-patches on the box).
+BOX_ARI_MANAGER = """
+            # HOPWHISTLE_ARI_INBOUND_ANY_CONFIG: every ari config shares the
+            # Stasis app, and only one connection gets its events, so the
+            # number's own config need not match this connection's.
+            if not phone_row:
+"""
+BOX_ARTIFACTS = """
+    # HOPWHISTLE_MIXED_ONLY_V1: keep only the mixed recording. The separate
+    # user/bot tracks were 2/3 of recording storage and nothing reads them.
+    user_audio_wav = bot_audio_wav = None
+"""
+BOX_ORCHESTRATOR = """
+            if (datetime.now(UTC) - lock_time).total_seconds() < 0.5:
+"""
+BOX_ARI_CARRIER = """
+        # HOPWHISTLE_ARI_CARRIER_V1
+        "outbound_carrier": value.get("outbound_carrier") or "fractel",
+"""
+
+
+@pytest.mark.parametrize(
+    "target,text",
+    [
+        ("/app/api/services/telephony/ari_manager.py", BOX_ARI_MANAGER),
+        ("/app/api/services/workflow_run_artifacts.py", BOX_ARTIFACTS),
+        ("/app/api/services/campaign/campaign_orchestrator.py", BOX_ORCHESTRATOR),
+    ],
+)
+def test_box_local_patches_ported_to_source_are_removed(target, text):
+    res = run([(target, text)])
+    assert not res.blockers, res.blockers
+    assert res.results[0].action == "remove"
+
+
+@pytest.mark.parametrize(
+    "target",
+    [
+        "/app/api/services/telephony/providers/ari/__init__.py",
+        "/app/api/services/telephony/providers/ari/config.py",
+    ],
+)
+def test_box_local_ari_carrier_patch_is_removed(target):
+    res = run([(target, BOX_ARI_CARRIER)])
+    assert not res.blockers, res.blockers
+    assert res.results[0].action == "remove"
+
+
+# The box's provider.py: the fork's Oct 15 file (ARI_PJSIP_DEFAULT_TRUNK,
+# ARI_TRANSFER_DEFAULT_CALLER_ID) plus the caller-trunk kit and three box-only
+# additions, reduced to the lines the manifest keys on.
+BOX_PROVIDER = """
+def _pjsip_endpoint(number: str) -> str:
+    trunk = os.environ.get("ARI_PJSIP_DEFAULT_TRUNK", "").strip()
+    # HOPWHISTLE_FRACTEL_PREFIX_V1: FracTEL picks the route/account by
+    prefix = os.environ.get("DOGRAH_FRACTEL_TECH_PREFIX", "").strip()
+# HOPWHISTLE_ARI_CALLER_TRUNK_V1: choose the outbound trunk from the caller ID.
+# HOPWHISTLE_PVN_SHAKEN_V1: sign FracTEL-bound calls with PVN's STIR/SHAKEN
+        # HOPWHISTLE_ARI_CARRIER_V1
+        self.outbound_carrier = config.get("outbound_carrier") or "fractel"
+            transfer_caller_id = (
+                kwargs.get("caller_id")
+                or os.environ.get("ARI_TRANSFER_DEFAULT_CALLER_ID", "").strip()
+            )
+"""
+
+
+def test_box_provider_patch_is_removed_with_its_settings_carried_over():
+    res = run(
+        [(PROVIDER, BOX_PROVIDER)],
+        env={
+            "ARI_PJSIP_DEFAULT_TRUNK": "fractel",
+            "DOGRAH_FRACTEL_TECH_PREFIX": "6125#",
+            "DOGRAH_ARI_CALLER_TRUNKS": "anveo/nanp11:+15550001111",
+        },
+    )
+    assert not res.blockers, res.blockers
+    assert res.results[0].action == "remove"
+    assert res.env["ARI_FRACTEL_TECH_PREFIX"] == "6125#"
+    assert res.env["ARI_CALLER_TRUNKS"] == "anveo/nanp11:+15550001111"
+
+
+def test_pvn_stir_directory_mount_is_kept():
+    res = run([("/run/pvn-stir", "")])
+    assert not res.blockers, res.blockers
+    assert res.results[0].action == "keep"
 
 
 def test_unrecognised_content_of_known_mount_blocks_until_acknowledged():

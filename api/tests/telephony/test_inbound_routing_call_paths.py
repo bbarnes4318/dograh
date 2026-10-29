@@ -5,6 +5,8 @@ decision on the run's initial_context."""
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
 
+import pytest
+
 from api.routes.telephony import handle_inbound_run
 from api.services.telephony import ari_manager
 from api.services.telephony.ari_manager import ARIConnection
@@ -42,11 +44,15 @@ class _InboundARIConnection(ARIConnection):
         self.started.append((channel_id, run_id, workflow_id))
 
 
-async def test_ari_inbound_uses_resolver(monkeypatch):
+# 10 is the connection's own config. 4 is another of the org's ARI configs:
+# they share one Stasis app, so its calls arrive on this connection and must
+# be answered, not hung up.
+@pytest.mark.parametrize("number_config_id", [10, 4])
+async def test_ari_inbound_uses_resolver(monkeypatch, number_config_id):
     phone_row = SimpleNamespace(
         id=501,
         organization_id=11,
-        telephony_configuration_id=10,
+        telephony_configuration_id=number_config_id,
         address="1000",
         inbound_workflow_id=15,
         inbound_routing_group_id=7,

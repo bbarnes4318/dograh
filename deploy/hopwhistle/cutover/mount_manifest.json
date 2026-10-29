@@ -6,7 +6,8 @@
       "kits": [
         "hoppwhistle deploy/dograh/ari-trunk",
         "hoppwhistle deploy/dograh/vonage-trunk/setup_vonage.py",
-        "box-local edits read by the old 2_cutover.sh"
+        "box-local edits read by the old 2_cutover.sh",
+        "box-local /opt/dograh-patches/ari-trunk (FracTEL prefix, Mash carrier, PVN STIR/SHAKEN)"
       ],
       "action": "remove_when_preserved",
       "variants": [
@@ -84,6 +85,33 @@
           ],
           "behaviors": [
             "ari_transfer_caller_id_env"
+          ]
+        },
+        {
+          "id": "fractel_prefix_v1",
+          "detect": [
+            "HOPWHISTLE_FRACTEL_PREFIX_V1"
+          ],
+          "behaviors": [
+            "ari_fractel_tech_prefix"
+          ]
+        },
+        {
+          "id": "ari_carrier_v1_provider",
+          "detect": [
+            "HOPWHISTLE_ARI_CARRIER_V1"
+          ],
+          "behaviors": [
+            "ari_outbound_carrier"
+          ]
+        },
+        {
+          "id": "pvn_shaken_v1",
+          "detect": [
+            "HOPWHISTLE_PVN_SHAKEN_V1"
+          ],
+          "behaviors": [
+            "ari_pvn_stir_shaken"
           ]
         }
       ],
@@ -526,6 +554,113 @@
       "require_one_of": [
         "runs_page_speedup"
       ]
+    },
+    "/app/api/services/telephony/ari_manager.py": {
+      "kits": [
+        "box-local /opt/dograh-patches/ari-inbound"
+      ],
+      "action": "remove_when_preserved",
+      "variants": [
+        {
+          "id": "ari_inbound_any_config",
+          "detect": [
+            "HOPWHISTLE_ARI_INBOUND_ANY_CONFIG"
+          ],
+          "behaviors": [
+            "ari_inbound_any_config"
+          ]
+        }
+      ],
+      "require_one_of": [
+        "ari_inbound_any_config"
+      ]
+    },
+    "/app/api/services/workflow_run_artifacts.py": {
+      "kits": [
+        "box-local /opt/dograh-patches/artifacts-mixed-only"
+      ],
+      "action": "remove_when_preserved",
+      "variants": [
+        {
+          "id": "mixed_only",
+          "detect": [
+            "HOPWHISTLE_MIXED_ONLY_V1"
+          ],
+          "behaviors": [
+            "recordings_mixed_only"
+          ]
+        }
+      ],
+      "require_one_of": [
+        "mixed_only"
+      ]
+    },
+    "/app/api/services/campaign/campaign_orchestrator.py": {
+      "kits": [
+        "box-local /opt/dograh-patches/campaign_orchestrator.py"
+      ],
+      "action": "remove_when_preserved",
+      "variants": [
+        {
+          "id": "short_batch_lock",
+          "detect": [
+            "total_seconds\\(\\) < 0\\.5:"
+          ],
+          "behaviors": [
+            "campaign_short_batch_lock"
+          ]
+        }
+      ],
+      "require_one_of": [
+        "short_batch_lock"
+      ]
+    },
+    "/app/api/services/telephony/providers/ari/__init__.py": {
+      "kits": [
+        "box-local /opt/dograh-patches/ari-carrier"
+      ],
+      "action": "remove_when_preserved",
+      "variants": [
+        {
+          "id": "ari_carrier_v1",
+          "detect": [
+            "HOPWHISTLE_ARI_CARRIER_V1"
+          ],
+          "behaviors": [
+            "ari_outbound_carrier"
+          ]
+        }
+      ],
+      "require_one_of": [
+        "ari_carrier_v1"
+      ]
+    },
+    "/app/api/services/telephony/providers/ari/config.py": {
+      "kits": [
+        "box-local /opt/dograh-patches/ari-carrier"
+      ],
+      "action": "remove_when_preserved",
+      "variants": [
+        {
+          "id": "ari_carrier_v1",
+          "detect": [
+            "HOPWHISTLE_ARI_CARRIER_V1"
+          ],
+          "behaviors": [
+            "ari_outbound_carrier"
+          ]
+        }
+      ],
+      "require_one_of": [
+        "ari_carrier_v1"
+      ]
+    },
+    "/run/pvn-stir": {
+      "kits": [
+        "box-local /opt/dograh-patches/pvn-stir"
+      ],
+      "action": "keep",
+      "variants": []
     }
   },
   "behaviors": {
@@ -934,6 +1069,100 @@
         {
           "path": "/app/api/routes/reports.py",
           "pattern": "_is_machine_answer"
+        }
+      ]
+    },
+    "ari_inbound_any_config": {
+      "description": "Inbound ARI calls are answered for any of the org's active ARI numbers, not only numbers on the receiving connection's config (all ARI configs share one Stasis app).",
+      "status": "in_source",
+      "env": [],
+      "source": "api/services/telephony/ari_manager.py",
+      "evidence": [
+        {
+          "path": "/app/api/services/telephony/ari_manager.py",
+          "pattern": "HOPWHISTLE_ARI_INBOUND_ANY_CONFIG"
+        },
+        {
+          "path": "/app/api/services/telephony/ari_manager.py",
+          "pattern": "^\\s+if not phone_row:$"
+        }
+      ]
+    },
+    "recordings_mixed_only": {
+      "description": "Only the mixed call recording is uploaded; separate caller/bot tracks are dropped (UPLOAD_SEPARATE_TRACKS, default false).",
+      "status": "in_source",
+      "env": [],
+      "source": "api/services/workflow_run_artifacts.py",
+      "evidence": [
+        {
+          "path": "/app/api/services/workflow_run_artifacts.py",
+          "pattern": "if not UPLOAD_SEPARATE_TRACKS:"
+        }
+      ]
+    },
+    "campaign_short_batch_lock": {
+      "description": "Campaign batch-scheduling lock window of 0.5 s (upstream 5 s).",
+      "status": "in_source",
+      "env": [],
+      "source": "api/services/campaign/campaign_orchestrator.py",
+      "evidence": [
+        {
+          "path": "/app/api/services/campaign/campaign_orchestrator.py",
+          "pattern": "total_seconds\\(\\) < 0\\.5:"
+        }
+      ]
+    },
+    "ari_outbound_carrier": {
+      "description": "ARI configs carry outbound_carrier (fractel or mash, via the PVN SBC) and pool_numbers (caller-ID slots replacing the phone-number table).",
+      "status": "in_source",
+      "env": [],
+      "source": "api/services/telephony/providers/ari/config.py",
+      "evidence": [
+        {
+          "path": "/app/api/services/telephony/providers/ari/config.py",
+          "pattern": "outbound_carrier"
+        },
+        {
+          "path": "/app/api/services/telephony/providers/ari/__init__.py",
+          "pattern": "pool_numbers"
+        },
+        {
+          "path": "/app/api/services/telephony/providers/ari/dialing.py",
+          "pattern": "@mash"
+        },
+        {
+          "path": "/app/api/services/telephony/providers/ari/provider.py",
+          "pattern": "carrier=self\\.outbound_carrier"
+        }
+      ]
+    },
+    "ari_fractel_tech_prefix": {
+      "description": "DOGRAH_FRACTEL_TECH_PREFIX: FracTEL tech prefix (e.g. 6125#) before every NANP number dialled on the fractel trunk, transfers included.",
+      "status": "config",
+      "env": [
+        "ARI_FRACTEL_TECH_PREFIX"
+      ],
+      "source": "api/services/telephony/providers/ari/dialing.py",
+      "evidence": [
+        {
+          "path": "/app/api/services/telephony/providers/ari/dialing.py",
+          "pattern": "ARI_FRACTEL_TECH_PREFIX"
+        }
+      ]
+    },
+    "ari_pvn_stir_shaken": {
+      "description": "STIR/SHAKEN Identity header on FracTEL-bound calls with PVN's certificate from /run/pvn-stir, while /run/pvn-stir/ENABLED exists.",
+      "status": "in_source",
+      "env": [],
+      "source": "api/services/telephony/providers/ari/stir_shaken.py",
+      "evidence": [
+        {
+          "path": "/app/api/services/telephony/providers/ari/stir_shaken.py",
+          "pattern": "/run/pvn-stir"
+        },
+        {
+          "path": "/app/api/services/telephony/providers/ari/provider.py",
+          "pattern": "identity_variables\\("
         }
       ]
     }

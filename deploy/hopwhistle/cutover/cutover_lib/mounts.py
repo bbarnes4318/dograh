@@ -191,6 +191,9 @@ DERIVATIONS: dict[str, Callable[[Context], dict[str, str]]] = {
     "ari_dial_prefix": _copy("DOGRAH_ARI_DIAL_PREFIX", "ARI_DIAL_PREFIX"),
     "ari_dial_format": _copy("DOGRAH_ARI_DIAL_FORMAT", "ARI_DIAL_FORMAT"),
     "ari_caller_trunks": _copy("DOGRAH_ARI_CALLER_TRUNKS", "ARI_CALLER_TRUNKS"),
+    "ari_fractel_tech_prefix": _copy(
+        "DOGRAH_FRACTEL_TECH_PREFIX", "ARI_FRACTEL_TECH_PREFIX"
+    ),
     "ari_literal_trunk": _literal_trunk,
     "ari_transfer_caller_id_literal": _transfer_caller_id_literal,
     "transfer_forced_shared_did": _forced_shared_did,
