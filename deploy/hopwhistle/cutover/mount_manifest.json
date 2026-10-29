@@ -526,6 +526,113 @@
       "require_one_of": [
         "runs_page_speedup"
       ]
+    },
+    "/app/api/services/telephony/ari_manager.py": {
+      "kits": [
+        "box-local /opt/dograh-patches/ari-inbound"
+      ],
+      "action": "remove_when_preserved",
+      "variants": [
+        {
+          "id": "ari_inbound_any_config",
+          "detect": [
+            "HOPWHISTLE_ARI_INBOUND_ANY_CONFIG"
+          ],
+          "behaviors": [
+            "ari_inbound_any_config"
+          ]
+        }
+      ],
+      "require_one_of": [
+        "ari_inbound_any_config"
+      ]
+    },
+    "/app/api/services/workflow_run_artifacts.py": {
+      "kits": [
+        "box-local /opt/dograh-patches/artifacts-mixed-only"
+      ],
+      "action": "remove_when_preserved",
+      "variants": [
+        {
+          "id": "mixed_only",
+          "detect": [
+            "HOPWHISTLE_MIXED_ONLY_V1"
+          ],
+          "behaviors": [
+            "recordings_mixed_only"
+          ]
+        }
+      ],
+      "require_one_of": [
+        "mixed_only"
+      ]
+    },
+    "/app/api/services/campaign/campaign_orchestrator.py": {
+      "kits": [
+        "box-local /opt/dograh-patches/campaign_orchestrator.py"
+      ],
+      "action": "remove_when_preserved",
+      "variants": [
+        {
+          "id": "short_batch_lock",
+          "detect": [
+            "total_seconds\\(\\) < 0\\.5:"
+          ],
+          "behaviors": [
+            "campaign_short_batch_lock"
+          ]
+        }
+      ],
+      "require_one_of": [
+        "short_batch_lock"
+      ]
+    },
+    "/app/api/services/telephony/providers/ari/__init__.py": {
+      "kits": [
+        "box-local /opt/dograh-patches/ari-carrier"
+      ],
+      "action": "remove_when_preserved",
+      "variants": [
+        {
+          "id": "ari_carrier_v1",
+          "detect": [
+            "HOPWHISTLE_ARI_CARRIER_V1"
+          ],
+          "behaviors": [
+            "ari_outbound_carrier"
+          ]
+        }
+      ],
+      "require_one_of": [
+        "ari_carrier_v1"
+      ]
+    },
+    "/app/api/services/telephony/providers/ari/config.py": {
+      "kits": [
+        "box-local /opt/dograh-patches/ari-carrier"
+      ],
+      "action": "remove_when_preserved",
+      "variants": [
+        {
+          "id": "ari_carrier_v1",
+          "detect": [
+            "HOPWHISTLE_ARI_CARRIER_V1"
+          ],
+          "behaviors": [
+            "ari_outbound_carrier"
+          ]
+        }
+      ],
+      "require_one_of": [
+        "ari_carrier_v1"
+      ]
+    },
+    "/run/pvn-stir": {
+      "kits": [
+        "box-local /opt/dograh-patches/pvn-stir"
+      ],
+      "action": "keep",
+      "variants": []
     }
   },
   "behaviors": {
@@ -936,6 +1043,53 @@
           "pattern": "_is_machine_answer"
         }
       ]
+    },
+    "ari_inbound_any_config": {
+      "description": "Inbound ARI calls are answered for any of the org's active ARI numbers, not only numbers on the receiving connection's config (all ARI configs share one Stasis app).",
+      "status": "in_source",
+      "env": [],
+      "source": "api/services/telephony/ari_manager.py",
+      "evidence": [
+        {
+          "path": "/app/api/services/telephony/ari_manager.py",
+          "pattern": "HOPWHISTLE_ARI_INBOUND_ANY_CONFIG"
+        },
+        {
+          "path": "/app/api/services/telephony/ari_manager.py",
+          "pattern": "^\\s+if not phone_row:$"
+        }
+      ]
+    },
+    "recordings_mixed_only": {
+      "description": "Only the mixed call recording is uploaded; separate caller/bot tracks are dropped (UPLOAD_SEPARATE_TRACKS, default false).",
+      "status": "in_source",
+      "env": [],
+      "source": "api/services/workflow_run_artifacts.py",
+      "evidence": [
+        {
+          "path": "/app/api/services/workflow_run_artifacts.py",
+          "pattern": "if not UPLOAD_SEPARATE_TRACKS:"
+        }
+      ]
+    },
+    "campaign_short_batch_lock": {
+      "description": "Campaign batch-scheduling lock window of 0.5 s (upstream 5 s).",
+      "status": "in_source",
+      "env": [],
+      "source": "api/services/campaign/campaign_orchestrator.py",
+      "evidence": [
+        {
+          "path": "/app/api/services/campaign/campaign_orchestrator.py",
+          "pattern": "total_seconds\\(\\) < 0\\.5:"
+        }
+      ]
+    },
+    "ari_outbound_carrier": {
+      "description": "ARI configs carry outbound_carrier (fractel or mash) and pool_numbers. Not ported yet: the box's patched ari provider.py reads them and must be ported with them.",
+      "status": "unported",
+      "env": [],
+      "source": "api/services/telephony/providers/ari/config.py",
+      "evidence": []
     }
   }
 }

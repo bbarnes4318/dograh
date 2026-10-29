@@ -59,6 +59,7 @@ async def upload_workflow_run_artifacts(
     """
     storage_backend = get_current_storage_backend()
 
+    # HOPWHISTLE_MIXED_ONLY_V1: by default keep only the mixed recording.
     if not UPLOAD_SEPARATE_TRACKS:
         user_audio_wav = bot_audio_wav = None
 

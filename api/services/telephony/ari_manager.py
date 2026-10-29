@@ -634,7 +634,8 @@ class ARIConnection:
             return
 
         try:
-            # 1. Resolve the workflow from the called extension via the org's
+            # 1. (HOPWHISTLE_ARI_INBOUND_ANY_CONFIG) Resolve the workflow from the
+            #    called extension via the org's
             #    active ARI telephony_phone_numbers row. Every ARI config of an
             #    org shares one Stasis app and only one connection receives its
             #    events, so the number may belong to another of the org's ARI
