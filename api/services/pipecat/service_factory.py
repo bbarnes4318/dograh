@@ -16,7 +16,9 @@ from api.services.configuration.options.openai import (
 )
 from api.services.configuration.registry import (
     INCEPTION_DEFAULT_BASE_URL,
+    INCEPTION_DEFAULT_MODEL,
     INCEPTION_DEFAULT_REASONING_EFFORT,
+    INCEPTION_RETIRED_MODELS,
     ServiceProviders,
 )
 from api.services.pipecat.call_hygiene import build_tts_text_filter
@@ -1030,6 +1032,17 @@ def _migrate_deprecated_google_model(model: str) -> str:
     return model
 
 
+def _migrate_retired_inception_model(model: str) -> str:
+    """Inception retired Mercury 2 and 2.5 in favour of Mercury 3 (same API).
+    Upgrade stored configs that still reference them so calls keep working."""
+    if model in INCEPTION_RETIRED_MODELS:
+        logger.warning(
+            f"Inception model '{model}' is retired; using '{INCEPTION_DEFAULT_MODEL}' instead"
+        )
+        return INCEPTION_DEFAULT_MODEL
+    return model
+
+
 def create_llm_service_from_provider(
     provider: str,
     model: str,
@@ -1092,6 +1105,7 @@ def create_llm_service_from_provider(
             **kwargs,
         )
     elif provider == ServiceProviders.INCEPTION.value:
+        model = _migrate_retired_inception_model(model)
         base_url = base_url or INCEPTION_DEFAULT_BASE_URL
         _validate_runtime_service_url(base_url, "base_url")
         return DograhInceptionLLMService(

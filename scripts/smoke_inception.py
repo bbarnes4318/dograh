@@ -24,7 +24,7 @@ import time
 import httpx
 
 DEFAULT_BASE_URL = "https://api.inceptionlabs.ai/v1"
-DEFAULT_MODEL = "mercury-2.5"
+DEFAULT_MODEL = "mercury-3"
 DEFAULT_REASONING_EFFORT = "low"
 DEFAULT_RUNS = 10
 DEFAULT_BUDGET_MS = 800.0

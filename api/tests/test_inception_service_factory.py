@@ -43,7 +43,7 @@ class TestInceptionLLMConfiguration:
     def test_default_values(self):
         config = InceptionLLMConfiguration(api_key="test-key")
         assert config.provider == ServiceProviders.INCEPTION
-        assert config.model == "mercury-2.5" == INCEPTION_DEFAULT_MODEL
+        assert config.model == "mercury-3" == INCEPTION_DEFAULT_MODEL
         assert config.base_url == "https://api.inceptionlabs.ai/v1"
         assert config.base_url == INCEPTION_DEFAULT_BASE_URL
         assert config.reasoning_effort == "low" == INCEPTION_DEFAULT_REASONING_EFFORT
@@ -54,7 +54,7 @@ class TestInceptionLLMConfiguration:
         field = schema["properties"]["reasoning_effort"]
         assert field["enum"] == ["instant", "low", "medium", "high"]
         assert field["default"] == "low"
-        assert schema["properties"]["model"]["default"] == "mercury-2.5"
+        assert schema["properties"]["model"]["default"] == "mercury-3"
         assert schema["properties"]["base_url"]["default"] == (
             "https://api.inceptionlabs.ai/v1"
         )
@@ -68,12 +68,12 @@ class TestInceptionLLMServiceFactory:
     def test_create_from_provider_passes_model_and_reasoning_effort(self):
         service = create_llm_service_from_provider(
             provider=ServiceProviders.INCEPTION.value,
-            model="mercury-2.5",
+            model="mercury-3",
             api_key="test-key",
             reasoning_effort="high",
         )
         assert _is_dograh_inception(service)
-        assert service._settings.model == "mercury-2.5"
+        assert service._settings.model == "mercury-3"
         assert service._settings.reasoning_effort == "high"
         assert str(service._client.base_url).rstrip("/") == INCEPTION_DEFAULT_BASE_URL
 
@@ -81,15 +81,25 @@ class TestInceptionLLMServiceFactory:
         """Call sites that don't know about the knob still get the saved default."""
         service = create_llm_service_from_provider(
             provider=ServiceProviders.INCEPTION.value,
-            model="mercury-2.5",
+            model="mercury-3",
             api_key="test-key",
         )
         assert service._settings.reasoning_effort == INCEPTION_DEFAULT_REASONING_EFFORT
 
+    @pytest.mark.parametrize("retired", ["mercury-2", "mercury-2.5"])
+    def test_create_from_provider_upgrades_retired_models(self, retired):
+        """Saved configs naming Mercury 2/2.5 keep working after retirement."""
+        service = create_llm_service_from_provider(
+            provider=ServiceProviders.INCEPTION.value,
+            model=retired,
+            api_key="test-key",
+        )
+        assert service._settings.model == "mercury-3"
+
     def test_create_from_provider_honours_custom_base_url(self):
         service = create_llm_service_from_provider(
             provider=ServiceProviders.INCEPTION.value,
-            model="mercury-2.5",
+            model="mercury-3",
             api_key="test-key",
             base_url="https://gateway.example.com/v1",
         )
@@ -104,7 +114,7 @@ class TestInceptionLLMServiceFactory:
         with pytest.raises(HTTPException) as exc_info:
             create_llm_service_from_provider(
                 provider=ServiceProviders.INCEPTION.value,
-                model="mercury-2.5",
+                model="mercury-3",
                 api_key="test-key",
                 base_url="http://169.254.169.254/latest",
             )
@@ -115,11 +125,11 @@ class TestInceptionLLMServiceFactory:
         """Organization-level config path (pipeline runner, text chat, voicemail)."""
         user_config = SimpleNamespace(
             llm=InceptionLLMConfiguration(
-                api_key="test-key", model="mercury-2.5", reasoning_effort="medium"
+                api_key="test-key", model="mercury-3", reasoning_effort="medium"
             )
         )
         service = create_llm_service(user_config)
-        assert service._settings.model == "mercury-2.5"
+        assert service._settings.model == "mercury-3"
         assert service._settings.reasoning_effort == "medium"
 
 
@@ -138,7 +148,7 @@ class TestInceptionModelOverrides:
             {
                 "llm": {
                     "provider": ServiceProviders.INCEPTION.value,
-                    "model": "mercury-2.5",
+                    "model": "mercury-3",
                     "api_key": "inception-key",
                     "reasoning_effort": "instant",
                 }
@@ -165,7 +175,7 @@ class TestInceptionQAPath:
         user_configuration = EffectiveAIModelConfiguration(
             llm={
                 "provider": ServiceProviders.INCEPTION.value,
-                "model": "mercury-2.5",
+                "model": "mercury-3",
                 "api_key": "inception-key",
                 "reasoning_effort": "medium",
             }
@@ -191,7 +201,7 @@ class TestInceptionQAPath:
             ) = await qa_llm_config.resolve_user_llm_config(workflow_run)
 
         assert provider == ServiceProviders.INCEPTION.value
-        assert model == "mercury-2.5"
+        assert model == "mercury-3"
         assert api_key == "inception-key"
         assert kwargs["reasoning_effort"] == "medium"
         assert kwargs["base_url"] == INCEPTION_DEFAULT_BASE_URL
@@ -215,7 +225,7 @@ class TestInceptionStructuredOutputGuard:
     def test_json_schema_response_format_is_downgraded_to_json_mode(self):
         service = create_llm_service_from_provider(
             provider=ServiceProviders.INCEPTION.value,
-            model="mercury-2.5",
+            model="mercury-3",
             api_key="test-key",
         )
         params = self._params(
@@ -232,7 +242,7 @@ class TestInceptionStructuredOutputGuard:
     def test_json_object_response_format_is_left_alone(self):
         service = create_llm_service_from_provider(
             provider=ServiceProviders.INCEPTION.value,
-            model="mercury-2.5",
+            model="mercury-3",
             api_key="test-key",
         )
         params = self._params(service, {"response_format": {"type": "json_object"}})
@@ -255,12 +265,12 @@ class TestInceptionStructuredOutputGuard:
     def test_request_body_carries_model_and_reasoning_effort(self):
         service = create_llm_service_from_provider(
             provider=ServiceProviders.INCEPTION.value,
-            model="mercury-2.5",
+            model="mercury-3",
             api_key="test-key",
             reasoning_effort="low",
         )
         params = self._params(service)
-        assert params["model"] == "mercury-2.5"
+        assert params["model"] == "mercury-3"
         assert params["reasoning_effort"] == "low"
         # `realtime` is Inception-only and unknown to the OpenAI SDK, so
         # pipecat smuggles it through extra_body rather than a top-level key.

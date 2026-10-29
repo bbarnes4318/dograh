@@ -13,7 +13,9 @@ Inception's Mercury models are diffusion LLMs that decode tokens in parallel,
 which keeps time-to-first-token low on phone turns. Selecting Inception reveals
 a **Reasoning effort** setting (`instant`, `low`, `medium`, `high`) that trades
 latency against how much of the decoding budget goes to reasoning; it defaults
-to `low`.
+to `low`. The default model is `mercury-3` (1M context window). Mercury 2 and
+2.5 are retired; saved configurations that still name them are upgraded to
+Mercury 3 automatically.
 
 For locally deployed or self-hosted LLMs, Dograh also supports OpenAI-compatible endpoints such as Ollama and vLLM.
 

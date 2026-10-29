@@ -420,7 +420,7 @@ async def test_observer_logs_llm_ttft_per_turn():
                 TTFBMetricsData(
                     processor="DograhInceptionLLMService#0",
                     value=0.187,
-                    model="mercury-2.5",
+                    model="mercury-3",
                 )
             ]
         )
@@ -432,7 +432,7 @@ async def test_observer_logs_llm_ttft_per_turn():
     assert len(ttft_lines) == 1
     assert "ttft_ms=187.0" in ttft_lines[0]
     assert "processor=DograhInceptionLLMService#0" in ttft_lines[0]
-    assert "model=mercury-2.5" in ttft_lines[0]
+    assert "model=mercury-3" in ttft_lines[0]
 
     # The existing WS/logs-buffer metric event is still emitted unchanged.
     assert messages == [
@@ -441,7 +441,7 @@ async def test_observer_logs_llm_ttft_per_turn():
             "payload": {
                 "ttfb_seconds": 0.187,
                 "processor": "DograhInceptionLLMService#0",
-                "model": "mercury-2.5",
+                "model": "mercury-3",
             },
         }
     ]

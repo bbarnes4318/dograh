@@ -43,7 +43,7 @@ const defaults = defaultsFixture as unknown as ServiceConfigurationDefaults;
 
 const SAVED_INCEPTION_CONFIG = {
     provider: "inception",
-    model: "mercury-2.5",
+    model: "mercury-3",
     api_key: "sk_saved",
     base_url: "https://api.inceptionlabs.ai/v1",
     reasoning_effort: "low",
@@ -131,7 +131,7 @@ describe("BYOK LLM tab — Inception", () => {
         await waitFor(() => expect(providerSelect().value).toBe("inception"));
         expect(screen.getAllByText(/reasoning effort/i).length).toBeGreaterThan(0);
         expect(reasoningEffortSelect()?.value).toBe("low");
-        expect(selectOffering("mercury-2.5")?.value).toBe("mercury-2.5");
+        expect(selectOffering("mercury-3")?.value).toBe("mercury-3");
         expect(
             screen.getByDisplayValue("https://api.inceptionlabs.ai/v1"),
         ).toBeTruthy();
@@ -141,7 +141,7 @@ describe("BYOK LLM tab — Inception", () => {
         renderByokForm({ llm: SAVED_INCEPTION_CONFIG });
 
         await waitFor(() => expect(providerSelect().value).toBe("inception"));
-        expect(selectOffering("mercury-2.5")?.value).toBe("mercury-2.5");
+        expect(selectOffering("mercury-3")?.value).toBe("mercury-3");
         expect(reasoningEffortSelect()?.value).toBe("low");
         expect(
             screen.getByDisplayValue("https://api.inceptionlabs.ai/v1"),
@@ -160,7 +160,7 @@ describe("BYOK LLM tab — Inception", () => {
         const saved = onSave.mock.calls[0][0] as Record<string, unknown>;
         expect(saved.llm).toMatchObject({
             provider: "inception",
-            model: "mercury-2.5",
+            model: "mercury-3",
             reasoning_effort: "medium",
             base_url: "https://api.inceptionlabs.ai/v1",
         });
@@ -179,7 +179,7 @@ describe("BYOK LLM tab — Inception", () => {
                 currentOverrides={{
                     llm: {
                         provider: "inception",
-                        model: "mercury-2.5",
+                        model: "mercury-3",
                         reasoning_effort: "high",
                     },
                 }}
@@ -205,7 +205,7 @@ describe("BYOK LLM tab — Inception", () => {
         };
         expect(saved.model_overrides.llm).toMatchObject({
             provider: "inception",
-            model: "mercury-2.5",
+            model: "mercury-3",
             reasoning_effort: "high",
         });
         expect(Object.keys(saved.model_overrides)).toEqual(["llm"]);
