@@ -28,6 +28,16 @@ from those patches to these names is recorded in
     whose caller ID is listed goes out on that trunk, with the destination and
     caller ID written in that format. Matched on the last ten digits. A
     malformed entry is ignored, never fatal. Never applied to transfers.
+``ARI_FRACTEL_TECH_PREFIX``
+    FracTEL picks the route/account by a tech prefix (e.g. ``6125#``). When
+    set, every NANP number dialled on the ``fractel`` trunk, outbound calls
+    and transfers alike, becomes ``<prefix>1XXXXXXXXXX``. Wins over
+    ``ARI_DIAL_PREFIX``/``ARI_DIAL_FORMAT`` on that trunk. Numbers routed by
+    ``ARI_CALLER_TRUNKS`` are left alone.
+
+An ARI configuration can also send outbound calls through the Mash SBC
+(``outbound_carrier="mash"``): the destination then goes out as
+``PJSIP/1XXXXXXXXXX@mash``, unless ``ARI_CALLER_TRUNKS`` routes the caller ID.
 """
 
 from __future__ import annotations
@@ -89,6 +99,16 @@ def _outbound_number(number: str) -> str:
     return _formatted(number, _env("ARI_DIAL_FORMAT").lower() or "e164")
 
 
+def _fractel_prefixed(number: str, trunk: str) -> str | None:
+    """``<prefix>1XXXXXXXXXX`` for a NANP number on the fractel trunk while
+    ``ARI_FRACTEL_TECH_PREFIX`` is set, else None."""
+    prefix = _env("ARI_FRACTEL_TECH_PREFIX")
+    if trunk != "fractel" or not prefix:
+        return None
+    match = re.fullmatch(r"\+?1?([2-9]\d{9})", re.sub(r"[^\d+]", "", number))
+    return f"{prefix}1{match.group(1)}" if match else None
+
+
 def _caller_routes() -> dict[str, tuple[str, str]]:
     routes: dict[str, tuple[str, str]] = {}
     for part in _env("ARI_CALLER_TRUNKS").split(";"):
@@ -117,15 +137,24 @@ def _route_format(number: str, fmt: str) -> str:
     return digits[-10:] if fmt == "nanp10" else "1" + digits[-10:]
 
 
-def outbound_endpoint(to_number: str, caller: str | None = None) -> str:
-    """Dial string for an outbound AI call."""
+def outbound_endpoint(
+    to_number: str, caller: str | None = None, carrier: str = "fractel"
+) -> str:
+    """Dial string for an outbound AI call. ``carrier`` is the ARI
+    configuration's ``outbound_carrier``."""
     if _has_technology(to_number):
         return to_number
     route = _caller_route(caller)
     if route:
         trunk, fmt = route
         return f"PJSIP/{_route_format(to_number, fmt)}@{trunk}"
-    return _with_trunk(_outbound_number(to_number), _env("ARI_PJSIP_DEFAULT_TRUNK"))
+    if carrier == "mash":
+        return f"PJSIP/{_route_format(to_number, 'nanp11')}@mash"
+    trunk = _env("ARI_PJSIP_DEFAULT_TRUNK")
+    prefixed = _fractel_prefixed(to_number, trunk)
+    if prefixed:
+        return f"PJSIP/{prefixed}@{trunk}"
+    return _with_trunk(_outbound_number(to_number), trunk)
 
 
 def outbound_caller_id(caller: str | None) -> str | None:
@@ -135,8 +164,12 @@ def outbound_caller_id(caller: str | None) -> str | None:
 
 
 def transfer_endpoint(destination: str) -> str:
-    """Dial string for a transfer leg. Never prefixed or reformatted."""
+    """Dial string for a transfer leg. Never prefixed or reformatted, except
+    by ``ARI_FRACTEL_TECH_PREFIX`` on the fractel trunk."""
     if _has_technology(destination):
         return destination
     trunk = _env("ARI_PJSIP_TRANSFER_TRUNK") or _env("ARI_PJSIP_DEFAULT_TRUNK")
+    prefixed = _fractel_prefixed(destination, trunk)
+    if prefixed:
+        return f"PJSIP/{prefixed}@{trunk}"
     return _with_trunk(destination, trunk)

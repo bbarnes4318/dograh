@@ -24,6 +24,8 @@ def _config_loader(value: Dict[str, Any]) -> Dict[str, Any]:
         "app_password": value.get("app_password"),
         "external_pbx": value.get("external_pbx"),
         "from_numbers": value.get("from_numbers", []),
+        "outbound_carrier": value.get("outbound_carrier") or "fractel",
+        "pool_numbers": value.get("pool_numbers") or [],
     }
 
 
@@ -60,6 +62,30 @@ _UI_METADATA = ProviderUIMetadata(
             label="From Extensions",
             type="string-array",
             description="SIP extensions/numbers for outbound calls",
+        ),
+        ProviderUIField(
+            name="outbound_carrier",
+            label="Outbound carrier",
+            type="select",
+            required=False,
+            description=(
+                "Carrier for outbound AI calls. Mash Telecom goes through the PVN "
+                "SBC, which also picks the caller ID from its DID pool."
+            ),
+            options=[
+                ProviderUIOption(value="fractel", label="FracTEL"),
+                ProviderUIOption(value="mash", label="Mash Telecom"),
+            ],
+        ),
+        ProviderUIField(
+            name="pool_numbers",
+            label="Caller-ID pool",
+            type="string-array",
+            required=False,
+            description=(
+                "Optional. Caller-ID slots used instead of this configuration's "
+                "phone numbers (Mash: the SBC's DID pool)."
+            ),
         ),
         ProviderUIField(
             name="external_pbx.type",

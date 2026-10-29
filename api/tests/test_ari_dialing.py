@@ -296,7 +296,7 @@ def test_provider_uses_dialing_module():
     )
     with open(path, encoding="utf-8") as handle:
         source = handle.read()
-    assert "outbound_endpoint(to_number, from_number)" in source
+    assert re.search(r"outbound_endpoint\(\s*to_number, from_number", source)
     assert "outbound_caller_id(from_number)" in source
     assert "transfer_endpoint(destination)" in source
 

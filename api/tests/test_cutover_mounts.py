@@ -245,11 +245,51 @@ def test_box_local_patches_ported_to_source_are_removed(target, text):
     assert res.results[0].action == "remove"
 
 
-def test_box_local_ari_carrier_patch_blocks_until_ported():
-    target = "/app/api/services/telephony/providers/ari/config.py"
+@pytest.mark.parametrize(
+    "target",
+    [
+        "/app/api/services/telephony/providers/ari/__init__.py",
+        "/app/api/services/telephony/providers/ari/config.py",
+    ],
+)
+def test_box_local_ari_carrier_patch_is_removed(target):
     res = run([(target, BOX_ARI_CARRIER)])
-    assert res.results[0].action == "block"
-    assert "ari_outbound_carrier is not in source" in res.blockers[0]
+    assert not res.blockers, res.blockers
+    assert res.results[0].action == "remove"
+
+
+# The box's provider.py: the fork's Oct 15 file (ARI_PJSIP_DEFAULT_TRUNK,
+# ARI_TRANSFER_DEFAULT_CALLER_ID) plus the caller-trunk kit and three box-only
+# additions, reduced to the lines the manifest keys on.
+BOX_PROVIDER = """
+def _pjsip_endpoint(number: str) -> str:
+    trunk = os.environ.get("ARI_PJSIP_DEFAULT_TRUNK", "").strip()
+    # HOPWHISTLE_FRACTEL_PREFIX_V1: FracTEL picks the route/account by
+    prefix = os.environ.get("DOGRAH_FRACTEL_TECH_PREFIX", "").strip()
+# HOPWHISTLE_ARI_CALLER_TRUNK_V1: choose the outbound trunk from the caller ID.
+# HOPWHISTLE_PVN_SHAKEN_V1: sign FracTEL-bound calls with PVN's STIR/SHAKEN
+        # HOPWHISTLE_ARI_CARRIER_V1
+        self.outbound_carrier = config.get("outbound_carrier") or "fractel"
+            transfer_caller_id = (
+                kwargs.get("caller_id")
+                or os.environ.get("ARI_TRANSFER_DEFAULT_CALLER_ID", "").strip()
+            )
+"""
+
+
+def test_box_provider_patch_is_removed_with_its_settings_carried_over():
+    res = run(
+        [(PROVIDER, BOX_PROVIDER)],
+        env={
+            "ARI_PJSIP_DEFAULT_TRUNK": "fractel",
+            "DOGRAH_FRACTEL_TECH_PREFIX": "6125#",
+            "DOGRAH_ARI_CALLER_TRUNKS": "anveo/nanp11:+15550001111",
+        },
+    )
+    assert not res.blockers, res.blockers
+    assert res.results[0].action == "remove"
+    assert res.env["ARI_FRACTEL_TECH_PREFIX"] == "6125#"
+    assert res.env["ARI_CALLER_TRUNKS"] == "anveo/nanp11:+15550001111"
 
 
 def test_pvn_stir_directory_mount_is_kept():
