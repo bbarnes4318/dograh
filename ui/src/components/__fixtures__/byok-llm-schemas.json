@@ -262,7 +262,7 @@
       "type": "object"
     },
     "inception": {
-      "description": "Inception Mercury diffusion LLMs. Mercury 2.5 decodes tokens in parallel for very low time-to-first-token, and exposes a reasoning effort knob to trade latency against depth.",
+      "description": "Inception Mercury diffusion LLMs. Mercury 3 decodes tokens in parallel for very low time-to-first-token, and exposes a reasoning effort knob to trade latency against depth.",
       "properties": {
         "provider": {
           "const": "inception",
@@ -286,11 +286,10 @@
         },
         "model": {
           "allow_custom_input": true,
-          "default": "mercury-2.5",
+          "default": "mercury-3",
           "description": "Inception Mercury model identifier.",
           "examples": [
-            "mercury-2.5",
-            "mercury-2"
+            "mercury-3"
           ],
           "title": "Model",
           "type": "string"

@@ -291,7 +291,7 @@ OPENROUTER_PROVIDER_MODEL_CONFIG = provider_model_config("Open Router")
 INCEPTION_PROVIDER_MODEL_CONFIG = provider_model_config(
     "Inception",
     description=(
-        "Inception Mercury diffusion LLMs. Mercury 2.5 decodes tokens in "
+        "Inception Mercury diffusion LLMs. Mercury 3 decodes tokens in "
         "parallel for very low time-to-first-token, and exposes a "
         "reasoning effort knob to trade latency against depth."
     ),
@@ -397,10 +397,12 @@ OPENROUTER_MODELS = [
     "deepseek/deepseek-chat-v3-0324",
 ]
 INCEPTION_MODELS = [
-    "mercury-2.5",
-    "mercury-2",
+    "mercury-3",
 ]
-INCEPTION_DEFAULT_MODEL = "mercury-2.5"
+INCEPTION_DEFAULT_MODEL = "mercury-3"
+# Inception retires these on 2026-11-15; stored configs that still name them
+# are upgraded to Mercury 3 at service creation.
+INCEPTION_RETIRED_MODELS = {"mercury-2", "mercury-2.5"}
 INCEPTION_DEFAULT_BASE_URL = "https://api.inceptionlabs.ai/v1"
 # Inception's diffusion models expose a reasoning-effort knob instead of a
 # separate "thinking" model tier. "instant" is the lowest latency; "high"

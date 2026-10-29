@@ -3836,7 +3836,7 @@ export type InboundRoutingStatsResponse = {
 /**
  * Inception
  *
- * Inception Mercury diffusion LLMs. Mercury 2.5 decodes tokens in parallel for very low time-to-first-token, and exposes a reasoning effort knob to trade latency against depth.
+ * Inception Mercury diffusion LLMs. Mercury 3 decodes tokens in parallel for very low time-to-first-token, and exposes a reasoning effort knob to trade latency against depth.
  */
 export type InceptionLlmConfiguration = {
     /**
