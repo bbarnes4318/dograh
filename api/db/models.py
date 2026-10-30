@@ -717,6 +717,15 @@ class WorkflowRunModel(Base):
             text("created_at DESC NULLS LAST"),
         ),
         Index("idx_workflow_runs_created_at", text("created_at DESC NULLS LAST")),
+        # "Has this number called an AI agent before?" (repeat_callers.py).
+        Index(
+            "idx_workflow_runs_inbound_caller_digits",
+            text(
+                "right(regexp_replace(initial_context->>'caller_number', "
+                "'[^0-9]', '', 'g'), 10)"
+            ),
+            postgresql_where=text("call_type = 'inbound'"),
+        ),
     )
 
 

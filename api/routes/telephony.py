@@ -47,6 +47,10 @@ from api.services.telephony.inbound_routing import (
     ROUTING_META_KEY,
     resolve_inbound_workflow_id,
 )
+from api.services.telephony.repeat_callers import (
+    AI_TRANSFER_KEY,
+    check_inbound_caller,
+)
 from api.services.telephony.transfer_event_protocol import (
     TransferEvent,
     TransferEventType,
@@ -476,6 +480,7 @@ async def _create_inbound_workflow_run(
     telephony_configuration_id: int,
     from_phone_number_id: Optional[int] = None,
     routing_meta: Optional[dict] = None,
+    ai_transfer: bool = False,
 ) -> int:
     """Create workflow run for inbound call and return run ID"""
     call_id = normalized_data.call_id
@@ -501,6 +506,7 @@ async def _create_inbound_workflow_run(
             "provider": provider,
             "telephony_configuration_id": telephony_configuration_id,
             **({ROUTING_META_KEY: routing_meta} if routing_meta else {}),
+            **({AI_TRANSFER_KEY: True} if ai_transfer else {}),
         },
         gathered_context={
             "call_id": call_id,
@@ -849,6 +855,17 @@ async def handle_inbound_run(request: Request):
             )
             return generic_hangup_response()
 
+        # One inbound call per customer number. See repeat_callers.py.
+        caller_decision = await check_inbound_caller(
+            config.organization_id, normalized_data.from_number
+        )
+        if not caller_decision.admit:
+            logger.warning(
+                f"/inbound/run: refusing caller {normalized_data.from_number}: "
+                f"{caller_decision.reason}"
+            )
+            return generic_hangup_response()
+
         # Routing group split (if any), else the number's inbound_workflow_id.
         workflow_id, routing_meta = await resolve_inbound_workflow_id(
             phone_row, normalized_data.from_number
@@ -914,6 +931,7 @@ async def handle_inbound_run(request: Request):
                 telephony_configuration_id=telephony_configuration_id,
                 from_phone_number_id=phone_row.id,
                 routing_meta=routing_meta,
+                ai_transfer=caller_decision.ai_transfer,
             )
             await call_concurrency.bind_workflow_run(concurrency_slot, workflow_run_id)
 
@@ -1073,6 +1091,16 @@ async def handle_inbound_telephony(
             )
             return generic_hangup_response()
 
+        caller_decision = await check_inbound_caller(
+            organization_id, normalized_data.from_number
+        )
+        if not caller_decision.admit:
+            logger.warning(
+                f"[legacy /inbound/{{workflow_id}}] refusing caller "
+                f"{normalized_data.from_number}: {caller_decision.reason}"
+            )
+            return generic_hangup_response()
+
         try:
             concurrency_slot = await call_concurrency.acquire_org_slot(
                 organization_id,
@@ -1097,6 +1125,7 @@ async def handle_inbound_telephony(
                     "telephony_configuration_id"
                 ],
                 from_phone_number_id=workflow_context.get("from_phone_number_id"),
+                ai_transfer=caller_decision.ai_transfer,
             )
             await call_concurrency.bind_workflow_run(concurrency_slot, workflow_run_id)
 

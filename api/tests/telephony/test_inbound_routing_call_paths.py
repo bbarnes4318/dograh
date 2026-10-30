@@ -10,6 +10,7 @@ import pytest
 from api.routes.telephony import handle_inbound_run
 from api.services.telephony import ari_manager
 from api.services.telephony.ari_manager import ARIConnection
+from api.services.telephony.repeat_callers import InboundCallerDecision
 
 ROUTING_META = {"group_id": 7, "workflow_id": 25, "source": "group"}
 
@@ -66,6 +67,11 @@ async def test_ari_inbound_uses_resolver(monkeypatch, number_config_id):
     monkeypatch.setattr(ari_manager, "db_client", fake_db)
     monkeypatch.setattr(ari_manager, "resolve_inbound_workflow_id", resolver)
     monkeypatch.setattr(ari_manager, "ari_inbound_admitted", lambda *a, **k: True)
+    monkeypatch.setattr(
+        ari_manager,
+        "check_inbound_caller",
+        AsyncMock(return_value=InboundCallerDecision(admit=True)),
+    )
     monkeypatch.setattr(
         ari_manager, "screening_required", AsyncMock(return_value=False)
     )
@@ -151,6 +157,10 @@ async def test_webhook_inbound_run_uses_resolver():
             new=AsyncMock(return_value=False),
         ),
         patch("api.routes.telephony.resolve_inbound_workflow_id", new=resolver),
+        patch(
+            "api.routes.telephony.check_inbound_caller",
+            new=AsyncMock(return_value=InboundCallerDecision(admit=True)),
+        ),
         patch("api.routes.telephony.db_client") as mock_db,
         patch(
             "api.routes.telephony.get_telephony_provider_by_id",

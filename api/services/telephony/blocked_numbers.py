@@ -28,7 +28,7 @@ def blocked_numbers() -> frozenset[str]:
     )
 
 
-def _ten_digits(raw: str | None) -> str | None:
+def ten_digits(raw: str | None) -> str | None:
     stripped = (raw or "").strip()
     if stripped.lower().startswith(("sip:", "sips:")) or "@" in stripped:
         return None
@@ -42,5 +42,5 @@ def _ten_digits(raw: str | None) -> str | None:
 
 def is_blocked_number(raw: str | None) -> bool:
     """Whether a number, in any common US format, is on the block list."""
-    digits = _ten_digits(raw)
+    digits = ten_digits(raw)
     return digits is not None and digits in blocked_numbers()

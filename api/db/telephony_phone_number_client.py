@@ -123,6 +123,23 @@ class TelephonyPhoneNumberClient(BaseDBClient):
             )
             return result.scalars().first()
 
+    async def is_organization_phone_number(
+        self, organization_id: int, address: str
+    ) -> bool:
+        """Whether this address is one of the org's own phone numbers."""
+        normalized = normalize_telephony_address(address)
+        async with self.async_session() as session:
+            result = await session.execute(
+                select(TelephonyPhoneNumberModel.id)
+                .where(
+                    TelephonyPhoneNumberModel.organization_id == organization_id,
+                    TelephonyPhoneNumberModel.address_normalized
+                    == normalized.canonical,
+                )
+                .limit(1)
+            )
+            return result.first() is not None
+
     async def find_inbound_route_by_account(
         self,
         provider: str,
