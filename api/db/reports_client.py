@@ -2,10 +2,23 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from loguru import logger
-from sqlalchemy import String, and_, func, select
+from sqlalchemy import String, and_, case, func, select
 
 from api.db.base_client import BaseDBClient
 from api.db.models import WorkflowModel, WorkflowRunModel
+
+
+def _context_text(column, key):
+    """A JSON context field as unquoted text, NULL when missing or blank."""
+    return func.nullif(
+        func.replace(
+            func.replace(func.cast(column[key], String), '"', ""),
+            "'",
+            "",
+        ),
+        "",
+    )
+
 
 # Ceiling on how many runs one funnel/cohort report will load. Each row
 # carries three JSON columns, so an unbounded date range is a memory risk in
@@ -196,32 +209,35 @@ class ReportsClient(BaseDBClient):
                         ),
                         "UNKNOWN",
                     ).label("disposition"),
+                    # The customer's number, never our own caller ID: inbound
+                    # runs store the customer as caller_number, outbound runs
+                    # as phone_number (or only called_number on some providers).
                     func.coalesce(
-                        func.replace(
-                            func.replace(
-                                func.cast(
-                                    WorkflowRunModel.gathered_context[
-                                        "customer_phone_number"
-                                    ],
-                                    String,
-                                ),
-                                '"',
-                                "",
-                            ),
-                            "'",
-                            "",
+                        _context_text(
+                            WorkflowRunModel.gathered_context, "customer_phone_number"
                         ),
-                        func.replace(
-                            func.replace(
-                                func.cast(
-                                    WorkflowRunModel.initial_context["phone_number"],
-                                    String,
+                        case(
+                            (
+                                WorkflowRunModel.call_type == "inbound",
+                                func.coalesce(
+                                    _context_text(
+                                        WorkflowRunModel.initial_context,
+                                        "caller_number",
+                                    ),
+                                    _context_text(
+                                        WorkflowRunModel.initial_context,
+                                        "phone_number",
+                                    ),
                                 ),
-                                '"',
-                                "",
                             ),
-                            "'",
-                            "",
+                            else_=func.coalesce(
+                                _context_text(
+                                    WorkflowRunModel.initial_context, "phone_number"
+                                ),
+                                _context_text(
+                                    WorkflowRunModel.initial_context, "called_number"
+                                ),
+                            ),
                         ),
                         "",
                     ).label("phone_number"),

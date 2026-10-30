@@ -26,6 +26,19 @@ def _collect_extracted_variable_keys(runs: List[Any]) -> list[str]:
     return list(keys)
 
 
+def customer_phone_number(call_type: Optional[str], initial_context: dict) -> str:
+    """The customer's side of the call, never our own caller ID.
+
+    Inbound runs only store caller_number (the customer) and called_number
+    (our number). Outbound runs store the dialed customer as phone_number,
+    and some providers only as called_number.
+    """
+    ic = initial_context or {}
+    if call_type == "inbound":
+        return ic.get("caller_number") or ic.get("phone_number") or ""
+    return ic.get("phone_number") or ic.get("called_number") or ""
+
+
 def build_run_report_csv(runs: List[Any]) -> io.StringIO:
     """Build a CSV from completed workflow runs."""
     extracted_var_keys = _collect_extracted_variable_keys(runs)
@@ -66,7 +79,7 @@ def build_run_report_csv(runs: List[Any]) -> io.StringIO:
             run.workflow_id,
             run.definition_id if run.definition_id is not None else "",
             run.created_at.isoformat() if run.created_at else "",
-            initial.get("phone_number", ""),
+            customer_phone_number(run.call_type, initial),
             (run.call_type or "").capitalize(),
             gathered.get("mapped_call_disposition", ""),
             usage.get("call_duration_seconds", ""),
