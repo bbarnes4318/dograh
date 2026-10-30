@@ -68,3 +68,48 @@ def test_missing_direction_does_not_break_the_report():
     header, row = _rows([_run(call_type=None)])
 
     assert row[header.index("Direction")] == ""
+
+
+def test_phone_number_is_the_customer_on_inbound_calls():
+    """Inbound runs only store caller_number (the customer) and
+    called_number (our number); the export must show the customer."""
+    header, row = _rows(
+        [
+            _run(
+                call_type="inbound",
+                initial_context={
+                    "caller_number": "+15550001111",
+                    "called_number": "+18005550000",
+                },
+            )
+        ]
+    )
+
+    assert row[header.index("Phone Number")] == "+15550001111"
+
+
+def test_phone_number_is_the_dialed_customer_on_outbound_calls():
+    """Outbound runs carry our caller ID as caller_number; never export it."""
+    header, dialed, called_only = _rows(
+        [
+            _run(
+                id=1,
+                initial_context={
+                    "phone_number": "+15550002222",
+                    "caller_number": "+18005550000",
+                    "called_number": "+15550002222",
+                },
+            ),
+            _run(
+                id=2,
+                initial_context={
+                    "caller_number": "+18005550000",
+                    "called_number": "+15550003333",
+                },
+            ),
+        ]
+    )
+    column = header.index("Phone Number")
+
+    assert dialed[column] == "+15550002222"
+    assert called_only[column] == "+15550003333"
