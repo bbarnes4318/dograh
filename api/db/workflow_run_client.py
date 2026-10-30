@@ -1,7 +1,8 @@
 import uuid
+from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
-from sqlalchemy import func
+from sqlalchemy import func, text
 from sqlalchemy.future import select
 from sqlalchemy.orm import joinedload, selectinload
 
@@ -567,3 +568,63 @@ class WorkflowRunClient(BaseDBClient):
                 .limit(1)
             )
             return result.scalars().first()
+
+    async def inbound_caller_has_answered_call(
+        self, organization_id: int, caller_ten_digits: str
+    ) -> bool:
+        """Whether an AI agent of this org already took an inbound call from
+        this caller (ten-digit US number). Handoffs between AI agents, marked
+        ``ai_transfer`` on the run, are not the caller's own calls and don't
+        count. Uses ``idx_workflow_runs_inbound_caller_digits``."""
+        async with self.async_session() as session:
+            result = await session.execute(
+                select(WorkflowRunModel.id)
+                .join(WorkflowModel, WorkflowModel.id == WorkflowRunModel.workflow_id)
+                .where(
+                    WorkflowModel.organization_id == organization_id,
+                    text(
+                        "workflow_runs.call_type = 'inbound' AND "
+                        f"{INBOUND_CALLER_DIGITS_SQL} = :digits AND "
+                        "coalesce(workflow_runs.initial_context->>'ai_transfer', '') "
+                        "<> 'true'"
+                    ).bindparams(digits=caller_ten_digits),
+                )
+                .limit(1)
+            )
+            return result.first() is not None
+
+    async def number_on_live_call(
+        self, organization_id: int, ten_digits: str, since: datetime
+    ) -> bool:
+        """Whether this number is on a call with one of the org's AI agents
+        right now: a run created since ``since``, not completed, that it
+        called in on or was called on."""
+        async with self.async_session() as session:
+            result = await session.execute(
+                select(WorkflowRunModel.id)
+                .join(WorkflowModel, WorkflowModel.id == WorkflowRunModel.workflow_id)
+                .where(
+                    WorkflowModel.organization_id == organization_id,
+                    WorkflowRunModel.created_at >= since,
+                    WorkflowRunModel.is_completed.isnot(True),
+                    text(
+                        f"({_context_digits_sql('caller_number')} = :digits OR "
+                        f"{_context_digits_sql('called_number')} = :digits)"
+                    ).bindparams(digits=ten_digits),
+                )
+                .limit(1)
+            )
+            return result.first() is not None
+
+
+def _context_digits_sql(key: str) -> str:
+    """SQL for the last ten digits of an initial_context number field."""
+    return (
+        f"right(regexp_replace(workflow_runs.initial_context->>'{key}', "
+        "'[^0-9]', '', 'g'), 10)"
+    )
+
+
+# Must match idx_workflow_runs_inbound_caller_digits exactly, or Postgres
+# won't use the index.
+INBOUND_CALLER_DIGITS_SQL = _context_digits_sql("caller_number")

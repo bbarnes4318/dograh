@@ -43,6 +43,10 @@ from api.services.telephony.inbound_routing import (
     resolve_inbound_workflow_id,
 )
 from api.services.telephony.providers.ari.external_pbx import create_adapter
+from api.services.telephony.repeat_callers import (
+    AI_TRANSFER_KEY,
+    check_inbound_caller,
+)
 from api.services.telephony.transfer_event_protocol import (
     TransferEvent,
     TransferEventType,
@@ -633,6 +637,22 @@ class ARIConnection:
                 pass
             return
 
+        # 0c. One inbound call per customer number; a handoff from another AI
+        #    agent is always answered. See repeat_callers.py.
+        caller_decision = await check_inbound_caller(
+            self.organization_id, caller_number
+        )
+        if not caller_decision.admit:
+            logger.warning(
+                f"[ARI org={self.organization_id}] Refusing inbound channel "
+                f"{channel_id} from {caller_number}: {caller_decision.reason}"
+            )
+            try:
+                await self._delete_channel(channel_id)
+            except Exception:
+                pass
+            return
+
         try:
             # 1. (HOPWHISTLE_ARI_INBOUND_ANY_CONFIG) Resolve the workflow from the
             #    called extension via the org's
@@ -715,6 +735,7 @@ class ARIConnection:
                     "telephony_configuration_id": self.telephony_configuration_id,
                     "external_pbx_call": external_pbx_call,
                     **({ROUTING_META_KEY: routing_meta} if routing_meta else {}),
+                    **({AI_TRANSFER_KEY: True} if caller_decision.ai_transfer else {}),
                 },
                 gathered_context={
                     "call_id": call_id,
