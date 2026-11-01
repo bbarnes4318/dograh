@@ -47,8 +47,9 @@ async def deliver_report(
     timeout_seconds: float = 10.0,
     attempts: int = 2,
     transport: httpx.AsyncBaseTransport | None = None,
+    path: str = REPORT_PATH,
 ) -> DeliveryResult:
-    url = f"{base_url.rstrip('/')}{REPORT_PATH}"
+    url = f"{base_url.rstrip('/')}{path}"
     body = json.dumps(payload, separators=(",", ":"), default=str)
     last = DeliveryResult(ok=False, status_code=None, detail="not attempted")
     for attempt in range(1, attempts + 1):
