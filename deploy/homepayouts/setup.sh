@@ -8,14 +8,13 @@
 #
 # The live voice app's checkout and compose files in /opt/dograh are only read,
 # never changed. Run on the box:
-#   git -C /opt/dograh fetch -q origin hopwhistle/customizations && git -C /opt/dograh show FETCH_HEAD:deploy/homepayouts/setup.sh > /tmp/hp.sh && bash /tmp/hp.sh
+#   curl -fsSL https://raw.githubusercontent.com/bbarnes4318/dograh/hopwhistle/customizations/deploy/homepayouts/setup.sh -o /tmp/hp.sh && bash /tmp/hp.sh
 set -euo pipefail
 step(){ printf '\n===== %s\n' "$*"; }
 die(){ printf '\nSTOPPED: %s\n' "$*"; exit 1; }
 HOST=aivoice.homepayouts.com
 D=/opt/dograh; H=/opt/hopwhistle; SRC=/opt/dograh-homepayouts
-REPO=${REPO:-$(git -C $D remote get-url origin)}
-case "$REPO" in *bbarnes4318/dograh*) ;; *) REPO=https://github.com/bbarnes4318/dograh.git ;; esac
+REPO=https://github.com/bbarnes4318/dograh.git
 HC="docker compose --env-file .env -f infra/docker/docker-compose.dev.yml"
 
 step "1/6 Portal: deploy main (AI Voice page for Home Payouts)"
@@ -28,7 +27,7 @@ docker ps --filter name=hopwhistle-api --format '{{.Names}} {{.Status}}'
 
 step "2/6 Voice app: fetch the hopwhistle/customizations code (into $SRC; $D is not touched)"
 if [ -d $SRC/.git ]; then
-  git -C $SRC fetch -q origin hopwhistle/customizations && git -C $SRC checkout -q -B hp FETCH_HEAD
+  git -C $SRC fetch -q --depth 1 "$REPO" hopwhistle/customizations && git -C $SRC checkout -q -B hp FETCH_HEAD
 else
   git clone -q --depth 1 --branch hopwhistle/customizations "$REPO" $SRC
 fi
