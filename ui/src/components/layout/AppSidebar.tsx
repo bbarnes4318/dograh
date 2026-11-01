@@ -27,6 +27,7 @@ import { usePathname, useRouter } from "next/navigation";
 import React from "react";
 
 import { BrandLogo } from "@/components/BrandLogo";
+import { PortalHomeLink } from "@/components/layout/PortalHomeLink";
 import { SidebarTeamSwitcher } from "@/components/layout/SidebarTeamSwitcher";
 import { Button } from "@/components/ui/button";
 import {
@@ -338,6 +339,11 @@ export function AppSidebar() {
             )}
           </SidebarTrigger>
         </div>
+
+        <PortalHomeLink
+          compact={isCollapsed}
+          className={cn("mt-3", isCollapsed ? "mx-auto" : "w-full")}
+        />
 
         {provider === "stack" && (
           <div className={cn("mt-3 notranslate", isCollapsed && "hidden")} translate="no">

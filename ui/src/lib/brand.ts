@@ -30,6 +30,18 @@ export interface Brand {
   mark: string;
   favicon: string;
   appleTouchIcon: string;
+  /**
+   * Hostnames (and their subdomains) that always wear this brand, so the app
+   * opened straight at, e.g., aivoice.homepayouts.com is skinned without a
+   * `?brand=`.
+   */
+  hosts?: string[];
+  /**
+   * The portal's main menu. When set, the app shows a "back to the portal"
+   * button, for brands whose portal opens this app full-window rather than in
+   * a frame.
+   */
+  portalUrl?: string;
 }
 
 export const BRANDS: Record<BrandKey, Brand> = {
@@ -63,6 +75,8 @@ export const BRANDS: Record<BrandKey, Brand> = {
     mark: "/brands/home-payouts/mark.png",
     favicon: "/brands/home-payouts/favicon-32.png",
     appleTouchIcon: "/brands/home-payouts/apple-touch-icon.png",
+    hosts: ["homepayouts.com"],
+    portalUrl: "https://agents.homepayouts.com/re",
   },
 };
 
@@ -79,17 +93,19 @@ export function getActiveBrand(): Brand {
 
 /**
  * Runs in <head> before first paint (see app/layout.tsx): resolves the brand
- * from ?brand=, then the cookie, then localStorage, sets `data-brand`, and
+ * from the hostname (Brand.hosts), then ?brand=, then the cookie, then
+ * localStorage, sets `data-brand`, and
  * points the favicon at the brand's. Kept as a string because it is inlined.
  */
 export const BRAND_BOOT_SCRIPT = `(function(){try{
 var B=${JSON.stringify(
   Object.fromEntries(
-    BRAND_KEYS.map((k) => [k, { f: BRANDS[k].favicon, a: BRANDS[k].appleTouchIcon, n: BRANDS[k].name }])
+    BRAND_KEYS.map((k) => [k, { f: BRANDS[k].favicon, a: BRANDS[k].appleTouchIcon, n: BRANDS[k].name, h: BRANDS[k].hosts || [] }])
   )
 )};
 var k=null;
-try{var q=new URLSearchParams(location.search).get(${JSON.stringify(BRAND_QUERY_PARAM)});if(q&&B[q])k=q;}catch(e){}
+var hn=location.hostname;for(var hk in B){for(var i=0;i<B[hk].h.length;i++){var d0=B[hk].h[i];if(hn===d0||hn.slice(-d0.length-1)==="."+d0)k=hk;}}
+if(!k){try{var q=new URLSearchParams(location.search).get(${JSON.stringify(BRAND_QUERY_PARAM)});if(q&&B[q])k=q;}catch(e){}}
 if(!k){var m=document.cookie.match(/(?:^|; )${BRAND_COOKIE}=([^;]+)/);if(m&&B[m[1]])k=m[1];}
 if(!k){try{var s=localStorage.getItem(${JSON.stringify(BRAND_STORAGE_KEY)});if(s&&B[s])k=s;}catch(e){}}
 if(!k)k=${JSON.stringify(DEFAULT_BRAND)};

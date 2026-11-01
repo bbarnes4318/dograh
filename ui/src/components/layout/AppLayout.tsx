@@ -12,6 +12,7 @@ import { useAppConfig } from "@/context/AppConfigContext";
 import { LeadFormsProvider } from "@/context/LeadFormsContext";
 
 import { AppSidebar } from "./AppSidebar";
+import { PortalHomeLink } from "./PortalHomeLink";
 
 function AppHeader() {
   const { toggleSidebar } = useSidebar();
@@ -29,6 +30,7 @@ function AppHeader() {
         </Link>
       </div>
       <div className="flex items-center gap-3">
+        <PortalHomeLink />
       </div>
     </header>
   );
