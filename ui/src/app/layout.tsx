@@ -6,6 +6,7 @@ import { Suspense } from "react";
 
 import ChatwootWidget from "@/components/ChatwootWidget";
 import AppLayout from "@/components/layout/AppLayout";
+import { PortalBrandSync } from "@/components/PortalBrandSync";
 import PostHogIdentify from "@/components/PostHogIdentify";
 import { SentryErrorBoundary } from "@/components/SentryErrorBoundary";
 import SpinLoader from "@/components/SpinLoader";
@@ -16,7 +17,7 @@ import { OnboardingProvider } from "@/context/OnboardingContext";
 import { OrgConfigProvider } from "@/context/OrgConfigContext";
 import { TelephonyConfigWarningsProvider } from "@/context/TelephonyConfigWarningsContext";
 import { AuthProvider } from "@/lib/auth";
-
+import { PORTAL_BRAND_BOOT_SCRIPT } from "@/lib/portalBrand";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -34,11 +35,10 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({
-  children
+  children,
 }: {
-  children: React.ReactNode
+  children: React.ReactNode;
 }) {
-
   return (
     <html lang="en" className="dark" suppressHydrationWarning>
       <head>
@@ -62,10 +62,21 @@ export default function RootLayout({
             `,
           }}
         />
+        {/* The embedding portal's brand (?brand=), applied before first paint. */}
+        <script
+          dangerouslySetInnerHTML={{ __html: PORTAL_BRAND_BOOT_SCRIPT }}
+        />
       </head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false} disableTransitionOnChange>
+        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+      >
+        <PortalBrandSync />
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="dark"
+          enableSystem={false}
+          disableTransitionOnChange
+        >
           <SentryErrorBoundary>
             <AuthProvider>
               <AppConfigProvider>
@@ -74,9 +85,7 @@ export default function RootLayout({
                     <TelephonyConfigWarningsProvider>
                       <OnboardingProvider>
                         <PostHogIdentify />
-                        <AppLayout>
-                          {children}
-                        </AppLayout>
+                        <AppLayout>{children}</AppLayout>
                         <Toaster />
                         <ChatwootWidget />
                       </OnboardingProvider>

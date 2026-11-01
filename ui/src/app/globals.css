@@ -362,3 +362,30 @@
   box-shadow: none;
   border-bottom-color: var(--cta);
 }
+
+/*
+ * Home Payouts (homepayouts.com), when embedded in its portal (?brand=home-payouts;
+ * see src/lib/portalBrand.ts). Navy #012554 for structure, green #01A25E for
+ * action; primary buttons in a deeper green #007F48 so white text reads.
+ */
+:root[data-brand='home-payouts'] {
+  --primary: oklch(0.52 0.13 155);
+  --primary-foreground: oklch(1 0 0);
+  --ring: oklch(0.52 0.13 155);
+  --cta: oklch(0.52 0.13 155);
+  --cta-foreground: oklch(1 0 0);
+  --sidebar-primary: oklch(0.52 0.13 155);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-ring: oklch(0.52 0.13 155);
+}
+:root.dark[data-brand='home-payouts'] {
+  --primary: oklch(0.8 0.16 158);
+  --primary-foreground: oklch(0.2 0.05 260);
+  --ring: oklch(0.8 0.16 158);
+  --cta: oklch(0.8 0.16 158);
+  --cta-foreground: oklch(0.2 0.05 260);
+  --sidebar: oklch(0.27 0.09 262);
+  --sidebar-primary: oklch(0.8 0.16 158);
+  --sidebar-primary-foreground: oklch(0.2 0.05 260);
+  --sidebar-ring: oklch(0.8 0.16 158);
+}
