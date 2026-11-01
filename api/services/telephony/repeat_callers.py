@@ -28,7 +28,7 @@ SIP URIs and anything that is not a US number are not checked.
 import os
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from typing import Optional
+from typing import Optional, Sequence
 
 from loguru import logger
 
@@ -56,10 +56,17 @@ def rule_enabled(env: Optional[dict] = None) -> bool:
 
 
 async def check_inbound_caller(
-    organization_id: int, caller_number: Optional[str]
+    organization_id: int,
+    caller_number: Optional[str],
+    also_organization_ids: Sequence[int] = (),
 ) -> InboundCallerDecision:
     """Whether an AI agent may answer this inbound call, and whether it is a
     handoff from another AI agent.
+
+    ``organization_id`` owns the called number. ``also_organization_ids`` are
+    the workspaces its routing can send calls to (linked_workspaces.py): a
+    caller answered by an agent in any of them has had their one call, and a
+    live call or one of our numbers in any of them marks a handoff.
 
     If the database can't be read, the call is answered: a hiccup should not
     drop customers' calls.
@@ -70,23 +77,28 @@ async def check_inbound_caller(
     if digits is None:
         return InboundCallerDecision(admit=True)
 
+    org_ids = [organization_id] + [
+        o for o in dict.fromkeys(also_organization_ids) if o != organization_id
+    ]
     try:
-        if await db_client.is_organization_phone_number(organization_id, f"+1{digits}"):
-            return InboundCallerDecision(
-                admit=True, ai_transfer=True, reason="caller is one of our numbers"
-            )
-        if await db_client.number_on_live_call(
-            organization_id, digits, datetime.now(UTC) - LIVE_CALL_WINDOW
-        ):
-            return InboundCallerDecision(
-                admit=True,
-                ai_transfer=True,
-                reason="caller is on a call with an AI agent (AI transfer)",
-            )
-        if await db_client.inbound_caller_has_answered_call(organization_id, digits):
-            return InboundCallerDecision(
-                admit=False, reason="this number has already called an AI agent"
-            )
+        for org_id in org_ids:
+            if await db_client.is_organization_phone_number(org_id, f"+1{digits}"):
+                return InboundCallerDecision(
+                    admit=True, ai_transfer=True, reason="caller is one of our numbers"
+                )
+        since = datetime.now(UTC) - LIVE_CALL_WINDOW
+        for org_id in org_ids:
+            if await db_client.number_on_live_call(org_id, digits, since):
+                return InboundCallerDecision(
+                    admit=True,
+                    ai_transfer=True,
+                    reason="caller is on a call with an AI agent (AI transfer)",
+                )
+        for org_id in org_ids:
+            if await db_client.inbound_caller_has_answered_call(org_id, digits):
+                return InboundCallerDecision(
+                    admit=False, reason="this number has already called an AI agent"
+                )
     except Exception as e:
         logger.warning(
             f"Could not check earlier calls from {caller_number} for org "

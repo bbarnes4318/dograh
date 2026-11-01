@@ -380,3 +380,47 @@ def test_every_manifest_entry_is_well_formed(target):
     for group in entry.get("exclusive", []):
         assert set(group) <= ids
     assert set(entry.get("require_one_of", [])) <= ids
+
+
+# hoppwhistle's deploy/dograh/one-call-per-caller kit: it mounts its own
+# repeat_callers.py and adds HOPWHISTLE_ONE_CALL_PER_CALLER_V1 to the mounted
+# ari_manager.py (the ari-inbound copy, or a copy staged from the image). The
+# rule is in source (repeat_callers.py, ari_manager.py), so both mounts go.
+KIT_REPEAT_CALLERS = """
+async def check_inbound_caller(
+    organization_id: int, caller_number: Optional[str]
+) -> InboundCallerDecision:
+    if os.environ.get("INBOUND_ONE_CALL_PER_CALLER", "true") == "false":
+        return InboundCallerDecision(admit=True)
+"""
+KIT_ARI_MANAGER_STAGED = """
+# HOPWHISTLE_ONE_CALL_PER_CALLER_V1: one inbound call per customer number (repeat_callers.py).
+            # HOPWHISTLE_ONE_CALL_PER_CALLER_V1: one inbound call per customer number; a handoff from
+"""
+
+
+@pytest.mark.parametrize(
+    "ari_manager_text",
+    [BOX_ARI_MANAGER + KIT_ARI_MANAGER_STAGED, KIT_ARI_MANAGER_STAGED],
+    ids=["patched-ari-inbound-copy", "patched-staged-copy"],
+)
+def test_one_call_per_caller_kit_mounts_are_removed(ari_manager_text):
+    res = run(
+        [
+            ("/app/api/services/telephony/ari_manager.py", ari_manager_text),
+            ("/app/api/services/telephony/repeat_callers.py", KIT_REPEAT_CALLERS),
+        ]
+    )
+    assert not res.blockers, res.blockers
+    assert [r.action for r in res.results] == ["remove", "remove"]
+    assert "one_call_per_caller" in res.results[1].behaviors
+
+
+def test_one_call_kit_mount_blocks_on_an_image_without_the_rule():
+    image = dict(IMAGE)
+    image["/app/api/services/telephony/repeat_callers.py"] = None
+    res = run(
+        [("/app/api/services/telephony/repeat_callers.py", KIT_REPEAT_CALLERS)],
+        image=image,
+    )
+    assert any("lacks one_call_per_caller" in b for b in res.blockers), res.blockers

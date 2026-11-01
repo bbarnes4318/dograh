@@ -158,3 +158,21 @@ class InboundRoutingAuditEntry(BaseModel):
 
 class InboundRoutingAuditResponse(BaseModel):
     entries: List[InboundRoutingAuditEntry]
+
+
+class LinkedAgent(BaseModel):
+    workflow_id: int
+    name: str
+
+
+class LinkedWorkspaceAgents(BaseModel):
+    """A workspace this org has linked, whose agents its routing groups can
+    send calls to. Those calls show up in that workspace."""
+
+    organization_id: int
+    label: str
+    agents: List[LinkedAgent]
+
+
+class LinkedWorkspaceAgentsResponse(BaseModel):
+    workspaces: List[LinkedWorkspaceAgents]

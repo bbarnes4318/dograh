@@ -41,7 +41,9 @@ class _InboundARIConnection(ARIConnection):
     async def _answer_channel(self, channel_id):
         self.answered.append(channel_id)
 
-    async def _handle_stasis_start(self, channel_id, state, run_id, workflow_id):
+    async def _handle_stasis_start(
+        self, channel_id, state, run_id, workflow_id, organization_id=None
+    ):
         self.started.append((channel_id, run_id, workflow_id))
 
 
@@ -67,6 +69,9 @@ async def test_ari_inbound_uses_resolver(monkeypatch, number_config_id):
     monkeypatch.setattr(ari_manager, "db_client", fake_db)
     monkeypatch.setattr(ari_manager, "resolve_inbound_workflow_id", resolver)
     monkeypatch.setattr(ari_manager, "ari_inbound_admitted", lambda *a, **k: True)
+    monkeypatch.setattr(
+        ari_manager, "linked_organization_ids", AsyncMock(return_value=[])
+    )
     monkeypatch.setattr(
         ari_manager,
         "check_inbound_caller",
@@ -104,7 +109,9 @@ async def test_ari_inbound_uses_resolver(monkeypatch, number_config_id):
     }
     await conn._handle_inbound_stasis_start("chan-1", "Ring", event)
 
-    resolver.assert_awaited_once_with(phone_row, "+15557650000")
+    resolver.assert_awaited_once_with(
+        phone_row, "+15557650000", linked_organization_ids=[]
+    )
     kwargs = fake_db.create_workflow_run.await_args.kwargs
     assert kwargs["workflow_id"] == 25
     assert kwargs["initial_context"]["inbound_routing"] == ROUTING_META

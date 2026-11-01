@@ -164,7 +164,12 @@ def _ari_db():
 async def test_screening_on_hangs_up_a_call_not_from_hopwhistle_before_any_run(
     monkeypatch,
 ):
+    # The setting is the called number's workspace's, so the number is looked
+    # up first; the call is refused before it is answered or gets a run.
     db = _ari_db()
+    db.find_active_phone_number_for_inbound.return_value = SimpleNamespace(
+        id=5, organization_id=1, telephony_configuration_id=10
+    )
     monkeypatch.setattr(ari_manager, "db_client", db)
     monkeypatch.setattr(ari_manager, "screening_required", AsyncMock(return_value=True))
     monkeypatch.delenv("ARI_INBOUND_ALLOWED_ENDPOINTS", raising=False)
@@ -176,9 +181,39 @@ async def test_screening_on_hangs_up_a_call_not_from_hopwhistle_before_any_run(
 
     assert conn.deleted_channels == ["chan-1"]
     assert conn.answered == []
-    db.find_active_phone_number_for_inbound.assert_not_called()
+    db.get_workflow.assert_not_called()
     db.create_workflow_run.assert_not_called()
     ari_manager.screening_required.assert_awaited_once_with(1)
+
+
+async def test_screening_uses_the_setting_of_the_workspace_owning_the_number(
+    monkeypatch,
+):
+    # Org 1's connection is handed a call to org 2's number (both on one
+    # Asterisk app): org 2's screening setting decides.
+    db = _ari_db()
+
+    async def find(org_id, called, provider):
+        if org_id == 2:
+            return SimpleNamespace(
+                id=6, organization_id=2, telephony_configuration_id=20
+            )
+        return None
+
+    db.find_active_phone_number_for_inbound = AsyncMock(side_effect=find)
+    monkeypatch.setattr(ari_manager, "db_client", db)
+    monkeypatch.setattr(ari_manager, "screening_required", AsyncMock(return_value=True))
+    monkeypatch.delenv("ARI_INBOUND_ALLOWED_ENDPOINTS", raising=False)
+    conn = _ARIConnection()
+    conn.app_configs = {1: [(10, "a")], 2: [(20, "a")]}
+
+    await conn._handle_inbound_stasis_start(
+        "chan-1", "Ring", _ring("PJSIP/fractel-00000001")
+    )
+
+    assert conn.deleted_channels == ["chan-1"]
+    db.create_workflow_run.assert_not_called()
+    ari_manager.screening_required.assert_awaited_once_with(2)
 
 
 async def test_screening_on_lets_a_hopwhistle_call_resolve_its_agent(monkeypatch):

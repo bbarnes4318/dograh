@@ -15,7 +15,7 @@ import asyncio
 import json
 import signal
 import uuid
-from typing import Dict, Optional, Set
+from typing import Dict, List, Optional, Set, Tuple
 from urllib.parse import urlparse
 
 import aiohttp
@@ -42,6 +42,7 @@ from api.services.telephony.inbound_routing import (
     ROUTING_META_KEY,
     resolve_inbound_workflow_id,
 )
+from api.services.telephony.linked_workspaces import linked_organization_ids
 from api.services.telephony.providers.ari.external_pbx import create_adapter
 from api.services.telephony.repeat_callers import (
     AI_TRANSFER_KEY,
@@ -96,6 +97,16 @@ class ARIConnection:
         # Transfer manager for handling call transfers
         self._call_transfer_manager = None
 
+        # Every ARI config (of any org) on this same Asterisk endpoint and app,
+        # as {org_id: [(config_id, name), ...]}. Asterisk can't tell those
+        # configs apart and hands each Stasis event to only one of their
+        # connections, so a call is handled for the org it belongs to (from
+        # its run or its called number), never assumed to be this one's.
+        # Kept current by ARIManager._refresh_connections.
+        self.app_configs: Dict[int, List[Tuple[int, str]]] = {
+            organization_id: [(telephony_configuration_id, "")]
+        }
+
     async def _get_redis(self) -> aioredis.Redis:
         """Get Redis client instance (lazy init)."""
         if not self._redis_client:
@@ -109,6 +120,61 @@ class ARIConnection:
         if not self._call_transfer_manager:
             self._call_transfer_manager = await get_call_transfer_manager()
         return self._call_transfer_manager
+
+    def _orgs_on_this_app(self) -> List[int]:
+        """Orgs with an ARI config on this endpoint and app, this one first."""
+        others = sorted(o for o in self.app_configs if o != self.organization_id)
+        return [self.organization_id, *others]
+
+    def _config_for_org(
+        self, organization_id: int, prefer_name: Optional[str] = None
+    ) -> Optional[int]:
+        """One of ``organization_id``'s ARI configs on this endpoint and app:
+        this connection's own config for its own org, else the config named
+        ``prefer_name`` (a cloned workspace keeps the names), else the lowest
+        id. None when that org has no config here."""
+        if organization_id == self.organization_id:
+            return self.telephony_configuration_id
+        configs = sorted(self.app_configs.get(organization_id) or [])
+        if not configs:
+            return None
+        for config_id, name in configs:
+            if prefer_name and name == prefer_name:
+                return config_id
+        return configs[0][0]
+
+    def _config_name(self, config_id: Optional[int]) -> Optional[str]:
+        for configs in self.app_configs.values():
+            for cid, name in configs:
+                if cid == config_id:
+                    return name
+        return None
+
+    async def _find_inbound_number(self, called_number: str):
+        """The active ARI phone-number row for a called number, looked up in
+        this org first, then in the other orgs sharing this Asterisk app (any
+        of their connections may be the one handed the call)."""
+        for org_id in self._orgs_on_this_app():
+            row = await db_client.find_active_phone_number_for_inbound(
+                org_id, called_number, "ari"
+            )
+            if row:
+                return row
+        return None
+
+    async def _run_organization_id(self, workflow_run_id: str) -> int:
+        """The org a run belongs to (through its workflow). Falls back to this
+        connection's org if the run can't be read."""
+        try:
+            run = await db_client.get_workflow_run_by_id(int(workflow_run_id))
+            if run and run.workflow and run.workflow.organization_id:
+                return run.workflow.organization_id
+        except Exception as e:
+            logger.warning(
+                f"[ARI org={self.organization_id}] Could not read the org of run "
+                f"{workflow_run_id}; assuming org {self.organization_id}: {e}"
+            )
+        return self.organization_id
 
     async def _set_channel_run(self, channel_id: str, workflow_run_id: str):
         """Store channel_id -> workflow_run_id mapping in Redis."""
@@ -523,6 +589,7 @@ class ARIConnection:
         workflow_id: str,
         workflow_run_id: str,
         channel_id: Optional[str] = None,
+        organization_id: Optional[int] = None,
     ) -> str:
         """Create an external media channel via chan_websocket.
 
@@ -534,12 +601,17 @@ class ARIConnection:
         ``channelId`` query parameter so the new channel is created with
         that id. The caller can then register ext-channel state ahead of
         the POST and avoid racing against the StasisStart event.
+
+        ``organization_id`` is the run's org, which the media websocket uses
+        to find the run. It may differ from this connection's org when
+        several orgs share the Asterisk app; it defaults to this one.
         """
+        run_org = organization_id or self.organization_id
         # v() appends URI query params to the websocket_client.conf URL
         # e.g. wss://api.dograh.com/ws/ari?workflow_id=1&organization_id=2&workflow_run_id=3
         transport_data = (
             f"v(workflow_id={workflow_id},"
-            f"organization_id={self.organization_id},"
+            f"organization_id={run_org},"
             f"workflow_run_id={workflow_run_id})"
         )
 
@@ -618,16 +690,43 @@ class ARIConnection:
                 pass
             return
 
+        # 0a. Which org's number was called. Every org whose ARI config is on
+        #    this Asterisk app shares one Stasis app, and only one of their
+        #    connections is handed the call, so the number may belong to
+        #    another of this org's configs, or to another org on the app.
+        #    (HOPWHISTLE_ARI_INBOUND_ANY_CONFIG)
+        try:
+            phone_row = await self._find_inbound_number(called_number)
+        except Exception as e:
+            logger.error(
+                f"[ARI org={self.organization_id}] Could not look up called number "
+                f"{called_number} for channel {channel_id}: {e}"
+            )
+            phone_row = None
+        if not phone_row:
+            logger.warning(
+                f"[ARI org={self.organization_id}] Inbound call to extension "
+                f"{called_number} on channel {channel_id} — no matching ARI "
+                f"phone number registered in any organization on this Asterisk "
+                f"app, hanging up"
+            )
+            try:
+                await self._delete_channel(channel_id)
+            except Exception:
+                pass
+            return
+        number_org = phone_row.organization_id
+
         # 0b. With inbound screening on (Platform Settings, off by default),
         #    only callers Hopwhistle has already screened and handed over: a
         #    call that reached Stasis any other way never passed its TCPA
         #    litigator screen. See services/telephony/inbound_admission.py.
         if not ari_inbound_admitted(
             channel.get("name"),
-            screening_required=await screening_required(self.organization_id),
+            screening_required=await screening_required(number_org),
         ):
             logger.warning(
-                f"[ARI org={self.organization_id}] Refusing inbound channel "
+                f"[ARI org={number_org}] Refusing inbound channel "
                 f"{channel_id} ({channel.get('name')}) to {called_number}: it did "
                 f"not arrive from Hopwhistle, so its caller was never screened"
             )
@@ -637,14 +736,24 @@ class ARIConnection:
                 pass
             return
 
-        # 0c. One inbound call per customer number; a handoff from another AI
-        #    agent is always answered. See repeat_callers.py.
+        # Workspaces this number's routing may send calls to (see
+        # linked_workspaces.py). Only those with an ARI config on this app
+        # can take a call here.
+        linked_orgs = [
+            org
+            for org in await linked_organization_ids(number_org)
+            if org in self.app_configs
+        ]
+
+        # 0c. One inbound call per customer number, across the number's
+        #    workspace and the workspaces it routes to; a handoff from another
+        #    AI agent is always answered. See repeat_callers.py.
         caller_decision = await check_inbound_caller(
-            self.organization_id, caller_number
+            number_org, caller_number, also_organization_ids=linked_orgs
         )
         if not caller_decision.admit:
             logger.warning(
-                f"[ARI org={self.organization_id}] Refusing inbound channel "
+                f"[ARI org={number_org}] Refusing inbound channel "
                 f"{channel_id} from {caller_number}: {caller_decision.reason}"
             )
             try:
@@ -654,31 +763,15 @@ class ARIConnection:
             return
 
         try:
-            # 1. (HOPWHISTLE_ARI_INBOUND_ANY_CONFIG) Resolve the workflow from the
-            #    called extension via the org's
-            #    active ARI telephony_phone_numbers row. Every ARI config of an
-            #    org shares one Stasis app and only one connection receives its
-            #    events, so the number may belong to another of the org's ARI
-            #    configs than this connection's.
-            phone_row = await db_client.find_active_phone_number_for_inbound(
-                self.organization_id, called_number, "ari"
-            )
-            if not phone_row:
-                logger.warning(
-                    f"[ARI org={self.organization_id}] Inbound call to extension "
-                    f"{called_number} on channel {channel_id} — no matching ARI "
-                    f"phone number registered in this organization, hanging up"
-                )
-                await self._delete_channel(channel_id)
-                return
-
-            # Routing group split (if any), else the number's inbound_workflow_id.
+            # 1. Routing group split (if any), else the number's
+            #    inbound_workflow_id. A split may pick an agent in a linked
+            #    workspace; the run is then that workspace's.
             inbound_workflow_id, routing_meta = await resolve_inbound_workflow_id(
-                phone_row, caller_number
+                phone_row, caller_number, linked_organization_ids=linked_orgs
             )
             if not inbound_workflow_id:
                 logger.warning(
-                    f"[ARI org={self.organization_id}] Inbound call to extension "
+                    f"[ARI org={number_org}] Inbound call to extension "
                     f"{called_number} on channel {channel_id} — phone number "
                     f"{phone_row.address} has no inbound_workflow_id assigned, "
                     f"hanging up"
@@ -686,13 +779,33 @@ class ARIConnection:
                 await self._delete_channel(channel_id)
                 return
 
+            run_org = (routing_meta or {}).get("organization_id") or number_org
+            if run_org == self.organization_id:
+                run_config_id = self.telephony_configuration_id
+            elif run_org == number_org:
+                run_config_id = phone_row.telephony_configuration_id
+            else:
+                run_config_id = self._config_for_org(
+                    run_org,
+                    prefer_name=self._config_name(phone_row.telephony_configuration_id),
+                )
+            if run_config_id is None:
+                # The resolver only offers linked orgs on this app, so this
+                # means the config went away mid-call.
+                logger.warning(
+                    f"[ARI org={number_org}] Org {run_org} has no ARI config on "
+                    f"this Asterisk app; hanging up channel {channel_id}"
+                )
+                await self._delete_channel(channel_id)
+                return
+
             # 2. Load workflow to get user_id and verify organization
             workflow = await db_client.get_workflow(
-                inbound_workflow_id, organization_id=self.organization_id
+                inbound_workflow_id, organization_id=run_org
             )
             if not workflow:
                 logger.warning(
-                    f"[ARI org={self.organization_id}] Workflow {inbound_workflow_id} "
+                    f"[ARI org={run_org}] Workflow {inbound_workflow_id} "
                     f"not found or doesn't belong to this organization — hanging up"
                 )
                 await self._delete_channel(channel_id)
@@ -702,13 +815,13 @@ class ARIConnection:
 
             try:
                 concurrency_slot = await call_concurrency.acquire_org_slot(
-                    self.organization_id,
+                    run_org,
                     source="ari_inbound",
                     timeout=0,
                 )
             except CallConcurrencyLimitError:
                 logger.warning(
-                    f"[ARI org={self.organization_id}] Concurrent call limit "
+                    f"[ARI org={run_org}] Concurrent call limit "
                     f"reached; hanging up inbound channel {channel_id}"
                 )
                 await self._delete_channel(channel_id)
@@ -732,7 +845,7 @@ class ARIConnection:
                     "called_number": called_number,
                     "direction": "inbound",
                     "provider": "ari",
-                    "telephony_configuration_id": self.telephony_configuration_id,
+                    "telephony_configuration_id": run_config_id,
                     "external_pbx_call": external_pbx_call,
                     **({ROUTING_META_KEY: routing_meta} if routing_meta else {}),
                     **({AI_TRANSFER_KEY: True} if caller_decision.ai_transfer else {}),
@@ -740,27 +853,29 @@ class ARIConnection:
                 gathered_context={
                     "call_id": call_id,
                 },
-                organization_id=self.organization_id,
+                organization_id=run_org,
                 definition_id=run_inputs.definition_id,
             )
             await call_concurrency.bind_workflow_run(concurrency_slot, workflow_run.id)
 
             logger.info(
-                f"[ARI org={self.organization_id}] Created inbound workflow run "
+                f"[ARI org={run_org}] Created inbound workflow run "
                 f"{workflow_run.id} for channel {channel_id} "
-                f"(caller={caller_number}, called={called_number})"
+                f"(caller={caller_number}, called={called_number}"
+                + (f", number of org {number_org}" if run_org != number_org else "")
+                + ")"
             )
 
             # 4. Check quota after the run exists so hosted v2 can mint and
             # store the MPS correlation id before the pipeline starts.
             quota_result = await authorize_workflow_run_start(
                 workflow_id=inbound_workflow_id,
-                organization_id=self.organization_id,
+                organization_id=run_org,
                 workflow_run_id=workflow_run.id,
             )
             if not quota_result.has_quota:
                 logger.warning(
-                    f"[ARI org={self.organization_id}] Quota exceeded for user {user_id} "
+                    f"[ARI org={run_org}] Quota exceeded for user {user_id} "
                     f"— hanging up inbound call {channel_id}"
                 )
                 await call_concurrency.release_workflow_run_slot(workflow_run.id)
@@ -776,6 +891,7 @@ class ARIConnection:
                 channel_state,
                 str(workflow_run.id),
                 str(inbound_workflow_id),
+                organization_id=run_org,
             )
         except Exception as e:
             if workflow_run:
@@ -797,6 +913,7 @@ class ARIConnection:
         channel_state: str,
         workflow_run_id: str,
         workflow_id: str,
+        organization_id: Optional[int] = None,
     ):
         """Set up external media for a caller channel that has entered Stasis.
 
@@ -804,9 +921,21 @@ class ARIConnection:
         a pending bridge entry keyed by its channel id. The bridge itself is
         created in :meth:`_complete_bridge_after_ext_ready` once the external
         media channel has entered Stasis (its own StasisStart event).
+
+        ``organization_id`` is the run's org. When not given (an outbound call
+        answering), it is read from the run: with several orgs on one
+        Asterisk app, this connection may be handed another org's call.
         """
         ext_channel_id = f"dograh-ext-{uuid.uuid4()}"
         try:
+            if organization_id is None:
+                organization_id = await self._run_organization_id(workflow_run_id)
+            if organization_id != self.organization_id:
+                logger.info(
+                    f"[ARI org={self.organization_id}] Run {workflow_run_id} "
+                    f"belongs to org {organization_id} (shared Asterisk app); "
+                    f"setting up its media for that org"
+                )
             logger.info(
                 f"[ARI org={self.organization_id}] Setting up external media for "
                 f"channel {channel_id} via ws_client={self.ws_client_name} "
@@ -842,6 +971,7 @@ class ARIConnection:
                 workflow_id,
                 workflow_run_id,
                 channel_id=ext_channel_id,
+                organization_id=organization_id,
             )
             if not created_id:
                 await self._pop_pending_bridge(ext_channel_id)
@@ -1343,6 +1473,22 @@ class ARIManager:
                     self._connections[key] = conn
                     await conn.start()
 
+        # Tell every connection which configs share its Asterisk endpoint and
+        # app, so a call it is handed is processed for the org it belongs to.
+        shared: Dict[Tuple[str, str], Dict[int, List[Tuple[int, str]]]] = {}
+        for config in active_configs:
+            app_key = (config["ari_endpoint"].rstrip("/"), config["app_name"])
+            shared.setdefault(app_key, {}).setdefault(
+                config["organization_id"], []
+            ).append((config["telephony_configuration_id"], config.get("name") or ""))
+        for key in active_keys:
+            conn = self._connections.get(key)
+            if conn is not None:
+                conn.app_configs = shared.get(
+                    (conn.ari_endpoint, conn.app_name),
+                    {conn.organization_id: [(conn.telephony_configuration_id, "")]},
+                )
+
         # Stop connections for removed configurations
         removed_keys = set(self._connections.keys()) - active_keys
         for key in removed_keys:
@@ -1394,6 +1540,7 @@ class ARIManager:
                 {
                     "organization_id": row.organization_id,
                     "telephony_configuration_id": row.id,
+                    "name": row.name,
                     "ari_endpoint": ari_endpoint,
                     "app_name": app_name,
                     "app_password": app_password,

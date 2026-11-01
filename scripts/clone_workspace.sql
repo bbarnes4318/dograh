@@ -8,15 +8,23 @@
 --
 -- Copied (as they are now; later edits to either side are independent):
 --   organization_configurations   every key (AI models, voices, defaults, ...)
+--                                 except INBOUND_ROUTING_LINKED_WORKSPACES
 --   user_configurations           the source user's keys, onto the new user
---   telephony_configurations      carrier accounts, names, default outbound
+--   telephony_configurations      carrier accounts, names, default outbound.
+--                                 ARI configs keep the same Asterisk app as
+--                                 the source; the API handles each call for
+--                                 the workspace it belongs to (by its run or
+--                                 called number), so sharing the app is safe
 --   integrations                  connections and the calls they fire on
 --   external_credentials          stored credentials (new ids)
 --
 -- Not copied, on purpose:
 --   telephony_phone_numbers       a number can answer for one workspace only;
 --                                 add the new workspace's own numbers in its UI
---   inbound_routing_*             routes point at the source's agents
+--   inbound_routing_*             routes point at the source's agents. To
+--                                 split the source's calls to the new
+--                                 workspace's agents, link it:
+--                                 scripts/link_workspaces.sql
 --   tools                         part of an agent; rebuild with the agents
 --   api_keys                      secrets; issue new ones in the new workspace
 --
@@ -70,7 +78,9 @@ UPDATE users SET selected_organization_id = :new_org_id WHERE id = :new_user_id;
 INSERT INTO organization_configurations
   (organization_id, key, value, created_at, updated_at, last_validated_at)
 SELECT :new_org_id, key, value, now(), now(), last_validated_at
-  FROM organization_configurations WHERE organization_id = :source_org;
+  FROM organization_configurations
+ WHERE organization_id = :source_org
+   AND key <> 'INBOUND_ROUTING_LINKED_WORKSPACES';
 
 INSERT INTO user_configurations (user_id, key, configuration, last_validated_at)
 SELECT :new_user_id, key, configuration, last_validated_at

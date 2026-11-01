@@ -557,7 +557,8 @@
     },
     "/app/api/services/telephony/ari_manager.py": {
       "kits": [
-        "box-local /opt/dograh-patches/ari-inbound"
+        "box-local /opt/dograh-patches/ari-inbound",
+        "hoppwhistle deploy/dograh/one-call-per-caller"
       ],
       "action": "remove_when_preserved",
       "variants": [
@@ -569,10 +570,41 @@
           "behaviors": [
             "ari_inbound_any_config"
           ]
+        },
+        {
+          "id": "one_call_per_caller",
+          "detect": [
+            "HOPWHISTLE_ONE_CALL_PER_CALLER_V1"
+          ],
+          "behaviors": [
+            "one_call_per_caller"
+          ]
         }
       ],
       "require_one_of": [
-        "ari_inbound_any_config"
+        "ari_inbound_any_config",
+        "one_call_per_caller"
+      ]
+    },
+    "/app/api/services/telephony/repeat_callers.py": {
+      "kits": [
+        "hoppwhistle deploy/dograh/one-call-per-caller"
+      ],
+      "action": "remove_when_preserved",
+      "variants": [
+        {
+          "id": "one_call_per_caller_module",
+          "detect": [
+            "^async def check_inbound_caller\\(",
+            "INBOUND_ONE_CALL_PER_CALLER"
+          ],
+          "behaviors": [
+            "one_call_per_caller"
+          ]
+        }
+      ],
+      "require_one_of": [
+        "one_call_per_caller_module"
       ]
     },
     "/app/api/services/workflow_run_artifacts.py": {
@@ -1163,6 +1195,22 @@
         {
           "path": "/app/api/services/telephony/providers/ari/provider.py",
           "pattern": "identity_variables\\("
+        }
+      ]
+    },
+    "one_call_per_caller": {
+      "description": "An AI agent answers each customer number's inbound call only once; a handoff from another AI agent is always answered (INBOUND_ONE_CALL_PER_CALLER=false turns it off).",
+      "status": "in_source",
+      "env": [],
+      "source": "api/services/telephony/repeat_callers.py",
+      "evidence": [
+        {
+          "path": "/app/api/services/telephony/repeat_callers.py",
+          "pattern": "^async def check_inbound_caller\\("
+        },
+        {
+          "path": "/app/api/services/telephony/ari_manager.py",
+          "pattern": "await check_inbound_caller\\("
         }
       ]
     }
