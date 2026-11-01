@@ -1,6 +1,7 @@
 from loguru import logger
 from pipecat.utils.run_context import set_current_run_id
 
+from api.services.integrations.hoppwhistle.lead_intel import deliver_lead_intel_for_run
 from api.services.workflow_run_billing import (
     report_completed_workflow_run_platform_usage,
 )
@@ -31,6 +32,14 @@ async def process_workflow_completion(
         await run_integrations_post_workflow_run(_ctx, workflow_run_id)
     except Exception as e:
         logger.error(f"Error running integrations for workflow {workflow_run_id}: {e}")
+
+    # Every finished call to Hoppwhistle, so the agents of the workspace it
+    # belongs to see what the voice agent captured right away (off unless
+    # HOPPWHISTLE_LEAD_INTEL_URL and DOGRAH_QUALITY_INGEST_SECRET are set).
+    try:
+        await deliver_lead_intel_for_run(workflow_run_id)
+    except Exception as e:
+        logger.error(f"Error delivering lead intel for workflow {workflow_run_id}: {e}")
 
     # Notify MPS after completion. MPS owns credit accounting.
     try:
