@@ -153,6 +153,54 @@
   --brand-imprint: none;
 }
 
+/* Home Payouts: navy #012554 for structure, the logo's green for money and
+   action. Buttons use the deeper #007f48 so white text reads (4.9:1); the
+   bright #01a25e is a fill colour only -- as its portal draws them. */
+[data-brand="home-payouts"] {
+  --radius: 0.75rem;
+  --background: #f6f8fb;
+  --foreground: #0b1b33;
+  --card: #ffffff;
+  --card-foreground: #0b1b33;
+  --popover: #ffffff;
+  --popover-foreground: #0b1b33;
+  --primary: #007f48;
+  --primary-foreground: #ffffff;
+  --secondary: #eef2f7;
+  --secondary-foreground: #0b1b33;
+  --muted: #eef2f7;
+  --muted-foreground: #52607a;
+  --accent: #e3f5ec;
+  --accent-foreground: #012554;
+  --destructive: #b42318;
+  --border: #dde3ec;
+  --input: #c3ccda;
+  --ring: #007f48;
+  --chart-1: #01a25e;
+  --chart-2: #012554;
+  --chart-3: #c8801a;
+  --chart-4: #3d6fb6;
+  --chart-5: #a8452c;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #33415c;
+  --sidebar-primary: #007f48;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #eef2f7;
+  --sidebar-accent-foreground: #012554;
+  --sidebar-border: #dde3ec;
+  --sidebar-ring: #007f48;
+  --cta: #007f48;
+  --cta-foreground: #ffffff;
+  --brand: #01a25e;
+  --brand-ink: #012554;
+  --brand-tint: #e3f5ec;
+  --brand-panel: #012554;
+  --brand-panel-image: linear-gradient(165deg, #06336f 0%, #012554 55%, #011a3d 100%);
+  --brand-panel-accent: #2bd17e;
+  --shadow-card: 0 1px 2px rgba(1, 37, 84, 0.05), 0 0 0 1px rgba(1, 37, 84, 0.03);
+  --brand-imprint: none;
+}
+
 /* Brand-specific artwork: every variant is in the DOM and CSS shows the one
    for the active brand, so a logo never flashes from one brand to another on
    hydration. */
@@ -161,7 +209,8 @@
 }
 html:not([data-brand]) [data-brand-only="netenroll"],
 [data-brand="netenroll"] [data-brand-only="netenroll"],
-[data-brand="life-leads-plus"] [data-brand-only="life-leads-plus"] {
+[data-brand="life-leads-plus"] [data-brand-only="life-leads-plus"],
+[data-brand="home-payouts"] [data-brand-only="home-payouts"] {
   display: inline-flex !important;
 }
 

@@ -10,7 +10,7 @@
 // <html>, which is what the palette blocks in globals.css and <BrandLogo>
 // answer to. Nothing here is security-sensitive: a brand is a skin.
 
-export const BRAND_KEYS = ["netenroll", "life-leads-plus"] as const;
+export const BRAND_KEYS = ["netenroll", "life-leads-plus", "home-payouts"] as const;
 export type BrandKey = (typeof BRAND_KEYS)[number];
 
 export const DEFAULT_BRAND: BrandKey = "netenroll";
@@ -52,6 +52,17 @@ export const BRANDS: Record<BrandKey, Brand> = {
     mark: "/brands/life-leads-plus/mark-128.png",
     favicon: "/brands/life-leads-plus/favicon-32.png",
     appleTouchIcon: "/brands/life-leads-plus/apple-touch-icon.png",
+  },
+  // The real estate workspace (homepayouts.com), embedded on its portal's
+  // /re/voice-agents page.
+  "home-payouts": {
+    key: "home-payouts",
+    name: "Home Payouts",
+    wordmark: "/brands/home-payouts/wordmark.png",
+    wordmarkOnDark: "/brands/home-payouts/wordmark-on-dark.png",
+    mark: "/brands/home-payouts/mark.png",
+    favicon: "/brands/home-payouts/favicon-32.png",
+    appleTouchIcon: "/brands/home-payouts/apple-touch-icon.png",
   },
 };
 
