@@ -12,7 +12,10 @@ Rules:
   same person calling back reaches the same workflow while the weights stay the
   same; otherwise it is weighted random.
 * If the picked workflow is missing, archived or in another org, the next
-  target is tried, then the number's ``inbound_workflow_id``.
+  target is tried, then the number's ``inbound_workflow_id``. A workflow in a
+  linked workspace (linked_workspaces.py) counts as usable when the caller
+  passes that workspace in ``linked_organization_ids``; the run is then
+  created in that workspace (``routing_meta["organization_id"]``).
 * Numbers with no group (or an inactive/empty one) use
   ``inbound_workflow_id`` exactly as before.
 
@@ -97,22 +100,50 @@ def order_targets(
     return ordered, {"mode": mode, "bucket": point, "bucket_total": total}
 
 
-async def _usable_workflow(workflow_id: int, organization_id: int) -> Optional[str]:
-    """None when the workflow can take the call, else why it can't."""
+async def _usable_workflow(
+    workflow_id: int,
+    organization_id: int,
+    linked_organization_ids: Sequence[int] = (),
+) -> Tuple[Optional[str], int]:
+    """``(None, org_id)`` when the workflow can take the call, with the org it
+    belongs to (the number's org or a linked workspace), else
+    ``(why not, organization_id)``."""
     workflow = await db_client.get_workflow(
         workflow_id, organization_id=organization_id
     )
+    owner = organization_id
     if not workflow:
-        return "not found in this organization"
+        for linked_org in linked_organization_ids:
+            if linked_org == organization_id:
+                continue
+            workflow = await db_client.get_workflow(
+                workflow_id, organization_id=linked_org
+            )
+            if workflow:
+                owner = linked_org
+                break
+    if not workflow:
+        return (
+            "not found in this organization"
+            + (" or its linked workspaces" if linked_organization_ids else ""),
+            organization_id,
+        )
     if workflow.status != WorkflowStatus.ACTIVE.value:
-        return f"status is {workflow.status}"
-    return None
+        return f"status is {workflow.status}", owner
+    return None, owner
 
 
 async def resolve_inbound_workflow_id(
-    phone_row, caller_number: Optional[str]
+    phone_row,
+    caller_number: Optional[str],
+    linked_organization_ids: Sequence[int] = (),
 ) -> Tuple[Optional[int], Optional[Dict[str, Any]]]:
     """Return ``(workflow_id, routing_meta)`` for an inbound call.
+
+    ``linked_organization_ids`` are the linked workspaces (linked_workspaces.py)
+    this call path can hand the call to. A target in one of them is usable;
+    ``routing_meta["organization_id"]`` then names that workspace, and the run
+    must be created there. Targets in any other org are skipped.
 
     ``routing_meta`` is None for numbers outside any group (today's
     behaviour, nothing extra is recorded); otherwise it explains the decision
@@ -165,10 +196,15 @@ async def resolve_inbound_workflow_id(
 
         skipped = []
         for workflow_id in ordered:
-            problem = await _usable_workflow(workflow_id, organization_id)
+            problem, owner = await _usable_workflow(
+                workflow_id, organization_id, linked_organization_ids
+            )
             if problem is None:
                 meta["workflow_id"] = workflow_id
                 meta["source"] = "group"
+                if owner != organization_id:
+                    meta["organization_id"] = owner
+                    meta["number_organization_id"] = organization_id
                 if skipped:
                     meta["skipped_targets"] = skipped
                 return workflow_id, meta

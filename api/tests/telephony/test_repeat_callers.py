@@ -115,14 +115,21 @@ class _InboundARIConnection(ARIConnection):
     async def _answer_channel(self, channel_id):
         pass
 
-    async def _handle_stasis_start(self, channel_id, state, run_id, workflow_id):
+    async def _handle_stasis_start(
+        self, channel_id, state, run_id, workflow_id, organization_id=None
+    ):
         self.started.append(channel_id)
 
 
 def _patch_ari_inbound(monkeypatch, decision):
     fake_db = SimpleNamespace(
         find_active_phone_number_for_inbound=AsyncMock(
-            return_value=SimpleNamespace(id=1, address="+17207940675")
+            return_value=SimpleNamespace(
+                id=1,
+                organization_id=11,
+                telephony_configuration_id=10,
+                address="+17207940675",
+            )
         ),
         get_workflow=AsyncMock(return_value=SimpleNamespace(id=15, user_id=99)),
         create_workflow_run=AsyncMock(return_value=SimpleNamespace(id=900)),
@@ -132,6 +139,9 @@ def _patch_ari_inbound(monkeypatch, decision):
         ari_manager, "check_inbound_caller", AsyncMock(return_value=decision)
     )
     monkeypatch.setattr(ari_manager, "ari_inbound_admitted", lambda *a, **k: True)
+    monkeypatch.setattr(
+        ari_manager, "linked_organization_ids", AsyncMock(return_value=[])
+    )
     monkeypatch.setattr(
         ari_manager, "screening_required", AsyncMock(return_value=False)
     )

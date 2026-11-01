@@ -106,6 +106,18 @@ export type AriConfigurationRequest = {
      * List of SIP extensions/numbers for outbound calls (optional)
      */
     from_numbers?: Array<string>;
+    /**
+     * Outbound Carrier
+     *
+     * Carrier for outbound AI calls: FracTEL, or Mash through the PVN SBC
+     */
+    outbound_carrier?: 'fractel' | 'mash';
+    /**
+     * Pool Numbers
+     *
+     * Caller-ID slots for this configuration instead of its phone numbers (Mash: the SBC's DID pool)
+     */
+    pool_numbers?: Array<string>;
 };
 
 /**
@@ -139,6 +151,14 @@ export type AriConfigurationResponse = {
      * From Numbers
      */
     from_numbers: Array<string>;
+    /**
+     * Outbound Carrier
+     */
+    outbound_carrier?: 'fractel' | 'mash';
+    /**
+     * Pool Numbers
+     */
+    pool_numbers?: Array<string>;
 };
 
 /**
@@ -4035,6 +4055,51 @@ export type LastCampaignSettingsResponse = {
     max_concurrency?: number | null;
     schedule_config?: ScheduleConfigResponse | null;
     circuit_breaker?: CircuitBreakerConfigResponse | null;
+};
+
+/**
+ * LinkedAgent
+ */
+export type LinkedAgent = {
+    /**
+     * Workflow Id
+     */
+    workflow_id: number;
+    /**
+     * Name
+     */
+    name: string;
+};
+
+/**
+ * LinkedWorkspaceAgents
+ *
+ * A workspace this org has linked, whose agents its routing groups can
+ * send calls to. Those calls show up in that workspace.
+ */
+export type LinkedWorkspaceAgents = {
+    /**
+     * Organization Id
+     */
+    organization_id: number;
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Agents
+     */
+    agents: Array<LinkedAgent>;
+};
+
+/**
+ * LinkedWorkspaceAgentsResponse
+ */
+export type LinkedWorkspaceAgentsResponse = {
+    /**
+     * Workspaces
+     */
+    workspaces: Array<LinkedWorkspaceAgents>;
 };
 
 /**
@@ -16058,6 +16123,45 @@ export type ListInboundRoutingAuditApiV1InboundRoutingGroupsAuditGetResponses = 
 };
 
 export type ListInboundRoutingAuditApiV1InboundRoutingGroupsAuditGetResponse = ListInboundRoutingAuditApiV1InboundRoutingGroupsAuditGetResponses[keyof ListInboundRoutingAuditApiV1InboundRoutingGroupsAuditGetResponses];
+
+export type ListLinkedWorkspaceAgentsApiV1InboundRoutingGroupsLinkedAgentsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/inbound-routing-groups/linked-agents';
+};
+
+export type ListLinkedWorkspaceAgentsApiV1InboundRoutingGroupsLinkedAgentsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListLinkedWorkspaceAgentsApiV1InboundRoutingGroupsLinkedAgentsGetError = ListLinkedWorkspaceAgentsApiV1InboundRoutingGroupsLinkedAgentsGetErrors[keyof ListLinkedWorkspaceAgentsApiV1InboundRoutingGroupsLinkedAgentsGetErrors];
+
+export type ListLinkedWorkspaceAgentsApiV1InboundRoutingGroupsLinkedAgentsGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: LinkedWorkspaceAgentsResponse;
+};
+
+export type ListLinkedWorkspaceAgentsApiV1InboundRoutingGroupsLinkedAgentsGetResponse = ListLinkedWorkspaceAgentsApiV1InboundRoutingGroupsLinkedAgentsGetResponses[keyof ListLinkedWorkspaceAgentsApiV1InboundRoutingGroupsLinkedAgentsGetResponses];
 
 export type DeleteInboundRoutingGroupApiV1InboundRoutingGroupsGroupIdDeleteData = {
     body?: never;

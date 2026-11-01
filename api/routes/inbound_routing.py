@@ -13,6 +13,7 @@ from api.schemas.inbound_routing import (
     InboundRoutingGroupResponse,
     InboundRoutingGroupUpdateRequest,
     InboundRoutingStatsResponse,
+    LinkedWorkspaceAgentsResponse,
     RoutingConfigNumberSummary,
     RoutingNumberDetachRequest,
     RoutingNumbersChangeResponse,
@@ -25,6 +26,7 @@ from api.services.telephony.inbound_routing_groups import (
     describe_split,
     group_responses,
     group_stats,
+    linked_workspace_agents,
     record_audit,
     validate_configurations,
     validate_target_workflows,
@@ -127,6 +129,17 @@ async def list_inbound_routing_audit(
             )
             for r in rows
         ]
+    )
+
+
+@router.get("/linked-agents", response_model=LinkedWorkspaceAgentsResponse)
+async def list_linked_workspace_agents(
+    user: UserModel = Depends(get_user_with_selected_organization),
+):
+    """Agents in the workspaces this org has linked (set by an operator),
+    which its routing groups can also split calls to."""
+    return LinkedWorkspaceAgentsResponse(
+        workspaces=await linked_workspace_agents(user.selected_organization_id)
     )
 
 

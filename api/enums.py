@@ -131,6 +131,9 @@ class OrganizationConfigurationKey(Enum):
     )
     ORGANIZATION_PREFERENCES = "ORGANIZATION_PREFERENCES"  # Org-level defaults such as timezone/test call number
     MODEL_CONFIGURATION_PREFERENCES = "MODEL_CONFIGURATION_PREFERENCES"  # Deprecated; read fallback for old org preferences
+    # Workspaces whose agents this org's inbound routing splits may send calls
+    # to. Operator-set only (scripts/link_workspaces.sql); no API writes it.
+    INBOUND_ROUTING_LINKED_WORKSPACES = "INBOUND_ROUTING_LINKED_WORKSPACES"
 
 
 class UserConfigurationKey(Enum):

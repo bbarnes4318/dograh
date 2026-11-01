@@ -7,7 +7,7 @@ these rows lives in ``api/services/telephony/inbound_routing.py``.
 """
 
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Dict, List, Optional, Sequence, Union
 
 from sqlalchemy import func, or_, update
 from sqlalchemy.future import select
@@ -341,10 +341,21 @@ class InboundRoutingClient(BaseDBClient):
             return result.rowcount
 
     async def count_inbound_runs_by_workflow_for_routing_group(
-        self, group_id: int, organization_id: int, since: datetime
+        self,
+        group_id: int,
+        organization_id: Union[int, Sequence[int]],
+        since: datetime,
     ) -> Dict[int, int]:
         """Inbound runs created since ``since`` that the resolver routed
-        through this group, counted by the workflow that took the call."""
+        through this group, counted by the workflow that took the call.
+
+        ``organization_id`` may list several orgs: the group's org and the
+        workspaces it has linked, whose agents take some of its calls."""
+        org_ids = (
+            [organization_id]
+            if isinstance(organization_id, int)
+            else list(organization_id)
+        )
         group_id_in_meta = WorkflowRunModel.initial_context.op("->")(
             "inbound_routing"
         ).op("->>")("group_id")
@@ -354,7 +365,7 @@ class InboundRoutingClient(BaseDBClient):
                 .join(WorkflowModel, WorkflowModel.id == WorkflowRunModel.workflow_id)
                 .where(
                     WorkflowRunModel.created_at >= since,
-                    WorkflowModel.organization_id == organization_id,
+                    WorkflowModel.organization_id.in_(org_ids),
                     group_id_in_meta == str(group_id),
                 )
                 .group_by(WorkflowRunModel.workflow_id)
