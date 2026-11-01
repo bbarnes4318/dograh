@@ -15090,3 +15090,87 @@ export type GetInboundRoutingGroupStatsApiV1InboundRoutingGroupsGroupIdStatsGetR
 };
 
 export type GetInboundRoutingGroupStatsApiV1InboundRoutingGroupsGroupIdStatsGetResponse = GetInboundRoutingGroupStatsApiV1InboundRoutingGroupsGroupIdStatsGetResponses[keyof GetInboundRoutingGroupStatsApiV1InboundRoutingGroupsGroupIdStatsGetResponses];
+
+/**
+ * LinkedAgent
+ */
+export type LinkedAgent = {
+    /**
+     * Workflow Id
+     */
+    workflow_id: number;
+    /**
+     * Name
+     */
+    name: string;
+};
+
+/**
+ * LinkedWorkspaceAgents
+ *
+ * A workspace this org has linked, whose agents its routing groups can
+ * send calls to. Those calls show up in that workspace.
+ */
+export type LinkedWorkspaceAgents = {
+    /**
+     * Organization Id
+     */
+    organization_id: number;
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Agents
+     */
+    agents: Array<LinkedAgent>;
+};
+
+/**
+ * LinkedWorkspaceAgentsResponse
+ */
+export type LinkedWorkspaceAgentsResponse = {
+    /**
+     * Workspaces
+     */
+    workspaces: Array<LinkedWorkspaceAgents>;
+};
+
+export type ListLinkedWorkspaceAgentsApiV1InboundRoutingGroupsLinkedAgentsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/inbound-routing-groups/linked-agents';
+};
+
+export type ListLinkedWorkspaceAgentsApiV1InboundRoutingGroupsLinkedAgentsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListLinkedWorkspaceAgentsApiV1InboundRoutingGroupsLinkedAgentsGetError = ListLinkedWorkspaceAgentsApiV1InboundRoutingGroupsLinkedAgentsGetErrors[keyof ListLinkedWorkspaceAgentsApiV1InboundRoutingGroupsLinkedAgentsGetErrors];
+
+export type ListLinkedWorkspaceAgentsApiV1InboundRoutingGroupsLinkedAgentsGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: LinkedWorkspaceAgentsResponse;
+};
+
+export type ListLinkedWorkspaceAgentsApiV1InboundRoutingGroupsLinkedAgentsGetResponse = ListLinkedWorkspaceAgentsApiV1InboundRoutingGroupsLinkedAgentsGetResponses[keyof ListLinkedWorkspaceAgentsApiV1InboundRoutingGroupsLinkedAgentsGetResponses];

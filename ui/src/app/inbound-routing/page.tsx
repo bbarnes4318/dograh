@@ -8,6 +8,7 @@ import {
   deleteInboundRoutingGroupApiV1InboundRoutingGroupsGroupIdDelete,
   getWorkflowsSummaryApiV1WorkflowSummaryGet,
   listInboundRoutingGroupsApiV1InboundRoutingGroupsGet,
+  listLinkedWorkspaceAgentsApiV1InboundRoutingGroupsLinkedAgentsGet,
   updateInboundRoutingGroupApiV1InboundRoutingGroupsGroupIdPatch,
 } from "@/client/sdk.gen";
 import type { InboundRoutingGroupResponse } from "@/client/types.gen";
@@ -73,19 +74,33 @@ export default function InboundRoutingPage() {
     if (authLoading || !user) return;
     (async () => {
       setLoading(true);
-      const [, wf] = await Promise.all([
+      const [, wf, linked] = await Promise.all([
         fetchGroups(),
         getWorkflowsSummaryApiV1WorkflowSummaryGet({
           headers: await headers(),
           query: { status: "active" },
         }),
+        listLinkedWorkspaceAgentsApiV1InboundRoutingGroupsLinkedAgentsGet({
+          headers: await headers(),
+        }),
       ]);
       if (wf.error) toast.error(detailFromError(wf.error, "Failed to load agents"));
-      setWorkflows(
-        (wf.data ?? [])
+      if (linked.error) {
+        toast.error(
+          detailFromError(linked.error, "Failed to load linked workspaces' agents"),
+        );
+      }
+      // Agents in linked workspaces can take a share of the calls too; those
+      // calls show up in that workspace. Labelled with the workspace's name.
+      const linkedAgents: WorkflowOption[] = (linked.data?.workspaces ?? []).flatMap(
+        (ws) => ws.agents.map((a) => ({ id: a.workflow_id, name: `${a.name} (${ws.label})` })),
+      );
+      setWorkflows([
+        ...(wf.data ?? [])
           .map((w) => ({ id: w.id, name: w.name }))
           .sort((a, b) => a.id - b.id),
-      );
+        ...linkedAgents.sort((a, b) => a.id - b.id),
+      ]);
       setLoading(false);
     })();
   }, [authLoading, user, fetchGroups, headers]);
