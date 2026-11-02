@@ -153,14 +153,27 @@ class ARIConnection:
     async def _find_inbound_number(self, called_number: str):
         """The active ARI phone-number row for a called number, looked up in
         this org first, then in the other orgs sharing this Asterisk app (any
-        of their connections may be the one handed the call)."""
+        of their connections may be the one handed the call).
+
+        A cloned workspace may hold the same numbers as its source, for
+        outbound caller ID. Which connection Asterisk hands the call to is
+        arbitrary, so the row that routes inbound (an inbound agent or routing
+        group) wins over a caller-ID-only copy, whichever org it is in. With
+        no routed row, the first match is used, as before."""
+        first = None
         for org_id in self._orgs_on_this_app():
             row = await db_client.find_active_phone_number_for_inbound(
                 org_id, called_number, "ari"
             )
-            if row:
+            if not row:
+                continue
+            if getattr(row, "inbound_workflow_id", None) or getattr(
+                row, "inbound_routing_group_id", None
+            ):
                 return row
-        return None
+            if first is None:
+                first = row
+        return first
 
     async def _run_organization_id(self, workflow_run_id: str) -> int:
         """The org a run belongs to (through its workflow). Falls back to this

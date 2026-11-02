@@ -419,6 +419,40 @@ async def test_linked_workspace_without_a_config_on_this_app_is_not_offered(
     assert fx.resolver.await_args.kwargs["linked_organization_ids"] == [REAL_ESTATE]
 
 
+async def test_routed_row_beats_a_caller_id_only_copy_in_this_org(monkeypatch):
+    # Org 3 holds a copy of MAIN's number for outbound caller ID, with no
+    # inbound route. A call handed to org 3's connection must still go to
+    # MAIN, which routes the number, not to org 3's unrouted copy.
+    fx = _patch_inbound(monkeypatch, (15, None), links=())
+    copy = SimpleNamespace(
+        id=601,
+        organization_id=REAL_ESTATE,
+        telephony_configuration_id=8,
+        address="+17207940675",
+        inbound_workflow_id=None,
+        inbound_routing_group_id=None,
+    )
+
+    async def find_number(org_id, called, provider):
+        return {MAIN: fx.phone_row, REAL_ESTATE: copy}.get(org_id)
+
+    fx.db.find_active_phone_number_for_inbound.side_effect = find_number
+    conn = _InboundConn()  # org 3's connection
+    await conn._handle_inbound_stasis_start("chan-1", "Ring", _EVENT)
+
+    assert conn.deleted_channels == []
+    assert fx.db.create_workflow_run.await_args.kwargs["organization_id"] == MAIN
+    assert conn.started == [("chan-1", "900", "15", MAIN)]
+
+
+async def test_unrouted_copy_is_still_found_when_no_org_routes_it(monkeypatch):
+    fx = _patch_inbound(monkeypatch, (15, None), links=())
+    fx.phone_row.inbound_workflow_id = None
+    fx.phone_row.inbound_routing_group_id = None
+    conn = _InboundConn()
+    assert await conn._find_inbound_number("+17207940675") is fx.phone_row
+
+
 async def test_unknown_number_is_hung_up(monkeypatch):
     fx = _patch_inbound(monkeypatch, (15, None))
     fx.db.find_active_phone_number_for_inbound.side_effect = None
