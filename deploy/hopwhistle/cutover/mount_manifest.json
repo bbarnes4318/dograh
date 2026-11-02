@@ -693,6 +693,90 @@
       ],
       "action": "keep",
       "variants": []
+    },
+    "/app/api/tasks/workflow_completion.py": {
+      "kits": [
+        "hoppwhistle deploy/dograh/lead-intel"
+      ],
+      "action": "remove_when_preserved",
+      "variants": [
+        {
+          "id": "lead_intel_completion_hook",
+          "detect": [
+            "HOPWHISTLE_LEAD_INTEL_V1",
+            "deliver_lead_intel_for_run"
+          ],
+          "behaviors": [
+            "hoppwhistle_lead_intel"
+          ]
+        }
+      ],
+      "require_one_of": [
+        "lead_intel_completion_hook"
+      ]
+    },
+    "/app/api/services/hoppwhistle_lead_intel.py": {
+      "kits": [
+        "hoppwhistle deploy/dograh/lead-intel"
+      ],
+      "action": "remove_when_preserved",
+      "variants": [
+        {
+          "id": "lead_intel_module",
+          "detect": [
+            "^async def deliver_lead_intel_for_run\\(",
+            "HOPPWHISTLE_LEAD_INTEL_URL"
+          ],
+          "behaviors": [
+            "hoppwhistle_lead_intel"
+          ]
+        }
+      ],
+      "require_one_of": [
+        "lead_intel_module"
+      ]
+    },
+    "/app/api/db/reports_client.py": {
+      "kits": [
+        "box-local /opt/dograh-patches/csv-customer-phone"
+      ],
+      "action": "remove_when_preserved",
+      "variants": [
+        {
+          "id": "csv_phone_reports_client",
+          "detect": [
+            "caller_number"
+          ],
+          "behaviors": [
+            "csv_customer_phone"
+          ],
+          "requires_ack": true
+        }
+      ],
+      "require_one_of": [
+        "csv_phone_reports_client"
+      ]
+    },
+    "/app/api/services/reports/run_report.py": {
+      "kits": [
+        "box-local /opt/dograh-patches/csv-customer-phone"
+      ],
+      "action": "remove_when_preserved",
+      "variants": [
+        {
+          "id": "csv_phone_run_report",
+          "detect": [
+            "caller_number"
+          ],
+          "behaviors": [
+            "csv_customer_phone"
+          ],
+          "requires_ack": true
+        }
+      ],
+      "require_one_of": [
+        "csv_phone_run_report"
+      ]
     }
   },
   "behaviors": {
@@ -1211,6 +1295,42 @@
         {
           "path": "/app/api/services/telephony/ari_manager.py",
           "pattern": "await check_inbound_caller\\("
+        }
+      ]
+    },
+    "hoppwhistle_lead_intel": {
+      "description": "Every finished call is posted to Hoppwhistle's lead-intel endpoint (HOPPWHISTLE_LEAD_INTEL_URL + DOGRAH_QUALITY_INGEST_SECRET, kept from the existing override).",
+      "status": "in_source",
+      "env": [],
+      "source": "api/services/integrations/hoppwhistle/lead_intel.py",
+      "evidence": [
+        {
+          "path": "/app/api/services/integrations/hoppwhistle/lead_intel.py",
+          "pattern": "^async def deliver_lead_intel_for_run\\("
+        },
+        {
+          "path": "/app/api/services/integrations/hoppwhistle/lead_intel.py",
+          "pattern": "HOPPWHISTLE_LEAD_INTEL_URL"
+        },
+        {
+          "path": "/app/api/tasks/workflow_completion.py",
+          "pattern": "deliver_lead_intel_for_run\\("
+        }
+      ]
+    },
+    "csv_customer_phone": {
+      "description": "CSV exports put the customer's number in every row (inbound: caller_number; outbound: phone_number / called_number), never our own caller ID.",
+      "status": "in_source",
+      "env": [],
+      "source": "api/db/reports_client.py",
+      "evidence": [
+        {
+          "path": "/app/api/db/reports_client.py",
+          "pattern": "^def _context_text\\("
+        },
+        {
+          "path": "/app/api/db/reports_client.py",
+          "pattern": "\"caller_number\""
         }
       ]
     }
