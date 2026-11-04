@@ -7,6 +7,7 @@ during workflow execution.
 from __future__ import annotations
 
 import asyncio
+import os
 import time
 import uuid
 from datetime import UTC, datetime
@@ -72,6 +73,36 @@ _SMS_ERROR_MESSAGES = {
     "provider_rejected": "The text message provider rejected the message",
     "provider_unavailable": "The text message service is temporarily unavailable",
 }
+
+
+# Off switch for the customer's caller ID on transfer legs, for a carrier that
+# refuses a caller ID we do not own. Unset or anything else: on.
+TRANSFER_CALLER_ID_ENV = "ARI_TRANSFER_PRESENT_CUSTOMER"
+
+
+def transfer_caller_id(call_parties: Any) -> Optional[str]:
+    """The customer's number, +1XXXXXXXXXX, for a transfer leg's caller ID.
+
+    Without it the ARI provider falls back to ARI_TRANSFER_DEFAULT_CALLER_ID,
+    our own DID, so every agent who took a transfer saw that one number and
+    every Hoppwhistle call log filed the call under it. The customer is the
+    same party a Send SMS tool texts (``resolve_call_recipient``): the dialed
+    number on an outbound call, the caller on an inbound one. None when the
+    call has no usable US number or the switch is off; the provider then keeps
+    its default.
+    """
+    if os.environ.get(TRANSFER_CALLER_ID_ENV, "").strip().lower() in (
+        "0",
+        "false",
+        "no",
+        "off",
+    ):
+        return None
+    try:
+        number, _ = resolve_call_recipient(call_parties or {})
+    except RecipientResolutionError:
+        return None
+    return f"+1{number}"
 
 
 def _render_transfer_destination(
@@ -1136,6 +1167,9 @@ class CustomToolManager:
                         transfer_id=transfer_id,
                         conference_name=conference_name,
                         timeout=timeout_seconds,
+                        # The agent sees, and the call log records, the
+                        # customer -- not our own trunk number.
+                        caller_id=transfer_caller_id(self._engine._call_parties),
                     )
                 except Exception as e:
                     logger.error(f"Transfer provider failed: {e}")
