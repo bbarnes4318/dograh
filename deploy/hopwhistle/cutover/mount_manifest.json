@@ -487,7 +487,8 @@
     "/app/api/routes/reports.py": {
       "kits": [
         "dograh deploy/hopwhistle/apply_insights_duration_patch.py",
-        "dograh deploy/hopwhistle/apply_machine_answer_patch.py"
+        "dograh deploy/hopwhistle/apply_machine_answer_patch.py",
+        "hoppwhistle deploy/dograh/live-results-phone"
       ],
       "action": "remove_when_preserved",
       "variants": [
@@ -507,6 +508,15 @@
           ],
           "behaviors": [
             "insights_machine_answer"
+          ]
+        },
+        {
+          "id": "live_results_phone",
+          "detect": [
+            "hopwhistle-live-results-phone"
+          ],
+          "behaviors": [
+            "live_results_customer_phone"
           ]
         }
       ],
@@ -1331,6 +1341,18 @@
         {
           "path": "/app/api/db/reports_client.py",
           "pattern": "\"caller_number\""
+        }
+      ]
+    },
+    "live_results_customer_phone": {
+      "description": "Live Results shows the prospect's number on every call (inbound: caller_number), never our own caller ID.",
+      "status": "in_source",
+      "env": [],
+      "source": "api/routes/reports.py",
+      "evidence": [
+        {
+          "path": "/app/api/routes/reports.py",
+          "pattern": "hopwhistle-live-results-phone"
         }
       ]
     }
