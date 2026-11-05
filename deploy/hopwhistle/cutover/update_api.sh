@@ -18,11 +18,16 @@ require_root
 [[ -e "$IN_PROGRESS_LINK" ]] \
     && die "a previous switch did not finish. Run: sudo bash $HERE/recover.sh status"
 [[ -f "$OVERRIDE_FILE" ]] || die "no $OVERRIDE_FILE"
-if grep -q "/opt/dograh-patches/" "$OVERRIDE_FILE"; then
-    die "this box still runs the patched stock image. Run 1_build_image.sh and 2_cutover.sh first (see README.md). Nothing changed."
+# The fork image line is what says the box was cut over. A cut-over box can
+# still mount files from /opt/dograh-patches/ that the manifest keeps (e.g.
+# the pvn-stir certificate folder), so those mounts alone don't mean the box
+# is on the patched stock image.
+if ! grep -qE "image:[[:space:]]*\"?${NEW_IMAGE_REPO}:" "$OVERRIDE_FILE"; then
+    if grep -q "/opt/dograh-patches/" "$OVERRIDE_FILE"; then
+        die "this box still runs the patched stock image. Run 1_build_image.sh and 2_cutover.sh first (see README.md). Nothing changed."
+    fi
+    die "$OVERRIDE_FILE has no '${NEW_IMAGE_REPO}:<sha>' image line. Nothing changed."
 fi
-grep -qE "image:[[:space:]]*\"?${NEW_IMAGE_REPO}:" "$OVERRIDE_FILE" \
-    || die "$OVERRIDE_FILE has no '${NEW_IMAGE_REPO}:<sha>' image line. Nothing changed."
 
 SHA="${1:-$(git ls-remote "$REPO_URL" refs/heads/main | cut -f1)}"
 [[ -n "$SHA" ]] || die "could not resolve the fork's main; pass a git sha"
