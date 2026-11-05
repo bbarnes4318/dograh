@@ -972,7 +972,14 @@ async def get_campaign_insights(
     async with db_client.async_session() as session:
         q = """
             select r.id, r.state, r.is_completed, r.created_at,
-                   COALESCE(NULLIF(r.initial_context->>'phone_number',''), r.initial_context->>'called_number') as phone,
+                   -- The prospect number, never our caller ID. On inbound calls
+                   -- called_number is OUR number; the prospect is caller_number.
+                   CASE WHEN lower(COALESCE(CAST(r.call_type AS text), r.initial_context->>'direction', '')) = 'inbound'
+                        THEN COALESCE(NULLIF(r.initial_context->>'caller_number',''),
+                                      NULLIF(r.initial_context->>'phone_number',''))
+                        ELSE COALESCE(NULLIF(r.initial_context->>'phone_number',''),
+                                      r.initial_context->>'called_number')
+                   END /* hopwhistle-live-results-phone */ as phone,
                    r.call_type as direction,
                    r.gathered_context->>'call_disposition' as dispo,
                    r.gathered_context->>'transfer_state' as transfer_state,
