@@ -5,6 +5,7 @@ from sqlalchemy.future import select
 from api.db.base_client import BaseDBClient
 from api.db.models import FolderModel, WorkflowModel
 from api.enums import WorkflowStatus
+from api.services.auth.viewer import workflow_in_org
 
 
 class FolderNameConflictError(Exception):
@@ -106,7 +107,7 @@ class FolderClient(BaseDBClient):
                     func.count(WorkflowModel.id).label("count"),
                 )
                 .where(
-                    WorkflowModel.organization_id == organization_id,
+                    workflow_in_org(organization_id),
                     WorkflowModel.folder_id.is_not(None),
                     WorkflowModel.status == WorkflowStatus.ACTIVE.value,
                 )

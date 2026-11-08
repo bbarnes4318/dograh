@@ -7,7 +7,7 @@ selection and inbound call routing.
 
 from typing import Any, Dict, List, Optional, Tuple
 
-from sqlalchemy import update
+from sqlalchemy import and_, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.future import select
 
@@ -17,6 +17,7 @@ from api.db.models import (
     TelephonyPhoneNumberModel,
     WorkflowModel,
 )
+from api.services.auth.viewer import visible_workflows
 from api.utils.telephony_address import normalize_telephony_address
 
 
@@ -46,7 +47,13 @@ class TelephonyPhoneNumberClient(BaseDBClient):
                 select(TelephonyPhoneNumberModel, WorkflowModel.name)
                 .join(
                     WorkflowModel,
-                    WorkflowModel.id == TelephonyPhoneNumberModel.inbound_workflow_id,
+                    and_(
+                        WorkflowModel.id
+                        == TelephonyPhoneNumberModel.inbound_workflow_id,
+                        # An owner-only agent's name stays hidden; the number
+                        # is still listed.
+                        visible_workflows(),
+                    ),
                     isouter=True,
                 )
                 .where(

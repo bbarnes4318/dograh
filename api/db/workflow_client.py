@@ -8,6 +8,7 @@ from sqlalchemy.orm import load_only, selectinload
 
 from api.db.base_client import BaseDBClient
 from api.db.models import WorkflowDefinitionModel, WorkflowModel, WorkflowRunModel
+from api.services.auth.viewer import workflow_in_org
 
 
 class WorkflowClient(BaseDBClient):
@@ -338,7 +339,7 @@ class WorkflowClient(BaseDBClient):
 
             if organization_id:
                 # Filter by organization_id when provided
-                query = query.where(WorkflowModel.organization_id == organization_id)
+                query = query.where(workflow_in_org(organization_id))
             elif user_id:
                 # Fallback to user_id for backwards compatibility
                 query = query.where(WorkflowModel.user_id == user_id)
@@ -378,7 +379,7 @@ class WorkflowClient(BaseDBClient):
             )
 
             if organization_id:
-                query = query.where(WorkflowModel.organization_id == organization_id)
+                query = query.where(workflow_in_org(organization_id))
 
             if status:
                 query = query.where(WorkflowModel.status == status)
@@ -402,7 +403,7 @@ class WorkflowClient(BaseDBClient):
             )
 
             if organization_id:
-                query = query.where(WorkflowModel.organization_id == organization_id)
+                query = query.where(workflow_in_org(organization_id))
 
             query = query.group_by(WorkflowModel.status)
 
@@ -459,7 +460,7 @@ class WorkflowClient(BaseDBClient):
 
             if organization_id:
                 # Filter by organization_id when provided
-                query = query.where(WorkflowModel.organization_id == organization_id)
+                query = query.where(workflow_in_org(organization_id))
             elif user_id:
                 # Fallback to user_id for backwards compatibility
                 query = query.where(WorkflowModel.user_id == user_id)
@@ -498,7 +499,7 @@ class WorkflowClient(BaseDBClient):
                 )
                 .where(
                     WorkflowModel.workflow_uuid == workflow_uuid,
-                    WorkflowModel.organization_id == organization_id,
+                    workflow_in_org(organization_id),
                 )
             )
             return result.scalars().first()
@@ -557,7 +558,7 @@ class WorkflowClient(BaseDBClient):
             )
 
             if organization_id:
-                query = query.where(WorkflowModel.organization_id == organization_id)
+                query = query.where(workflow_in_org(organization_id))
             elif user_id:
                 query = query.where(WorkflowModel.user_id == user_id)
 
@@ -608,7 +609,7 @@ class WorkflowClient(BaseDBClient):
             result = await session.execute(
                 select(WorkflowModel).where(
                     WorkflowModel.id.in_(workflow_ids),
-                    WorkflowModel.organization_id == organization_id,
+                    workflow_in_org(organization_id),
                 )
             )
             return result.scalars().all()
@@ -622,7 +623,7 @@ class WorkflowClient(BaseDBClient):
 
             if organization_id:
                 # Filter by organization_id when provided
-                query = query.where(WorkflowModel.organization_id == organization_id)
+                query = query.where(workflow_in_org(organization_id))
             elif user_id:
                 # Fallback to user_id for backwards compatibility
                 query = query.where(WorkflowModel.user_id == user_id)
@@ -661,7 +662,7 @@ class WorkflowClient(BaseDBClient):
                 )
                 .where(
                     WorkflowModel.id == workflow_id,
-                    WorkflowModel.organization_id == organization_id,
+                    workflow_in_org(organization_id),
                 )
             )
 
@@ -703,7 +704,7 @@ class WorkflowClient(BaseDBClient):
         async with self.async_session() as session:
             query = select(WorkflowModel).where(
                 WorkflowModel.id == workflow_id,
-                WorkflowModel.organization_id == organization_id,
+                workflow_in_org(organization_id),
             )
 
             result = await session.execute(query)

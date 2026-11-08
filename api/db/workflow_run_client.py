@@ -21,6 +21,7 @@ from api.db.models import (
 )
 from api.enums import CallType, StorageBackend
 from api.schemas.workflow import WorkflowRunResponseSchema
+from api.services.auth.viewer import workflow_in_org
 from api.services.workflow.call_duration import (
     apply_telephony_duration,
     carry_over_telephony_duration,
@@ -53,9 +54,7 @@ class WorkflowRunClient(BaseDBClient):
                 .where(WorkflowModel.id == workflow_id)
             )
             if organization_id is not None:
-                workflow_query = workflow_query.where(
-                    WorkflowModel.organization_id == organization_id
-                )
+                workflow_query = workflow_query.where(workflow_in_org(organization_id))
             elif user_id is not None:
                 workflow_query = workflow_query.where(WorkflowModel.user_id == user_id)
 
@@ -214,7 +213,7 @@ class WorkflowRunClient(BaseDBClient):
                 # Filter by organization_id when provided
                 query = query.where(
                     WorkflowRunModel.id == run_id,
-                    WorkflowModel.organization_id == organization_id,
+                    workflow_in_org(organization_id),
                 )
             elif user_id:
                 # Fallback to user_id for backwards compatibility
@@ -255,7 +254,7 @@ class WorkflowRunClient(BaseDBClient):
                 .join(WorkflowModel, WorkflowRunModel.workflow_id == WorkflowModel.id)
                 .where(
                     WorkflowRunModel.id == run_id,
-                    WorkflowModel.organization_id == organization_id,
+                    workflow_in_org(organization_id),
                 )
             )
             return result.scalar_one_or_none() or {}
@@ -297,9 +296,7 @@ class WorkflowRunClient(BaseDBClient):
 
             if organization_id:
                 # Filter by organization_id when provided
-                base_query = base_query.where(
-                    WorkflowModel.organization_id == organization_id
-                )
+                base_query = base_query.where(workflow_in_org(organization_id))
             elif user_id:
                 # Fallback to user_id for backwards compatibility
                 base_query = base_query.where(WorkflowModel.user_id == user_id)

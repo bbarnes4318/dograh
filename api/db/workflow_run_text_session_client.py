@@ -2,11 +2,8 @@ from sqlalchemy.future import select
 from sqlalchemy.orm import joinedload
 
 from api.db.base_client import BaseDBClient
-from api.db.models import (
-    WorkflowModel,
-    WorkflowRunModel,
-    WorkflowRunTextSessionModel,
-)
+from api.db.models import WorkflowRunModel, WorkflowRunTextSessionModel
+from api.services.auth.viewer import workflow_in_org
 
 
 class WorkflowRunTextSessionRevisionConflictError(Exception):
@@ -74,7 +71,7 @@ class WorkflowRunTextSessionClient(BaseDBClient):
                 .join(WorkflowRunTextSessionModel.workflow_run)
                 .join(WorkflowRunModel.workflow)
                 .where(WorkflowRunTextSessionModel.workflow_run_id == workflow_run_id)
-                .where(WorkflowModel.organization_id == organization_id)
+                .where(workflow_in_org(organization_id))
             )
 
             result = await session.execute(query)

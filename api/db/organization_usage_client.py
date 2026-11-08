@@ -17,6 +17,7 @@ from api.db.models import (
     WorkflowRunModel,
 )
 from api.enums import OrganizationConfigurationKey
+from api.services.auth.viewer import workflow_in_org
 from api.utils.recording_artifacts import get_recording_storage_key
 
 
@@ -137,7 +138,7 @@ class OrganizationUsageClient(BaseDBClient):
                 select(WorkflowRunModel)
                 .join(WorkflowModel, WorkflowRunModel.workflow_id == WorkflowModel.id)
                 .where(
-                    WorkflowModel.organization_id == organization_id,
+                    workflow_in_org(organization_id),
                     WorkflowRunModel.usage_info.isnot(None),
                 )
             )
@@ -286,7 +287,7 @@ class OrganizationUsageClient(BaseDBClient):
                 )
                 .join(WorkflowModel, WorkflowRunModel.workflow_id == WorkflowModel.id)
                 .where(
-                    WorkflowModel.organization_id == organization_id,
+                    workflow_in_org(organization_id),
                     WorkflowRunModel.usage_info.isnot(None),
                 )
                 .order_by(WorkflowRunModel.created_at.desc())
@@ -373,7 +374,7 @@ class OrganizationUsageClient(BaseDBClient):
                 )
                 .join(WorkflowModel, WorkflowModel.id == WorkflowRunModel.workflow_id)
                 .where(
-                    WorkflowModel.organization_id == organization_id,
+                    workflow_in_org(organization_id),
                     WorkflowRunModel.created_at >= start_date,
                     WorkflowRunModel.created_at <= end_date,
                     WorkflowRunModel.is_completed == True,

@@ -6,6 +6,7 @@ from sqlalchemy import String, and_, case, func, select
 
 from api.db.base_client import BaseDBClient
 from api.db.models import WorkflowModel, WorkflowRunModel
+from api.services.auth.viewer import workflow_in_org
 
 
 def _context_text(column, key):
@@ -50,7 +51,7 @@ class ReportsClient(BaseDBClient):
         tsquery = func.websearch_to_tsquery("english", query_text)
 
         conditions = [
-            WorkflowModel.organization_id == organization_id,
+            workflow_in_org(organization_id),
             tsvector.op("@@")(tsquery),
         ]
         if workflow_id is not None:
@@ -135,7 +136,7 @@ class ReportsClient(BaseDBClient):
                 .join(WorkflowModel, WorkflowRunModel.workflow_id == WorkflowModel.id)
                 .where(
                     and_(
-                        WorkflowModel.organization_id == organization_id,
+                        workflow_in_org(organization_id),
                         WorkflowRunModel.created_at >= start_utc,
                         WorkflowRunModel.created_at <= end_utc,
                     )
@@ -264,7 +265,7 @@ class ReportsClient(BaseDBClient):
                 .join(WorkflowModel, WorkflowRunModel.workflow_id == WorkflowModel.id)
                 .where(
                     and_(
-                        WorkflowModel.organization_id == organization_id,
+                        workflow_in_org(organization_id),
                         WorkflowRunModel.created_at >= start_utc,
                         WorkflowRunModel.created_at <= end_utc,
                     )
@@ -306,7 +307,7 @@ class ReportsClient(BaseDBClient):
         async with self.async_session() as session:
             query = (
                 select(WorkflowModel)
-                .where(WorkflowModel.organization_id == organization_id)
+                .where(workflow_in_org(organization_id))
                 .order_by(WorkflowModel.name)
             )
 

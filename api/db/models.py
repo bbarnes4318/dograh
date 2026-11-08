@@ -569,6 +569,11 @@ class WorkflowModel(Base):
     workflow_configurations = Column(
         JSON, nullable=False, default=dict, server_default=text("'{}'::json")
     )
+    # Seen only by the platform owner: hidden from every other viewer of the
+    # shared workspace. See api/services/auth/viewer.py.
+    owner_only = Column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
     runs = relationship("WorkflowRunModel", back_populates="workflow")
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
 
