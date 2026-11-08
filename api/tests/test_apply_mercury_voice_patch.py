@@ -104,3 +104,25 @@ def test_fork_image_box_is_left_alone(tmp_path, patch_module):
     before = _snapshot(patches)
     assert _run(patch_module, compose, patches) == 0
     assert _snapshot(patches) == before
+
+
+def test_cut_over_box_with_a_kept_pvn_stir_mount_is_left_alone(
+    tmp_path, patch_module, capsys
+):
+    """Production after the cutover: fork image, plus the kept pvn-stir mount.
+
+    The old check saw "/opt/dograh-patches/" and patched files the container
+    doesn't mount, so the API never picked the change up.
+    """
+    compose, patches = _box(tmp_path, patch_module)
+    (compose / "docker-compose.override.yaml").write_text(
+        "services:\n"
+        "  api:\n"
+        "    image: hopwhistle/dograh-api:bcc7525a\n"
+        "    volumes:\n"
+        "      - /opt/dograh-patches/pvn-stir:/run/pvn-stir:ro\n"
+    )
+    before = _snapshot(patches)
+    assert _run(patch_module, compose, patches) == 0
+    assert _snapshot(patches) == before
+    assert "update_api.sh" in capsys.readouterr().out
