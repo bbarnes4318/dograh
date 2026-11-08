@@ -38,6 +38,7 @@ Nothing is written unless every anchor for every file is found.
 from __future__ import annotations
 
 import argparse
+import re
 import shutil
 import sys
 import time
@@ -115,10 +116,25 @@ EDITS = {
 }
 
 
+# The image a cut-over box runs (cutover/common.sh NEW_IMAGE_REPO).
+FORK_IMAGE_LINE = re.compile(r"image:\s*\"?hopwhistle/dograh-api:")
+
+
 def box_uses_patch_mounts(compose_dir: Path) -> bool:
-    """True when the api container still runs files from /opt/dograh-patches/."""
+    """True when the api container still runs registry.py from /opt/dograh-patches/.
+
+    A box cut over to the fork-built image can still mount other things from
+    /opt/dograh-patches/ (e.g. the pvn-stir certificate folder), so that path
+    alone doesn't mean the stock image. The fork image line, or the absence of
+    a registry.py patch mount, means there is nothing here to patch.
+    """
     override = compose_dir / "docker-compose.override.yaml"
-    return override.exists() and "/opt/dograh-patches/" in override.read_text()
+    if not override.exists():
+        return False
+    text = override.read_text()
+    if FORK_IMAGE_LINE.search(text):
+        return False
+    return "/opt/dograh-patches/registry.py" in text
 
 
 def main() -> int:
@@ -136,8 +152,8 @@ def main() -> int:
 
     if not box_uses_patch_mounts(args.compose_dir):
         print(
-            "This box does not mount files from /opt/dograh-patches/, so it runs a\n"
-            "fork-built image. Nothing to patch: deploy main with\n"
+            "This box runs the fork-built image (its api does not mount registry.py\n"
+            "from /opt/dograh-patches/). Nothing to patch: deploy main with\n"
             "  sudo bash cutover/update_api.sh\n"
             "Nothing changed."
         )
