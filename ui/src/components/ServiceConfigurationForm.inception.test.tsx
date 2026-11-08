@@ -137,6 +137,35 @@ describe("BYOK LLM tab — Inception", () => {
         ).toBeTruthy();
     });
 
+    it("offers Mercury Voice alongside Mercury 3 in the model list", async () => {
+        renderByokForm({ llm: SAVED_INCEPTION_CONFIG });
+
+        await waitFor(() => expect(providerSelect().value).toBe("inception"));
+        const models = Array.from(selectOffering("mercury-3")?.options ?? []).map(
+            (o) => o.value,
+        );
+        expect(models).toContain("mercury-3");
+        expect(models).toContain("mercury-voice");
+    });
+
+    it("saves a Mercury Voice config with its reasoning effort", async () => {
+        const { onSave } = renderByokForm({
+            llm: { ...SAVED_INCEPTION_CONFIG, model: "mercury-voice", reasoning_effort: "low" },
+        });
+
+        await waitFor(() => expect(providerSelect().value).toBe("inception"));
+        expect(selectOffering("mercury-voice")?.value).toBe("mercury-voice");
+        fireEvent.click(screen.getByRole("button", { name: /save configuration/i }));
+
+        await waitFor(() => expect(onSave).toHaveBeenCalled());
+        const saved = onSave.mock.calls[0][0] as Record<string, unknown>;
+        expect(saved.llm).toMatchObject({
+            provider: "inception",
+            model: "mercury-voice",
+            reasoning_effort: "low",
+        });
+    });
+
     it("rehydrates a saved Inception config, so model and effort survive a reload", async () => {
         renderByokForm({ llm: SAVED_INCEPTION_CONFIG });
 

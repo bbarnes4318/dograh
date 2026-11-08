@@ -262,7 +262,7 @@
       "type": "object"
     },
     "inception": {
-      "description": "Inception Mercury diffusion LLMs. Mercury 3 decodes tokens in parallel for very low time-to-first-token, and exposes a reasoning effort knob to trade latency against depth.",
+      "description": "Inception Mercury diffusion LLMs. Mercury 3 decodes tokens in parallel for very low time-to-first-token, and exposes a reasoning effort knob to trade latency against depth. Mercury Voice is tuned for voice agents (enterprise access from Inception) and accepts only low, medium or high reasoning effort.",
       "properties": {
         "provider": {
           "const": "inception",
@@ -289,7 +289,8 @@
           "default": "mercury-3",
           "description": "Inception Mercury model identifier.",
           "examples": [
-            "mercury-3"
+            "mercury-3",
+            "mercury-voice"
           ],
           "title": "Model",
           "type": "string"
@@ -302,7 +303,7 @@
         },
         "reasoning_effort": {
           "default": "low",
-          "description": "How much of the diffusion budget Mercury spends on reasoning. 'instant' is fastest; raise it for harder turns at the cost of time-to-first-token.",
+          "description": "How much of the diffusion budget Mercury spends on reasoning. 'instant' is fastest; raise it for harder turns at the cost of time-to-first-token. Mercury Voice does not offer 'instant'; use 'low' for the fastest Voice turns.",
           "enum": [
             "instant",
             "low",
@@ -467,6 +468,12 @@
           "description": "AWS region where the Bedrock model is available.",
           "title": "Aws Region",
           "type": "string"
+        },
+        "enable_prompt_caching": {
+          "default": false,
+          "description": "Send prompt cache points on the system prompt and tool schemas. Cuts time-to-first-token on models that support it, but Bedrock rejects cache points on models that do not \u2014 and a rejected request fails every turn of the call. Leave off unless you have confirmed your model accepts them.",
+          "title": "Enable Prompt Caching",
+          "type": "boolean"
         }
       },
       "title": "AWS Bedrock",
@@ -1058,11 +1065,26 @@
           "title": "Model",
           "type": "string"
         },
-        "voice": {
-          "allow_custom_input": true,
-          "default": "alloy",
-          "description": "Voice the model speaks in.",
+        "voice_type": {
+          "default": "builtin",
+          "description": "Built-in OpenAI voice, or a Custom OpenAI Voice ID.",
+          "enum": [
+            "builtin",
+            "custom"
+          ],
           "examples": [
+            "builtin",
+            "custom"
+          ],
+          "title": "Voice Type",
+          "type": "string"
+        },
+        "voice": {
+          "default": "marin",
+          "description": "Voice the model speaks in. Marin and Cedar are recommended.",
+          "examples": [
+            "marin",
+            "cedar",
             "alloy",
             "ash",
             "ballad",
@@ -1072,8 +1094,103 @@
             "shimmer",
             "verse"
           ],
+          "show_when": {
+            "voice_type": "builtin"
+          },
           "title": "Voice",
-          "type": "string"
+          "type": "string",
+          "voice_catalog": [
+            {
+              "description": "Bright, clear, professional",
+              "group": "Recommended",
+              "label": "Marin",
+              "value": "marin"
+            },
+            {
+              "description": "Warm, natural, conversational",
+              "group": "Recommended",
+              "label": "Cedar",
+              "value": "cedar"
+            },
+            {
+              "description": "Neutral, balanced",
+              "group": "Classic",
+              "label": "Alloy",
+              "value": "alloy"
+            },
+            {
+              "description": "Confident, slightly husky",
+              "group": "Classic",
+              "label": "Ash",
+              "value": "ash"
+            },
+            {
+              "description": "Soft, melodic",
+              "group": "Classic",
+              "label": "Ballad",
+              "value": "ballad"
+            },
+            {
+              "description": "Friendly, upbeat",
+              "group": "Classic",
+              "label": "Coral",
+              "value": "coral"
+            },
+            {
+              "description": "Calm, steady",
+              "group": "Classic",
+              "label": "Echo",
+              "value": "echo"
+            },
+            {
+              "description": "Composed, measured",
+              "group": "Classic",
+              "label": "Sage",
+              "value": "sage"
+            },
+            {
+              "description": "Light, expressive",
+              "group": "Classic",
+              "label": "Shimmer",
+              "value": "shimmer"
+            },
+            {
+              "description": "Expressive, dynamic",
+              "group": "Classic",
+              "label": "Verse",
+              "value": "verse"
+            }
+          ]
+        },
+        "custom_voice_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Custom OpenAI Voice ID (e.g. voice_123abc). Requires a project with Custom Voice access.",
+          "show_when": {
+            "voice_type": "custom"
+          },
+          "title": "Voice ID"
+        },
+        "voice_instructions": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional voice delivery instructions (accent, pace, tone). Applied to how the voice sounds only \u2014 keep workflow/business logic in your node prompts.",
+          "multiline": true,
+          "title": "Voice Delivery Instructions"
         },
         "language": {
           "allow_custom_input": true,
@@ -1106,6 +1223,211 @@
         "api_key"
       ],
       "title": "OpenAI Realtime",
+      "type": "object"
+    },
+    "openai_live": {
+      "description": "OpenAI GPT-Live \u2014 full-duplex conversational voice. GPT-Live handles listening, speaking and interruptions; your workflow engine stays authoritative for tools and business logic via client delegation.",
+      "properties": {
+        "provider": {
+          "const": "openai_live",
+          "default": "openai_live",
+          "title": "Provider",
+          "type": "string"
+        },
+        "api_key": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          ],
+          "title": "Api Key"
+        },
+        "model": {
+          "allow_custom_input": true,
+          "default": "gpt-live-1",
+          "description": "OpenAI GPT-Live model.",
+          "examples": [
+            "gpt-live-1"
+          ],
+          "title": "Model",
+          "type": "string"
+        },
+        "voice_type": {
+          "default": "builtin",
+          "description": "Built-in GPT-Live voice, or a Custom OpenAI Voice ID.",
+          "enum": [
+            "builtin",
+            "custom"
+          ],
+          "examples": [
+            "builtin",
+            "custom"
+          ],
+          "title": "Voice Type",
+          "type": "string"
+        },
+        "voice": {
+          "default": "meridian",
+          "description": "GPT-Live voice. The voice is fixed for the duration of a call.",
+          "examples": [
+            "gleam",
+            "meridian",
+            "marin",
+            "delta",
+            "cinder",
+            "vesper",
+            "willow",
+            "stone",
+            "quartz",
+            "ripple",
+            "beacon",
+            "bossa",
+            "tempo"
+          ],
+          "show_when": {
+            "voice_type": "builtin"
+          },
+          "title": "Voice",
+          "type": "string",
+          "voice_catalog": [
+            {
+              "description": "North American, feminine",
+              "group": "North American",
+              "label": "Gleam",
+              "value": "gleam"
+            },
+            {
+              "description": "North American, masculine",
+              "group": "North American",
+              "label": "Meridian",
+              "value": "meridian"
+            },
+            {
+              "description": "OpenAI default (American), feminine",
+              "group": "North American",
+              "label": "Marin",
+              "value": "marin"
+            },
+            {
+              "description": "Southern U.S., feminine",
+              "group": "Southern U.S.",
+              "label": "Delta",
+              "value": "delta"
+            },
+            {
+              "description": "Southern U.S., masculine",
+              "group": "Southern U.S.",
+              "label": "Cinder",
+              "value": "cinder"
+            },
+            {
+              "description": "British, masculine",
+              "group": "British / Irish / Australian",
+              "label": "Vesper",
+              "value": "vesper"
+            },
+            {
+              "description": "Irish, feminine",
+              "group": "British / Irish / Australian",
+              "label": "Willow",
+              "value": "willow"
+            },
+            {
+              "description": "Irish, masculine",
+              "group": "British / Irish / Australian",
+              "label": "Stone",
+              "value": "stone"
+            },
+            {
+              "description": "Australian, feminine",
+              "group": "British / Irish / Australian",
+              "label": "Quartz",
+              "value": "quartz"
+            },
+            {
+              "description": "Australian, masculine",
+              "group": "British / Irish / Australian",
+              "label": "Ripple",
+              "value": "ripple"
+            },
+            {
+              "description": "Filipino English, masculine",
+              "group": "Other",
+              "label": "Beacon",
+              "value": "beacon"
+            },
+            {
+              "description": "Brazilian Portuguese, feminine",
+              "group": "Other",
+              "label": "Bossa",
+              "value": "bossa"
+            },
+            {
+              "description": "Brazilian Portuguese, masculine",
+              "group": "Other",
+              "label": "Tempo",
+              "value": "tempo"
+            }
+          ]
+        },
+        "custom_voice_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Custom OpenAI Voice ID (e.g. voice_123abc). Requires a project with Custom Voice access.",
+          "show_when": {
+            "voice_type": "custom"
+          },
+          "title": "Voice ID"
+        },
+        "voice_instructions": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional voice delivery instructions (accent, pace, tone). Applied to how the voice sounds only \u2014 keep workflow/business logic in your node prompts.",
+          "multiline": true,
+          "title": "Voice Delivery Instructions"
+        },
+        "backend_model": {
+          "allow_custom_input": true,
+          "default": "gpt-4.1",
+          "description": "OpenAI model that reasons for GPT-Live (workflow prompt + tool calls). Tool calls run in Dograh \u2014 the model never executes them.",
+          "examples": [
+            "gpt-4.1",
+            "gpt-4.1-mini",
+            "gpt-4.1-nano",
+            "gpt-5",
+            "gpt-5-mini",
+            "gpt-5-nano",
+            "gpt-3.5-turbo"
+          ],
+          "title": "Backend Model",
+          "type": "string"
+        }
+      },
+      "provider_docs_url": "https://platform.openai.com/docs/guides/realtime",
+      "required": [
+        "api_key"
+      ],
+      "title": "OpenAI GPT-Live",
       "type": "object"
     },
     "grok_realtime": {

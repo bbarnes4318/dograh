@@ -13,7 +13,11 @@ from groq import Groq
 from api.schemas.ai_model_configuration import (
     EffectiveAIModelConfiguration,
 )
-from api.services.configuration.registry import ServiceConfig, ServiceProviders
+from api.services.configuration.registry import (
+    ServiceConfig,
+    ServiceProviders,
+    inception_reasoning_efforts,
+)
 from api.services.mps_service_key_client import mps_service_key_client
 from api.utils.url_security import validate_user_configured_service_url
 
@@ -388,7 +392,19 @@ class UserConfigurationValidator:
         Only a clear auth rejection blocks save; anything else (rate limit,
         outage, a gateway that doesn't implement /models) is allowed through so
         a transient upstream problem can't lock a user out of their own config.
+
+        Also rejects a reasoning effort the chosen model doesn't accept
+        (Mercury Voice has no "instant" tier), so the form says so on save
+        instead of the call quietly running at a different effort.
         """
+        model_name = getattr(service_config, "model", None)
+        effort = getattr(service_config, "reasoning_effort", None)
+        allowed = inception_reasoning_efforts(model_name)
+        if effort and effort not in allowed:
+            raise ValueError(
+                f"Inception model '{model_name}' does not support reasoning effort "
+                f"'{effort}'. Choose one of: {', '.join(allowed)}."
+            )
         base_url = (
             getattr(service_config, "base_url", None) if service_config else None
         ) or "https://api.inceptionlabs.ai/v1"

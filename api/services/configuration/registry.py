@@ -293,7 +293,9 @@ INCEPTION_PROVIDER_MODEL_CONFIG = provider_model_config(
     description=(
         "Inception Mercury diffusion LLMs. Mercury 3 decodes tokens in "
         "parallel for very low time-to-first-token, and exposes a "
-        "reasoning effort knob to trade latency against depth."
+        "reasoning effort knob to trade latency against depth. Mercury "
+        "Voice is tuned for voice agents (enterprise access from Inception) "
+        "and accepts only low, medium or high reasoning effort."
     ),
     provider_docs_url="https://docs.inceptionlabs.ai/",
 )
@@ -396,8 +398,16 @@ OPENROUTER_MODELS = [
     "meta-llama/llama-3.3-70b-instruct",
     "deepseek/deepseek-chat-v3-0324",
 ]
+# Mercury Voice: tuned for low-latency voice agents (128K context, tool
+# calling, structured outputs). Enterprise-only; Inception enables it per
+# account. TODO: confirm with Inception -- the public docs do not publish the
+# model ID, so this is a placeholder until Inception confirms the exact string.
+# Users can type the confirmed ID in the model field (custom input is allowed);
+# any Inception model ID containing "voice" gets Voice's effort limits.
+INCEPTION_VOICE_MODEL = "mercury-voice"
 INCEPTION_MODELS = [
     "mercury-3",
+    INCEPTION_VOICE_MODEL,
 ]
 INCEPTION_DEFAULT_MODEL = "mercury-3"
 # Inception retires these on 2026-11-15; stored configs that still name them
@@ -408,6 +418,24 @@ INCEPTION_DEFAULT_BASE_URL = "https://api.inceptionlabs.ai/v1"
 # separate "thinking" model tier. "instant" is the lowest latency; "high"
 # spends the most decoding budget on reasoning.
 INCEPTION_DEFAULT_REASONING_EFFORT = "low"
+INCEPTION_REASONING_EFFORTS = ("instant", "low", "medium", "high")
+# Mercury Voice has no "instant" tier.
+INCEPTION_VOICE_REASONING_EFFORTS = ("low", "medium", "high")
+# Mercury 3 and Mercury Voice only accept temperatures from 0.5 to 1.0.
+INCEPTION_MIN_TEMPERATURE = 0.5
+
+
+def is_inception_voice_model(model: str | None) -> bool:
+    """True for Mercury Voice, whatever exact ID Inception gives it."""
+    return bool(model) and (model == INCEPTION_VOICE_MODEL or "voice" in model.lower())
+
+
+def inception_reasoning_efforts(model: str | None) -> tuple[str, ...]:
+    """The reasoning_effort values the given Inception model accepts."""
+    if is_inception_voice_model(model):
+        return INCEPTION_VOICE_REASONING_EFFORTS
+    return INCEPTION_REASONING_EFFORTS
+
 
 DOGRAH_LLM_MODELS = ["default", "accurate", "fast", "lite", "zen"]
 AWS_BEDROCK_MODELS = [
@@ -525,7 +553,8 @@ class InceptionLLMConfiguration(BaseLLMConfiguration):
         description=(
             "How much of the diffusion budget Mercury spends on reasoning. "
             "'instant' is fastest; raise it for harder turns at the cost of "
-            "time-to-first-token."
+            "time-to-first-token. Mercury Voice does not offer 'instant'; "
+            "use 'low' for the fastest Voice turns."
         ),
     )
 
