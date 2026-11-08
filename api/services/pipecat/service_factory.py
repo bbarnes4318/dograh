@@ -18,8 +18,10 @@ from api.services.configuration.registry import (
     INCEPTION_DEFAULT_BASE_URL,
     INCEPTION_DEFAULT_MODEL,
     INCEPTION_DEFAULT_REASONING_EFFORT,
+    INCEPTION_MIN_TEMPERATURE,
     INCEPTION_RETIRED_MODELS,
     ServiceProviders,
+    inception_reasoning_efforts,
 )
 from api.services.pipecat.call_hygiene import build_tts_text_filter
 from api.services.pipecat.gemini_json_schema_adapter import (
@@ -1043,6 +1045,25 @@ def _migrate_retired_inception_model(model: str) -> str:
     return model
 
 
+def _inception_reasoning_effort(model: str, effort: str | None) -> str:
+    """Map an effort the model doesn't accept to the nearest one it does.
+
+    Mercury Voice has no "instant" tier, so a saved "instant" (or one carried
+    over from a Mercury 3 config) becomes "low", the fastest Voice tier,
+    rather than failing the call.
+    """
+    effort = effort or INCEPTION_DEFAULT_REASONING_EFFORT
+    allowed = inception_reasoning_efforts(model)
+    if effort in allowed:
+        return effort
+    fallback = allowed[0]
+    logger.warning(
+        f"Inception model '{model}' does not accept reasoning_effort "
+        f"'{effort}'; using '{fallback}' instead"
+    )
+    return fallback
+
+
 def create_llm_service_from_provider(
     provider: str,
     model: str,
@@ -1113,8 +1134,10 @@ def create_llm_service_from_provider(
             base_url=base_url,
             settings=DograhInceptionLLMService.Settings(
                 model=model,
-                temperature=0.1,
-                reasoning_effort=reasoning_effort or INCEPTION_DEFAULT_REASONING_EFFORT,
+                # Mercury 3 and Mercury Voice reject temperatures below 0.5,
+                # so use the lowest value they accept instead of our usual 0.1.
+                temperature=INCEPTION_MIN_TEMPERATURE,
+                reasoning_effort=_inception_reasoning_effort(model, reasoning_effort),
             ),
         )
     elif provider == ServiceProviders.GOOGLE.value:

@@ -11,6 +11,10 @@ from api.services.configuration.registry import (
     INCEPTION_DEFAULT_BASE_URL,
     INCEPTION_DEFAULT_MODEL,
     INCEPTION_DEFAULT_REASONING_EFFORT,
+    INCEPTION_MIN_TEMPERATURE,
+    INCEPTION_MODELS,
+    INCEPTION_RETIRED_MODELS,
+    INCEPTION_VOICE_MODEL,
     REGISTRY,
     InceptionLLMConfiguration,
     ServiceProviders,
@@ -343,4 +347,160 @@ class TestInceptionAPIKeyValidation:
         config = InceptionLLMConfiguration(api_key="sk_live")
         with patch("api.services.configuration.check_validity.httpx.get") as mock_get:
             mock_get.return_value = SimpleNamespace(status_code=503)
+            assert self._validator()._validate_service(config, "llm") == []
+
+
+class TestInceptionMercuryVoice:
+    """Mercury Voice: same API and key as Mercury 3, but no "instant" effort."""
+
+    def _service(self, model, reasoning_effort=None):
+        return create_llm_service_from_provider(
+            provider=ServiceProviders.INCEPTION.value,
+            model=model,
+            api_key="test-key",
+            reasoning_effort=reasoning_effort,
+        )
+
+    def test_voice_model_is_offered_and_not_retired(self):
+        assert INCEPTION_VOICE_MODEL in INCEPTION_MODELS
+        assert INCEPTION_VOICE_MODEL not in INCEPTION_RETIRED_MODELS
+        assert INCEPTION_DEFAULT_MODEL == "mercury-3"
+
+        schema = InceptionLLMConfiguration.model_json_schema()
+        assert INCEPTION_VOICE_MODEL in schema["properties"]["model"]["examples"]
+
+    def test_voice_model_is_kept_at_service_creation(self):
+        service = self._service(INCEPTION_VOICE_MODEL, "medium")
+        assert _is_dograh_inception(service)
+        assert service._settings.model == INCEPTION_VOICE_MODEL
+        assert service._settings.reasoning_effort == "medium"
+
+    def test_instant_becomes_low_for_voice(self):
+        service = self._service(INCEPTION_VOICE_MODEL, "instant")
+        assert service._settings.reasoning_effort == "low"
+
+    @pytest.mark.parametrize("voice_id", ["mercury-voice-1", "Mercury-Voice"])
+    def test_instant_becomes_low_for_any_voice_model_id(self, voice_id):
+        """Inception hasn't published the ID; whatever it is, the limit holds."""
+        service = self._service(voice_id, "instant")
+        assert service._settings.model == voice_id
+        assert service._settings.reasoning_effort == "low"
+
+    def test_instant_passes_through_for_mercury_3(self):
+        service = self._service("mercury-3", "instant")
+        assert service._settings.reasoning_effort == "instant"
+
+    def test_voice_defaults_to_low(self):
+        service = self._service(INCEPTION_VOICE_MODEL)
+        assert service._settings.reasoning_effort == "low"
+
+    @pytest.mark.parametrize("model", ["mercury-3", INCEPTION_VOICE_MODEL])
+    def test_request_temperature_is_within_inception_range(self, model):
+        """Mercury 3 and Voice accept temperatures from 0.5 to 1.0 only."""
+        service = self._service(model, "low")
+        params = service.build_chat_completion_params(
+            {"messages": [{"role": "user", "content": "hi"}]}
+        )
+        assert params["model"] == model
+        assert 0.5 <= params["temperature"] <= 1.0
+        assert params["temperature"] == INCEPTION_MIN_TEMPERATURE
+
+    def test_voice_request_body_carries_mapped_effort(self):
+        service = self._service(INCEPTION_VOICE_MODEL, "instant")
+        params = service.build_chat_completion_params(
+            {"messages": [{"role": "user", "content": "hi"}]}
+        )
+        assert params["reasoning_effort"] == "low"
+
+    def test_agent_level_override_maps_voice_effort(self):
+        org_config = EffectiveAIModelConfiguration(
+            llm={
+                "provider": ServiceProviders.INCEPTION.value,
+                "model": "mercury-3",
+                "api_key": "inception-key",
+                "reasoning_effort": "instant",
+            }
+        )
+        effective = resolve_effective_config(
+            org_config,
+            {
+                "llm": {
+                    "provider": ServiceProviders.INCEPTION.value,
+                    "model": INCEPTION_VOICE_MODEL,
+                    "api_key": "inception-key",
+                    "reasoning_effort": "instant",
+                }
+            },
+        )
+        # A stored config is never rejected on load; it is mapped at call time.
+        assert effective.llm.model == INCEPTION_VOICE_MODEL
+        service = create_llm_service(effective)
+        assert service._settings.model == INCEPTION_VOICE_MODEL
+        assert service._settings.reasoning_effort == "low"
+
+    async def test_qa_path_maps_voice_effort(self):
+        from api.services.workflow.qa import llm_config as qa_llm_config
+
+        user_configuration = EffectiveAIModelConfiguration(
+            llm={
+                "provider": ServiceProviders.INCEPTION.value,
+                "model": INCEPTION_VOICE_MODEL,
+                "api_key": "inception-key",
+                "reasoning_effort": "instant",
+            }
+        )
+        workflow_run = SimpleNamespace(
+            workflow=SimpleNamespace(organization_id=1, workflow_configurations={}),
+            definition=None,
+        )
+
+        async def fake_effective(*_args, **_kwargs):
+            return user_configuration
+
+        with patch(
+            "api.services.configuration.ai_model_configuration."
+            "get_effective_ai_model_configuration_for_workflow",
+            new=fake_effective,
+        ):
+            (
+                provider,
+                model,
+                api_key,
+                kwargs,
+            ) = await qa_llm_config.resolve_user_llm_config(workflow_run)
+
+        service = create_llm_service_from_provider(provider, model, api_key, **kwargs)
+        assert service._settings.model == INCEPTION_VOICE_MODEL
+        assert service._settings.reasoning_effort == "low"
+
+
+class TestInceptionVoiceSaveValidation:
+    def _validator(self):
+        from api.services.configuration.check_validity import (
+            UserConfigurationValidator,
+        )
+
+        return UserConfigurationValidator()
+
+    def test_save_rejects_instant_for_voice(self):
+        config = InceptionLLMConfiguration(
+            api_key="sk_live", model=INCEPTION_VOICE_MODEL, reasoning_effort="instant"
+        )
+        with patch("api.services.configuration.check_validity.httpx.get") as mock_get:
+            statuses = self._validator()._validate_service(config, "llm")
+
+        assert len(statuses) == 1
+        assert "does not support reasoning effort 'instant'" in statuses[0]["message"]
+        mock_get.assert_not_called()
+
+    @pytest.mark.parametrize(
+        ("model", "effort"),
+        [(INCEPTION_VOICE_MODEL, "low"), ("mercury-3", "instant")],
+    )
+    def test_save_accepts_supported_efforts(self, model, effort):
+        config = InceptionLLMConfiguration(
+            api_key="sk_live", model=model, reasoning_effort=effort
+        )
+        with patch("api.services.configuration.check_validity.httpx.get") as mock_get:
+            mock_get.return_value = SimpleNamespace(status_code=200)
             assert self._validator()._validate_service(config, "llm") == []

@@ -17,6 +17,15 @@ to `low`. The default model is `mercury-3` (1M context window). Mercury 2 and
 2.5 are retired; saved configurations that still name them are upgraded to
 Mercury 3 automatically.
 
+**Mercury Voice** is Inception's model tuned for voice agents (128K context,
+tool calling, time-to-first-token under 170 ms). Inception enables it per
+account on enterprise plans, so ask them to turn it on and to confirm its model
+ID; Dograh lists it as `mercury-voice`, and you can type a different ID in the
+model field. Mercury Voice accepts only `low`, `medium` or `high` reasoning
+effort: saving it with `instant` is rejected, and an `instant` carried over
+from an older config runs as `low`. Inception models are always called with
+temperature 0.5, the lowest value Mercury 3 and Mercury Voice accept.
+
 For locally deployed or self-hosted LLMs, Dograh also supports OpenAI-compatible endpoints such as Ollama and vLLM.
 
 ![Select Models from DropDown](../images/models_dropdown.png)

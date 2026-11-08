@@ -3856,7 +3856,7 @@ export type InboundRoutingStatsResponse = {
 /**
  * Inception
  *
- * Inception Mercury diffusion LLMs. Mercury 3 decodes tokens in parallel for very low time-to-first-token, and exposes a reasoning effort knob to trade latency against depth.
+ * Inception Mercury diffusion LLMs. Mercury 3 decodes tokens in parallel for very low time-to-first-token, and exposes a reasoning effort knob to trade latency against depth. Mercury Voice is tuned for voice agents (enterprise access from Inception) and accepts only low, medium or high reasoning effort.
  */
 export type InceptionLlmConfiguration = {
     /**
@@ -3882,7 +3882,7 @@ export type InceptionLlmConfiguration = {
     /**
      * Reasoning Effort
      *
-     * How much of the diffusion budget Mercury spends on reasoning. 'instant' is fastest; raise it for harder turns at the cost of time-to-first-token.
+     * How much of the diffusion budget Mercury spends on reasoning. 'instant' is fastest; raise it for harder turns at the cost of time-to-first-token. Mercury Voice does not offer 'instant'; use 'low' for the fastest Voice turns.
      */
     reasoning_effort?: 'instant' | 'low' | 'medium' | 'high';
 };
