@@ -1,0 +1,94 @@
+---
+title: "Holiday Voices Integration"
+description: "Run the Holiday Voices store's phone agents on Dograh: commerce tools, its own workspace, team transfers and a post-call report"
+---
+
+## Overview
+
+Holiday Voices sells recordable keepsake ornaments. Its catalog, customers,
+orders, checkout hand-off and support live in Hoppwhistle's retail workspace
+(WooCommerce stays the authority for price, stock, tax and payment). Its phone
+agents run here, in **the store's own organization** -- never in the insurance
+workspace.
+
+- **Dograh** holds the conversation: speech, the LLM, the workflow, the call leg, recordings and transcripts.
+- **Hoppwhistle** holds the store: products, prices, stock, the call's order draft, the secure checkout link, order status (only for a verified caller), support requests, callbacks and the team's transfer line.
+
+## What gets installed
+
+| Piece | What it is |
+| ----- | ---------- |
+| Credential `Holiday Voices engine key` | Bearer credential holding the store's engine key (`hvk_...`). Hoppwhistle derives the store from it; the insurance secret is refused on these routes. |
+| 20 HTTP tools | `get_products`, `get_product_details`, `check_inventory`, `lookup_customer`, `create_customer`, `create_order_draft`, `add_order_item`, `update_order_item`, `remove_order_item`, `get_order_summary`, `calculate_shipping`, `calculate_taxes`, `apply_valid_promotion`, `create_secure_checkout`, `send_checkout_link`, `lookup_order`, `get_tracking`, `create_support_request`, `request_human_transfer`, `schedule_callback` → `POST /api/internal/hv/voice/tools/<tool>` |
+| `transfer_to_team` | Transfer Call (dynamic). Hoppwhistle's resolver returns the store's team line, or declines (no line, or it would loop into an AI line) with what to say. |
+| `end_call` | Ends the call with a disposition: `checkout_link_sent`, `order_help_given`, `order_status_given`, `support_request_created`, `transferred`, `callback_scheduled`, `wholesale_lead`, `information_only`, `not_interested`, `do_not_call`, `wrong_number`, `voicemail`, `no_response`. |
+| 4 workflows | **Shopping & Phone Orders** (inbound), **Customer Support** (inbound), **Outbound Sales** (outbound), **Wholesale** (inbound). |
+
+Every HTTP tool sends `session_id` and `session_token` as **preset parameters**
+(`{{initial_context.hv_session_id}}`, `{{initial_context.hv_session_token}}`).
+The LLM never sees them and cannot override them. Inbound workflows open the
+session with a pre-call fetch to `POST /api/internal/hv/voice/inbound`;
+outbound calls carry it in their initial context, put there by Hoppwhistle.
+
+## Install
+
+On the server, Hoppwhistle's `scripts/holiday-voices-setup.sh` does it (step 6),
+inside this API container, against the organization of the store's own voice
+user:
+
+```bash
+docker exec -e HV_ENGINE_KEY=hvk_... <dograh-api> \
+  python -m api.services.integrations.holiday_voices.cli \
+  --provider-id hoppwhistle-holiday-voices --base-url https://agents.example.com
+```
+
+Or over HTTP as a user of the store's organization:
+
+```bash
+curl -X POST https://your-dograh/api/v1/integrations/holiday-voices/install \
+  -H "X-API-Key: $STORE_ORG_API_KEY" -H "Content-Type: application/json" \
+  -d '{"base_url": "https://agents.example.com", "engine_key": "hvk_..."}'
+```
+
+### Outbound calls
+
+Hoppwhistle places the store's outbound calls (requested callbacks first;
+marketing calls only once the store's consent rules and legal review allow) with
+`POST /api/v1/public/agent/workflow/{outbound workflow uuid}`, passing
+`hv_session_id`/`hv_session_token` and `hv_call_reason` in `initial_context`.
+It needs an API key of **the store's own organization** -- never the insurance
+workspace's -- so the key can only start the store's workflows:
+
+```bash
+... holiday_voices.cli --provider-id hoppwhistle-holiday-voices --base-url ... --outbound-api-key
+```
+
+An active key named `Holiday Voices outbound (Hoppwhistle)` is kept on re-runs
+(its value is shown only when created); `--rotate-outbound-api-key` archives it
+and issues a new one.
+
+### Re-running is safe
+
+- The credential is found by name and updated in place (a rotated key) or reused (no key given).
+- Tools are matched by name and category and updated in place.
+- Workflows are matched by their reporting node's agent, so a renamed workflow is still found. **An existing workflow is never overwritten.** With `refresh_workflows: true` the newest starter is saved as a **draft**; the store's published version keeps running until someone publishes the draft.
+- An organization that carries the insurance agent tools is refused (409).
+
+## Post-call report
+
+Each workflow has a **Holiday Voices** node. After a call whose initial
+context holds a Holiday Voices session, it posts to
+`/api/internal/hv/voice/runs/complete` with the same engine-key credential:
+the agent, disposition, a summary (from a QA node, when present), extracted
+facts, the tools called, transfer attempts, duration, latency, cost (when a
+cost per minute is set), and **links** to the recording and transcript. The
+recording and transcript stay in Dograh's storage; the links are Dograh's own
+public-token download URLs. Hoppwhistle closes a session once; a repeat report
+changes nothing.
+
+## Testing
+
+`api/tests/integrations/test_holiday_voices.py` covers the catalog against
+Hoppwhistle's 20 tool routes, the hidden session presets, all four workflows as
+valid graphs, the installer's idempotency (rerun, rename, rotate, refresh as
+draft), the insurance-workspace refusal, and the report.

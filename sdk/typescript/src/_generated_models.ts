@@ -313,6 +313,76 @@ export interface components {
             disposition_codes: string[];
         };
         /**
+         * CallHygieneConfiguration
+         * @description Guards that end calls the agent should not be sitting on.
+         *
+         *     Voicemail greetings, post-recording carrier menus, call screeners and
+         *     answering bots all read as caller speech to the rest of the pipeline, so
+         *     nothing else ends them early. These guards run alongside the LLM
+         *     voicemail detector (non-realtime pipelines only).
+         */
+        CallHygieneConfiguration: {
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /**
+             * Machine Keyword Hangup
+             * @default true
+             */
+            machine_keyword_hangup: boolean;
+            /**
+             * Screener Handling
+             * @default true
+             */
+            screener_handling: boolean;
+            /** Screener Response */
+            screener_response?: string | null;
+            /**
+             * Screener Pickup Timeout Seconds
+             * @default 30
+             */
+            screener_pickup_timeout_seconds: number;
+            /**
+             * Answering Bot Detection
+             * @default true
+             */
+            answering_bot_detection: boolean;
+            /**
+             * Closing Line Hangup
+             * @default true
+             */
+            closing_line_hangup: boolean;
+            /**
+             * Closing Line Grace Seconds
+             * @default 1.5
+             */
+            closing_line_grace_seconds: number;
+            /**
+             * First Response Timeout Seconds
+             * @default 5
+             */
+            first_response_timeout_seconds: number | null;
+            /**
+             * First Response Nudge
+             * @default Hello? Can you hear me okay?
+             */
+            first_response_nudge: string;
+            /**
+             * First Response End After Seconds
+             * @default 5
+             */
+            first_response_end_after_seconds: number;
+            /**
+             * Strip Llm Markup
+             * @default true
+             */
+            strip_llm_markup: boolean;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
          * ContextDestinationMappingConfig
          * @description Resolve an external-PBX destination from gathered context.
          */
@@ -361,7 +431,7 @@ export interface components {
              * @default http_api
              * @enum {string}
              */
-            category: "http_api" | "end_call" | "transfer_call" | "calculator" | "native" | "integration" | "mcp";
+            category: "http_api" | "end_call" | "transfer_call" | "calculator" | "native" | "integration" | "mcp" | "play_audio" | "send_sms";
             /**
              * Icon
              * @description Lucide icon identifier.
@@ -378,7 +448,7 @@ export interface components {
              * Definition
              * @description Typed tool definition.
              */
-            definition: components["schemas"]["HttpApiToolDefinition"] | components["schemas"]["EndCallToolDefinition"] | components["schemas"]["TransferCallToolDefinition"] | components["schemas"]["CalculatorToolDefinition"] | components["schemas"]["McpToolDefinition"];
+            definition: components["schemas"]["HttpApiToolDefinition"] | components["schemas"]["EndCallToolDefinition"] | components["schemas"]["TransferCallToolDefinition"] | components["schemas"]["CalculatorToolDefinition"] | components["schemas"]["McpToolDefinition"] | components["schemas"]["PlayAudioToolDefinition"] | components["schemas"]["SendSmsToolDefinition"];
         };
         /** CreateWorkflowRequest */
         CreateWorkflowRequest: {
@@ -419,6 +489,41 @@ export interface components {
             created_at: string;
             /** Updated At */
             updated_at: string | null;
+        };
+        /**
+         * DTMFConfiguration
+         * @description Keypad handling for telephony calls.
+         *
+         *     Capture is on by default and costs nothing: a caller who presses keys
+         *     instead of speaking is currently ignored entirely.
+         *
+         *     Sending is opt-in because it puts a tool on every node — worth it for
+         *     outbound calls into business phone menus, where an agent that can't press
+         *     "2 for sales" never reaches a human, and noise for consumer calls.
+         */
+        DTMFConfiguration: {
+            /**
+             * Capture Enabled
+             * @default true
+             */
+            capture_enabled: boolean;
+            /**
+             * Send Enabled
+             * @default false
+             */
+            send_enabled: boolean;
+            /**
+             * Interdigit Timeout Seconds
+             * @default 2.5
+             */
+            interdigit_timeout_seconds: number;
+            /**
+             * Max Digits
+             * @default 32
+             */
+            max_digits: number;
+        } & {
+            [key: string]: unknown;
         };
         /**
          * DisplayOptions
@@ -729,6 +834,44 @@ export interface components {
              */
             preset_parameters?: components["schemas"]["PresetToolParameter"][] | null;
         };
+        /**
+         * IdleBehaviorConfiguration
+         * @description How the agent escalates when the caller stops responding.
+         *
+         *     The default gives the caller one more chance than a straight
+         *     nudge-then-hang-up, and makes the first nudge instant instead of waiting on
+         *     a model round trip at exactly the moment attention is slipping.
+         */
+        IdleBehaviorConfiguration: {
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /** Nudges */
+            nudges?: components["schemas"]["IdleNudgeConfiguration"][];
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * IdleNudgeConfiguration
+         * @description One step in the escalating response to a caller going quiet.
+         */
+        IdleNudgeConfiguration: {
+            /** After Seconds */
+            after_seconds?: number | null;
+            /** Message */
+            message?: string | null;
+            /** Llm Instruction */
+            llm_instruction?: string | null;
+            /**
+             * End Call
+             * @default false
+             */
+            end_call: boolean;
+        } & {
+            [key: string]: unknown;
+        };
         /** InitiateCallRequest */
         InitiateCallRequest: {
             /** Workflow Id */
@@ -741,6 +884,23 @@ export interface components {
             telephony_configuration_id?: number | null;
             /** From Phone Number Id */
             from_phone_number_id?: number | null;
+        };
+        /**
+         * LocalAccentVoiceConfiguration
+         * @description Answer each prospect in the Fish clone of their area code's accent.
+         *
+         *     Per agent, off by default. Only applies when the agent's TTS is Fish; the
+         *     agent's own Fish voice is the fallback for numbers that don't map to a
+         *     provisioned accent clone.
+         */
+        LocalAccentVoiceConfiguration: {
+            /**
+             * Enabled
+             * @default false
+             */
+            enabled: boolean;
+        } & {
+            [key: string]: unknown;
         };
         /**
          * McpToolConfig
@@ -884,6 +1044,42 @@ export interface components {
              * @default false
              */
             fractional: boolean;
+        };
+        /**
+         * PlayAudioConfig
+         * @description Configuration for Play Audio tools.
+         */
+        PlayAudioConfig: {
+            /**
+             * Audio Url
+             * @description Public http(s) URL of the audio file (mp3, wav, ...) to play to the caller. It is fetched and converted to the call's sample rate.
+             */
+            audio_url: string;
+            /**
+             * Terminal Chain
+             * @description When enabled, the application silences the AI voice from the moment playback starts until the workflow moves to another node. Follow-up tools (e.g. send SMS, end call) still run, but nothing is spoken. Enforced in code, not in the prompt.
+             * @default false
+             */
+            terminal_chain: boolean;
+        };
+        /**
+         * PlayAudioToolDefinition
+         * @description Tool definition for Play Audio tools.
+         */
+        PlayAudioToolDefinition: {
+            /**
+             * Schema Version
+             * @description Schema version.
+             * @default 1
+             */
+            schema_version: number;
+            /**
+             * @description Tool type. (enum property replaced by openapi-typescript)
+             * @enum {string}
+             */
+            type: "play_audio";
+            /** @description Play Audio configuration. */
+            config: components["schemas"]["PlayAudioConfig"];
         };
         /**
          * PresetToolParameter
@@ -1062,6 +1258,72 @@ export interface components {
             is_active: boolean;
         };
         /**
+         * SendSmsConfig
+         * @description Configuration for Send SMS tools (FracTEL provider).
+         */
+        SendSmsConfig: {
+            /**
+             * Credential Uuid
+             * @description Reference to a Basic Auth credential holding the FracTEL API username and password.
+             */
+            credential_uuid?: string | null;
+            /**
+             * From Numbers
+             * @description 10-digit sender DIDs registered with FracTEL (10DLC). With more than one, messages rotate round-robin across them.
+             */
+            from_numbers?: string[];
+            /**
+             * Append Links
+             * @description http(s) links added to the end of every text, one per line. A link already present in the message is not added again.
+             */
+            append_links?: string[];
+        };
+        /**
+         * SendSmsToolDefinition
+         * @description Tool definition for Send SMS tools.
+         */
+        SendSmsToolDefinition: {
+            /**
+             * Schema Version
+             * @description Schema version.
+             * @default 1
+             */
+            schema_version: number;
+            /**
+             * @description Tool type. (enum property replaced by openapi-typescript)
+             * @enum {string}
+             */
+            type: "send_sms";
+            /** @description Send SMS configuration. */
+            config: components["schemas"]["SendSmsConfig"];
+        };
+        /**
+         * ToolFillerConfiguration
+         * @description Short holding phrase spoken when a tool call outruns its deadline.
+         *
+         *     Tools can already be configured to speak a message *before* they run, but
+         *     that fires even when the call returns in 50ms — so the agent sounds slow
+         *     on fast tools and silent on slow ones. This speaks only once a call has
+         *     actually taken too long, and covers every tool (HTTP, MCP) rather than
+         *     only the ones someone remembered to configure.
+         */
+        ToolFillerConfiguration: {
+            /**
+             * Enabled
+             * @default false
+             */
+            enabled: boolean;
+            /**
+             * Delay Seconds
+             * @default 1.2
+             */
+            delay_seconds: number;
+            /** Phrases */
+            phrases?: string[];
+        } & {
+            [key: string]: unknown;
+        };
+        /**
          * ToolParameter
          * @description A parameter that the tool accepts from the model at call time.
          */
@@ -1223,6 +1485,11 @@ export interface components {
         /** WorkflowConfigurationDefaults */
         WorkflowConfigurationDefaults: {
             ambient_noise_configuration?: components["schemas"]["AmbientNoiseConfigurationDefaults"];
+            tool_filler?: components["schemas"]["ToolFillerConfiguration"];
+            idle_behavior?: components["schemas"]["IdleBehaviorConfiguration"];
+            dtmf?: components["schemas"]["DTMFConfiguration"];
+            call_hygiene?: components["schemas"]["CallHygieneConfiguration"];
+            local_accent_voice?: components["schemas"]["LocalAccentVoiceConfiguration"];
             /**
              * Max Call Duration
              * @default 300
@@ -1270,6 +1537,21 @@ export interface components {
              * @default false
              */
             context_compaction_enabled: boolean;
+            /**
+             * Buffer Muted Speech
+             * @default true
+             */
+            buffer_muted_speech: boolean;
+            /**
+             * Speak During Transition
+             * @default false
+             */
+            speak_during_transition: boolean;
+            /**
+             * Prevent Repeats
+             * @default true
+             */
+            prevent_repeats: boolean;
             /** External Pbx Field Mappings */
             external_pbx_field_mappings?: components["schemas"]["ExternalPBXFieldMapping"][];
         } & {
@@ -1345,12 +1627,14 @@ export interface components {
 export type AmbientNoiseConfigurationDefaults = components['schemas']['AmbientNoiseConfigurationDefaults'];
 export type CalculatorToolDefinition = components['schemas']['CalculatorToolDefinition'];
 export type CallDispositionCodes = components['schemas']['CallDispositionCodes'];
+export type CallHygieneConfiguration = components['schemas']['CallHygieneConfiguration'];
 export type ContextDestinationMappingConfig = components['schemas']['ContextDestinationMappingConfig'];
 export type ContextDestinationRoute = components['schemas']['ContextDestinationRoute'];
 export type CreateToolRequest = components['schemas']['CreateToolRequest'];
 export type CreateWorkflowRequest = components['schemas']['CreateWorkflowRequest'];
 export type CreatedByResponse = components['schemas']['CreatedByResponse'];
 export type CredentialResponse = components['schemas']['CredentialResponse'];
+export type DtmfConfiguration = components['schemas']['DTMFConfiguration'];
 export type DisplayOptions = components['schemas']['DisplayOptions'];
 export type DocumentListResponseSchema = components['schemas']['DocumentListResponseSchema'];
 export type DocumentResponseSchema = components['schemas']['DocumentResponseSchema'];
@@ -1362,7 +1646,10 @@ export type HttpValidationError = components['schemas']['HTTPValidationError'];
 export type HttpApiConfig = components['schemas']['HttpApiConfig'];
 export type HttpApiToolDefinition = components['schemas']['HttpApiToolDefinition'];
 export type HttpTransferResolverConfig = components['schemas']['HttpTransferResolverConfig'];
+export type IdleBehaviorConfiguration = components['schemas']['IdleBehaviorConfiguration'];
+export type IdleNudgeConfiguration = components['schemas']['IdleNudgeConfiguration'];
 export type InitiateCallRequest = components['schemas']['InitiateCallRequest'];
+export type LocalAccentVoiceConfiguration = components['schemas']['LocalAccentVoiceConfiguration'];
 export type McpToolConfig = components['schemas']['McpToolConfig'];
 export type McpToolDefinition = components['schemas']['McpToolDefinition'];
 export type NodeCategory = components['schemas']['NodeCategory'];
@@ -1370,6 +1657,8 @@ export type NodeExample = components['schemas']['NodeExample'];
 export type NodeSpec = components['schemas']['NodeSpec'];
 export type NodeTypesResponse = components['schemas']['NodeTypesResponse'];
 export type NumberInputOptions = components['schemas']['NumberInputOptions'];
+export type PlayAudioConfig = components['schemas']['PlayAudioConfig'];
+export type PlayAudioToolDefinition = components['schemas']['PlayAudioToolDefinition'];
 export type PresetToolParameter = components['schemas']['PresetToolParameter'];
 export type PropertyLayoutOptions = components['schemas']['PropertyLayoutOptions'];
 export type PropertyOption = components['schemas']['PropertyOption'];
@@ -1378,6 +1667,9 @@ export type PropertySpec = components['schemas']['PropertySpec'];
 export type PropertyType = components['schemas']['PropertyType'];
 export type RecordingListResponseSchema = components['schemas']['RecordingListResponseSchema'];
 export type RecordingResponseSchema = components['schemas']['RecordingResponseSchema'];
+export type SendSmsConfig = components['schemas']['SendSmsConfig'];
+export type SendSmsToolDefinition = components['schemas']['SendSmsToolDefinition'];
+export type ToolFillerConfiguration = components['schemas']['ToolFillerConfiguration'];
 export type ToolParameter = components['schemas']['ToolParameter'];
 export type ToolResponse = components['schemas']['ToolResponse'];
 export type TransferCallConfig = components['schemas']['TransferCallConfig'];
