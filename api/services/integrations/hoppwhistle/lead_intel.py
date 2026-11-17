@@ -27,8 +27,9 @@ import os
 from datetime import UTC, timedelta
 from typing import Any
 
-from api.constants import BACKEND_API_ENDPOINT
 from loguru import logger
+
+from api.constants import BACKEND_API_ENDPOINT
 
 from .client import DeliveryResult, deliver_report
 from .completion import _INTERNAL_KEYS

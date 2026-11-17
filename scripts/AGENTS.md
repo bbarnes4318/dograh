@@ -21,6 +21,7 @@ Bash-only (deployment / CI / OSS-user setup — not intended for Windows contrib
 - `setup_remote.sh` — OSS remote Docker-compose setup
 - `format.sh` / `lint.sh` / `pre_commit.sh`
 - `generate_sdk.sh` / `release_sdks.sh` / `dump_docs_openapi.py`
+- `ci/run.sh` — local CI, the replacement for GitHub Actions (`scripts/ci/README.md`)
 
 ## Deployment Memory — current OSS Docker state
 

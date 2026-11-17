@@ -23,6 +23,19 @@ dograh/
 - **Cache/Queue**: Redis with ARQ for background tasks
 - **Storage**: MinIO (S3-compatible) for audio files
 
+## CI is local: run it before every PR
+
+GitHub Actions does not run for this repository any more. Before pushing a PR,
+run the local CI and put its result line in the PR description:
+
+```bash
+./scripts/ci/run.sh fast
+```
+
+Exit 0 is a pass; **3 (INCOMPLETE) is not a pass** -- say which checks could
+not run. It needs Python 3.13 (3.12 for Hopvoice), Node 22 and Docker; see
+`scripts/ci/README.md`. Do not add GitHub Actions workflows.
+
 ## Local Development
 
 Contributor setup and service startup are documented in `docs/contribution/setup.mdx`.
