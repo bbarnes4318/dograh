@@ -44,6 +44,10 @@ from .templates import (
 from .tool_catalog import CONTRACT_VERSION, DISPOSITIONS, build_tool_definitions
 
 CREDENTIAL_NAME = "Holiday Voices engine key"
+#: The API key Hoppwhistle uses to place THIS organization's outbound calls
+#: (POST /api/v1/public/agent/workflow/{uuid}). Scoped to this organization,
+#: so it can only start the store's own workflows.
+OUTBOUND_API_KEY_NAME = "Holiday Voices outbound (Hoppwhistle)"
 INSURANCE_ROUTE_MARKER = "/api/internal/ai-agent/"
 
 
@@ -282,3 +286,40 @@ async def install_holiday_voices(
         f"{[(w['agent'], w['action']) for w in result.workflows]}"
     )
     return result
+
+
+@dataclass
+class OutboundKeyResult:
+    action: str  # created | kept | rotated
+    key_prefix: str
+    #: The raw key, only when it was created now. Shown once; never stored here.
+    api_key: Optional[str] = None
+
+
+async def issue_outbound_api_key(
+    *, organization_id: int, user_id: int, rotate: bool = False
+) -> OutboundKeyResult:
+    """The organization's API key for Hoppwhistle's outbound calls.
+
+    Idempotent: an active key with this name is kept (its raw value cannot be
+    shown again). With ``rotate`` the old one is archived and a new one issued.
+    Refuses the insurance workspace like the install does.
+    """
+    await _assert_not_insurance(organization_id)
+    existing = [
+        k
+        for k in await db_client.get_api_keys_by_organization(organization_id)
+        if k.name == OUTBOUND_API_KEY_NAME and k.is_active
+    ]
+    if existing and not rotate:
+        return OutboundKeyResult(action="kept", key_prefix=existing[0].key_prefix)
+    for key in existing:
+        await db_client.archive_api_key(key.id)
+    created, raw = await db_client.create_api_key(
+        organization_id, OUTBOUND_API_KEY_NAME, created_by=user_id
+    )
+    return OutboundKeyResult(
+        action="rotated" if existing else "created",
+        key_prefix=created.key_prefix,
+        api_key=raw,
+    )

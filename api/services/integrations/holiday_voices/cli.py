@@ -3,6 +3,7 @@
     python -m api.services.integrations.holiday_voices.cli \\
         --provider-id hoppwhistle-holiday-voices \\
         --base-url https://agents.example.com [--engine-key hvk_...] [--refresh-workflows]
+        [--outbound-api-key | --rotate-outbound-api-key]
 
 Run inside the voice app's API container by Hoppwhistle's
 ``scripts/holiday-voices-setup.sh``. The organization is the one selected by
@@ -32,6 +33,7 @@ async def _main(args: argparse.Namespace) -> int:
         HolidayVoicesInstallRequest,
         InstallError,
         install_holiday_voices,
+        issue_outbound_api_key,
     )
 
     async with db_client.async_session() as session:
@@ -61,10 +63,20 @@ async def _main(args: argparse.Namespace) -> int:
             organization_id=int(user.selected_organization_id),
             user_id=int(user.id),
         )
+        outbound = None
+        if args.outbound_api_key or args.rotate_outbound_api_key:
+            outbound = await issue_outbound_api_key(
+                organization_id=int(user.selected_organization_id),
+                user_id=int(user.id),
+                rotate=args.rotate_outbound_api_key,
+            )
     except (InstallError, ValueError) as exc:
         print(json.dumps({"error": getattr(exc, "message", str(exc))}), file=sys.stderr)
         return 1
-    print(json.dumps(asdict(result), indent=2))
+    out = asdict(result)
+    if outbound is not None:
+        out["outbound_api_key"] = asdict(outbound)
+    print(json.dumps(out, indent=2))
     return 0
 
 
@@ -76,6 +88,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--refresh-workflows", action="store_true")
     parser.add_argument("--tools-only", action="store_true")
     parser.add_argument("--cost-per-minute-cents", type=float)
+    parser.add_argument(
+        "--outbound-api-key",
+        action="store_true",
+        help="Also ensure this organization's API key for Hoppwhistle's outbound calls.",
+    )
+    parser.add_argument("--rotate-outbound-api-key", action="store_true")
     return asyncio.run(_main(parser.parse_args(argv)))
 
 

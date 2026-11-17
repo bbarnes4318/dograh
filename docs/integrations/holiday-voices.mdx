@@ -50,6 +50,23 @@ curl -X POST https://your-dograh/api/v1/integrations/holiday-voices/install \
   -d '{"base_url": "https://agents.example.com", "engine_key": "hvk_..."}'
 ```
 
+### Outbound calls
+
+Hoppwhistle places the store's outbound calls (requested callbacks first;
+marketing calls only once the store's consent rules and legal review allow) with
+`POST /api/v1/public/agent/workflow/{outbound workflow uuid}`, passing
+`hv_session_id`/`hv_session_token` and `hv_call_reason` in `initial_context`.
+It needs an API key of **the store's own organization** -- never the insurance
+workspace's -- so the key can only start the store's workflows:
+
+```bash
+... holiday_voices.cli --provider-id hoppwhistle-holiday-voices --base-url ... --outbound-api-key
+```
+
+An active key named `Holiday Voices outbound (Hoppwhistle)` is kept on re-runs
+(its value is shown only when created); `--rotate-outbound-api-key` archives it
+and issues a new one.
+
 ### Re-running is safe
 
 - The credential is found by name and updated in place (a rotated key) or reused (no key given).

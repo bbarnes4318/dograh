@@ -690,10 +690,34 @@ async def test_cli_installs_into_the_provider_users_org_only(db_session, capsys)
         refresh_workflows=False,
         tools_only=False,
         cost_per_minute_cents=11.0,
+        outbound_api_key=True,
+        rotate_outbound_api_key=False,
     )
     assert await cli._main(args) == 0
     out = json.loads(capsys.readouterr().out)
     assert out["organization_id"] == store_org.id
     assert len(out["workflows"]) == 4
+    first_key = out["outbound_api_key"]
+    assert first_key["action"] == "created" and first_key["api_key"]
+    # The key opens this organization only.
+    validated = await db_session.validate_api_key(first_key["api_key"])
+    assert validated.organization_id == store_org.id
+
+    # Re-running keeps the key (and cannot show it again); rotating replaces it.
+    assert await cli._main(args) == 0
+    again = json.loads(capsys.readouterr().out)["outbound_api_key"]
+    assert again == {
+        "action": "kept",
+        "key_prefix": first_key["key_prefix"],
+        "api_key": None,
+    }
+    rotate = SimpleNamespace(**{**vars(args), "rotate_outbound_api_key": True})
+    assert await cli._main(rotate) == 0
+    rotated = json.loads(capsys.readouterr().out)["outbound_api_key"]
+    assert rotated["action"] == "rotated" and rotated["api_key"] != first_key["api_key"]
+    assert await db_session.validate_api_key(first_key["api_key"]) is None
+    assert (
+        await db_session.validate_api_key(rotated["api_key"])
+    ).organization_id == store_org.id
     missing = SimpleNamespace(**{**vars(args), "provider_id": "nobody"})
     assert await cli._main(missing) == 2
