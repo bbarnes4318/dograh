@@ -6,6 +6,7 @@
 export { type AgentNode, agentNode } from "./agent-node.js";
 export { type EndCall, endCall } from "./end-call.js";
 export { type GlobalNode, globalNode } from "./global-node.js";
+export { type Holiday_voices, holiday_voices } from "./holiday_voices.js";
 export { type Hoppwhistle, hoppwhistle } from "./hoppwhistle.js";
 export { type Paygent, paygent } from "./paygent.js";
 export { type Qa, qa } from "./qa.js";
@@ -18,6 +19,7 @@ import type {
     AgentNode,
     EndCall,
     GlobalNode,
+    Holiday_voices,
     Hoppwhistle,
     Paygent,
     Qa,
@@ -28,4 +30,4 @@ import type {
 } from "./index.js";
 
 /** Discriminated union of every generated typed node. */
-export type TypedNode = AgentNode | EndCall | GlobalNode | Hoppwhistle | Paygent | Qa | StartCall | Trigger | Tuner | Webhook;
+export type TypedNode = AgentNode | EndCall | GlobalNode | Holiday_voices | Hoppwhistle | Paygent | Qa | StartCall | Trigger | Tuner | Webhook;
