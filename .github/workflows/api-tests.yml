@@ -1,3 +1,5 @@
+# RETIRED: GitHub Actions no longer runs for this repository. This check now
+# runs locally in scripts/ci/run.sh (see scripts/ci/README.md).
 name: API tests
 
 on:

@@ -35,3 +35,6 @@ dump.rdb
 # Hopvoice voice references are runtime assets, not scratch audio.
 !services/hopvoice/voices/**/*.wav
 services/hopvoice/*.egg-info/
+
+# local CI reports (scripts/ci/run.sh)
+.ci-reports/
