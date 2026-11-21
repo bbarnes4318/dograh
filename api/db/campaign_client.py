@@ -331,23 +331,53 @@ class CampaignClient(BaseDBClient):
         workflow_run indicates the call should be redialed.
 
         A subscriber (identified by `source_uuid`) is a redial candidate iff
-        the latest workflow_run (by created_at) for that source_uuid has a
-        `call_tags` entry matching any of the selected failure reasons. Uses
-        the root queued_run (retry_count=0) for the original context.
+        the latest workflow_run (by created_at) for that source_uuid ended
+        in one of the selected outcomes. Uses the root queued_run
+        (retry_count=0) for the original context.
+
+        Outcomes are read from what every call path actually writes, not one
+        provider's tags. Twilio-style providers tag ``telephony_no-answer``;
+        Asterisk (ARI) reports no status for a call nobody picked up, so that
+        run carries no tags at all and was never matched -- every redial of
+        an ARI campaign answered "No subscribers match".
+
+        - voicemail: any machine/voicemail end (``voicemail_detected`` and
+          the call-hygiene tags that come with it, ``answering_bot``).
+        - busy: ``telephony_busy`` or a busy disposition.
+        - no answer: ``telephony_no-answer`` or a no-answer disposition, or
+          nobody ever spoke on the call (no ``user_speech`` tag) and it was
+          neither voicemail nor busy -- the call was never answered by a
+          person.
         """
+        tags = "COALESCE(lr.gathered_context::jsonb -> 'call_tags', '[]'::jsonb)"
+        disp = "LOWER(COALESCE(lr.gathered_context::jsonb ->> 'call_disposition', ''))"
+
+        def has_any_tag(*names: str) -> str:
+            return (
+                "(" + " OR ".join(f"{tags} @> '[\"{n}\"]'::jsonb" for n in names) + ")"
+            )
+
+        def disp_in(*values: str) -> str:
+            return f"{disp} IN (" + ", ".join(f"'{v}'" for v in values) + ")"
+
+        voicemail = (
+            f"({has_any_tag('voicemail_detected', 'answering_bot', 'vm_keyword_guard', 'vm_after_screener', 'call_screener_no_pickup')}"
+            f" OR {disp_in('voicemail_detected', 'voicemail', 'answering_bot', 'machine')})"
+        )
+        busy = f"({has_any_tag('telephony_busy')} OR {disp_in('busy', 'user_busy')})"
+        no_answer = (
+            f"({has_any_tag('telephony_no-answer')}"
+            f" OR {disp_in('no-answer', 'no_answer')}"
+            f" OR (NOT {has_any_tag('user_speech')} AND NOT {voicemail} AND NOT {busy}))"
+        )
+
         tag_clauses = []
         if include_voicemail:
-            tag_clauses.append(
-                "(lr.gathered_context::jsonb -> 'call_tags') @> '[\"voicemail_detected\"]'::jsonb"
-            )
+            tag_clauses.append(voicemail)
         if include_no_answer:
-            tag_clauses.append(
-                "(lr.gathered_context::jsonb -> 'call_tags') @> '[\"telephony_no-answer\"]'::jsonb"
-            )
+            tag_clauses.append(no_answer)
         if include_busy:
-            tag_clauses.append(
-                "(lr.gathered_context::jsonb -> 'call_tags') @> '[\"telephony_busy\"]'::jsonb"
-            )
+            tag_clauses.append(busy)
 
         if not tag_clauses:
             return []
