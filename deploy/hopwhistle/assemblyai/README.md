@@ -36,18 +36,19 @@ means "use the platform key".
 | `ASSEMBLYAI_STT_ROLLOUT` | `off` | `off`, `canary`, or `global`. |
 | `ASSEMBLYAI_STT_CANARY_ORG_IDS` / `..._WORKFLOW_IDS` | (none) | Who `canary` covers. |
 | `ASSEMBLYAI_STT_EXCLUDED_ORG_IDS` | (none) | Never moved by the rollout, e.g. Holiday Voices orgs. |
-| `ASSEMBLYAI_DAILY_BUDGET_USD` | `5` | Estimated spend per UTC day on the platform key. |
-| `ASSEMBLYAI_TOTAL_BUDGET_USD` | `25` | Estimated lifetime spend on the platform key. |
-| `ASSEMBLYAI_MAX_CONCURRENT_STREAMS` | `5` | Simultaneous platform-key sessions. |
+| `ASSEMBLYAI_DAILY_BUDGET_USD` | no limit | Optional cap on estimated spend per UTC day on the platform key. |
+| `ASSEMBLYAI_TOTAL_BUDGET_USD` | no limit | Optional cap on estimated lifetime spend on the platform key. |
+| `ASSEMBLYAI_MAX_CONCURRENT_STREAMS` | no limit | Optional cap on simultaneous platform-key sessions. |
 | `ASSEMBLYAI_RESERVE_MINUTES_PER_CALL` | `5` | Reserved per call at start, trued up at the end. |
 | `ASSEMBLYAI_FALLBACK_PROVIDER` | (none) | For configs that name AssemblyAI: STT to use when it cannot start. Uses the org's own key for that provider; no key, no fallback. |
 | `STT_PLATFORM_DEFAULT_PROVIDER` | `assemblyai` | What new configs start with. `deepgram` rolls that back. |
 
-The budgets are the application's estimate from session durations times
-$0.45/hour (+$0.10/hour with Voice Focus). They are not AssemblyAI's account
-balance. When a limit is reached, new calls the rollout would have moved keep
-their original STT; a config that names AssemblyAI uses the fallback, or is
-refused with a clear error if none is set. Calls in progress are never cut off.
+There are no limits by default: usage and estimated cost are tracked (session
+durations times $0.45/hour, +$0.10/hour with Voice Focus; an estimate, not
+AssemblyAI's account balance) but never block a call. If an operator sets a
+cap and it is reached, new calls the rollout would have moved keep their
+original STT; a config that names AssemblyAI uses the fallback, or is refused
+with a clear error if none is set. Calls in progress are never cut off.
 
 Tenant (BYOK) AssemblyAI sessions are metered but not limited.
 
@@ -90,13 +91,14 @@ by org, workflow and product; error rate; fallbacks; streams in use). Each
 call's `initial_context.runtime_configuration` records `stt_provider`,
 `stt_selection` (`configured` / `rollout` / `fallback`) and the reason.
 
-**Phase 5, global.** After the canary passes, raise the budgets deliberately
-(this is the explicit production decision), then go global:
+**Phase 5, global.**
 
 ```bash
-sudo bash 4_set_assemblyai_stt.sh budget --daily <USD> --total <USD> --streams <N>
 sudo bash 4_set_assemblyai_stt.sh rollout global
 ```
+
+Optional caps, if ever wanted: `4_set_assemblyai_stt.sh budget --daily <USD>
+--total <USD> --streams <N>` (`unlimited` removes one).
 
 **Rollback.** `sudo bash 4_set_assemblyai_stt.sh rollout off`. The next calls
 use exactly what they used before. Orgs switched with
