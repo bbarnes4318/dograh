@@ -608,6 +608,7 @@ class StreamHandler:
         blocked_since: float | None = None
         first_audio_at: float | None = None
         ahead_ms = 0.0
+        last_lag_sample = 0.0
 
         def lag_ms() -> float:
             """How far processing trails the client's real-time position.
@@ -710,6 +711,10 @@ class StreamHandler:
                 if chunks:
                     self.rt.live.notify()
                 lag = lag_ms()
+                now = time.monotonic()
+                if now - last_lag_sample >= 1.0:
+                    last_lag_sample = now
+                    self.rt.metrics.lag_ms.observe(max(0.0, lag))
                 if lag > s.max_lag_ms:
                     self.rt.metrics.lag_ms.observe(lag)
                     raise StreamClosed("overloaded", "session fell behind real time")
