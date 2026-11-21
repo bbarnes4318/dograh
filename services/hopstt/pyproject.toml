@@ -37,6 +37,10 @@ qwen = [
   "huggingface_hub>=0.24",
 ]
 vllm-client = ["websockets>=13"]
+# nemo_speech_cpp engine (proxy to the NeMo-Speech.cpp sidecar)
+nemo-cpp = ["websockets>=13"]
+# bench/ tools (accuracy, latency, capacity)
+bench = ["numpy>=1.26,<3", "httpx>=0.27,<1", "websockets>=13"]
 gpu-metrics = ["nvidia-ml-py>=12"]
 test = [
   "httpx>=0.27,<1",

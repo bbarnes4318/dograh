@@ -12,6 +12,8 @@ tool verifies them after download.
 
 from __future__ import annotations
 
+import os
+
 from dataclasses import dataclass, field
 
 
@@ -160,6 +162,61 @@ QWEN3_ASR = ModelSpec(
     word_timestamps=False,
 )
 
+# NeMo-Speech.cpp serves the official q8_0 GGUF from the same pinned repo
+# revisions as the PyTorch entries. The chunk size is fixed per sidecar
+# (asr.streaming.rnnt_right_context), so these specs advertise only that one.
+_CPP_CHUNK_TO_RIGHT_CONTEXT = {80: 0, 160: 1, 320: 3, 560: 6, 1120: 13}
+NEMO_CPP_CHUNK_MS = int(os.getenv("HOPSTT_NEMO_CPP_CHUNK_MS", "160"))
+if NEMO_CPP_CHUNK_MS not in _CPP_CHUNK_TO_RIGHT_CONTEXT:
+    raise ValueError(f"HOPSTT_NEMO_CPP_CHUNK_MS must be one of {sorted(_CPP_CHUNK_TO_RIGHT_CONTEXT)}")
+
+NEMOTRON_35_CPP = ModelSpec(
+    id="nemotron-3.5-streaming-cpp",
+    kind="streaming",
+    engine="nemo_speech_cpp",
+    hf_repo="nvidia/nemotron-3.5-asr-streaming-0.6b",
+    revision="ea30d66debe3740a08b573244286791d423d6b3e",
+    languages=("en", "es", "auto"),
+    chunk_ms=(NEMO_CPP_CHUNK_MS,),
+    default_chunk_ms=NEMO_CPP_CHUNK_MS,
+    files=(),  # the GGUF is loaded by the NeMo-Speech.cpp sidecar
+    sha256={
+        "nemotron-3.5-asr-streaming-0.6b.q8_0.gguf": "3fc991d3badad7277c11030a7519832cddaf2057aafed6d4b25147e953a070b1"
+    },
+    license="OpenMDW-1.1",
+    options={"rnnt_right_context": _CPP_CHUNK_TO_RIGHT_CONTEXT[NEMO_CPP_CHUNK_MS]},
+)
+
+NEMOTRON_EN_CPP = ModelSpec(
+    id="nemotron-en-streaming-cpp",
+    kind="streaming",
+    engine="nemo_speech_cpp",
+    hf_repo="nvidia/nemotron-speech-streaming-en-0.6b",
+    revision="ebe59e5a817142986528bbbee5dba8db7b38ed50",
+    languages=("en",),
+    chunk_ms=(NEMO_CPP_CHUNK_MS,),
+    default_chunk_ms=NEMO_CPP_CHUNK_MS,
+    files=(),
+    sha256={
+        "nemotron-speech-streaming-en-0.6b.q8_0.gguf": "d9a01898d2a611c8764e23a1c2f45e70bbd5a425dc4de93692ac951dd603812d"
+    },
+    license="NVIDIA Open Model License",
+    options={"rnnt_right_context": _CPP_CHUNK_TO_RIGHT_CONTEXT[NEMO_CPP_CHUNK_MS]},
+)
+
+QWEN3_ASR_06 = ModelSpec(
+    id="qwen3-asr-0.6b",
+    kind="batch",
+    engine="qwen3_asr",
+    hf_repo="Qwen/Qwen3-ASR-0.6B",
+    revision="5eb144179a02acc5e5ba31e748d22b0cf3e303b0",
+    languages=("en", "es", "auto"),
+    files=("*.json", "*.safetensors", "merges.txt", "vocab.json"),
+    sha256={"model.safetensors": "79d6cbd4c98c7bbffe9db2edac07f56cd6637d0d5944b27f6c2b8353840323ea"},
+    license="Apache-2.0",
+    word_timestamps=False,
+)
+
 STUB_STREAMING = ModelSpec(
     id="stub-streaming",
     kind="streaming",
@@ -193,6 +250,9 @@ CATALOG: dict[str, ModelSpec] = {
         WHISPER_TURBO,
         WHISPER_BASE,
         QWEN3_ASR,
+        QWEN3_ASR_06,
+        NEMOTRON_35_CPP,
+        NEMOTRON_EN_CPP,
         STUB_STREAMING,
         STUB_BATCH,
     )

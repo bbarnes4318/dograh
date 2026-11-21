@@ -75,6 +75,9 @@ class Settings:
     vllm_url: str = "ws://127.0.0.1:8000/v1/realtime"
     vllm_model: str = "mistralai/Voxtral-Mini-4B-Realtime-2602"
     voxtral_delay_ms: int = 480
+    # NeMo-Speech.cpp sidecar (engine nemo_speech_cpp).
+    nemo_cpp_url: str = "ws://127.0.0.1:8080/v1/audio/transcriptions/realtime"
+    nemo_cpp_api_key: str | None = None
     whisper_compute_type: str = "auto"
     whisper_beam_size: int = 5
     stub_step_latency_ms: float = 0.0
@@ -128,6 +131,8 @@ class Settings:
             vllm_url=_env("HOPSTT_VLLM_URL", defaults.vllm_url),
             vllm_model=_env("HOPSTT_VLLM_MODEL", defaults.vllm_model),
             voxtral_delay_ms=_env_int("HOPSTT_VOXTRAL_DELAY_MS", defaults.voxtral_delay_ms),
+            nemo_cpp_url=_env("HOPSTT_NEMO_CPP_URL", defaults.nemo_cpp_url),
+            nemo_cpp_api_key=os.getenv("HOPSTT_NEMO_CPP_API_KEY") or None,
             whisper_compute_type=_env("HOPSTT_WHISPER_COMPUTE_TYPE", defaults.whisper_compute_type),
             whisper_beam_size=_env_int("HOPSTT_WHISPER_BEAM_SIZE", defaults.whisper_beam_size),
             stub_step_latency_ms=_env_float("HOPSTT_STUB_STEP_LATENCY_MS", 0.0),

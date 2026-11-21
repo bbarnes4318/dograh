@@ -44,6 +44,12 @@ def _vllm_realtime(spec, settings):
     return VllmRealtimeEngine(spec, settings)
 
 
+def _nemo_speech_cpp(spec, settings):
+    from .nemo_speech_cpp import NemoSpeechCppEngine
+
+    return NemoSpeechCppEngine(spec, settings)
+
+
 def _nemo_offline(spec, settings):
     from .nemo_offline import NemoOfflineEngine
 
@@ -67,6 +73,7 @@ ENGINE_FACTORIES: dict[str, Callable[[ModelSpec, Any], Any]] = {
     "stub_batch": _stub_batch,
     "nemo_cache_aware": _nemo_cache_aware,
     "vllm_realtime": _vllm_realtime,
+    "nemo_speech_cpp": _nemo_speech_cpp,
     "nemo_offline": _nemo_offline,
     "faster_whisper": _faster_whisper,
     "qwen3_asr": _qwen3_asr,
