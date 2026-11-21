@@ -26,7 +26,7 @@ is only a configuration change.
   pre-HopSTT behaviour (covered by tests). Transcripts in `transcriptions` from
   either engine stay valid.
 - **HopSTT service:** images are tagged and model revisions pinned. To roll back,
-  redeploy the previous tag; `HOPSTT_*_REVISION` keeps the model weights identical.
+  redeploy the previous tag; pinned revisions (`hopstt/models.py` / `HOPSTT_MODEL_REVISIONS`) keep the model weights identical.
   The service holds no persistent state (jobs are in memory), so there is nothing
   to back up beyond the model cache, and the model cache can be re-downloaded.
 - **Deploys during business hours:** drain first. SIGTERM marks the worker not-ready

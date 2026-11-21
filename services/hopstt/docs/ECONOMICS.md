@@ -64,6 +64,12 @@ capacity test sets those steps.
    - Hoppwhistle: rows in the `transcriptions` table per month × `durationSec` × channels.
      The recent read-only `call volume report` script is a starting point.
 
+CPU option for batch: Parakeet-TDT measured RTF ≈ 0.15 on 4 shared vCPU. A
+dedicated CPU server in the €40–100/mo range (or spare capacity on an existing CPU
+host such as the servers.com `netenroll` instance) moves the batch break-even down
+to roughly **20k–45k stereo call-minutes/month**, at the cost of slower turnaround
+for backlogs.
+
 ## 5. Recommendation
 - **Batch moves first on cost grounds.** One GEX44 (≈ $211/mo) breaks even at about
   100k stereo call-minutes a month. The Recording Analyzer's all-history sweep alone

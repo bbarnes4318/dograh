@@ -59,6 +59,17 @@ audio, our chunk size, or our latency limits. **Treat these numbers only as a re
 to measure.** `bench/capacity.py` ramps 1→5→10→20→50→100→200 streams and stops at
 the first step that breaks p95 latency, error rate or accuracy.
 
+## 3b. Measured on CPU (this container: 4 shared vCPU, no GPU, other jobs running)
+| Model | Result |
+|---|---|
+| Nemotron 3.5 streaming (real WebSocket server, 8 kHz PCM16 / μ-law) | 320 ms chunks: step ≈ 1.15× real time, **cannot keep up**; the server correctly sends `overloaded`. 560 ms chunks: keeps up, finalize→final p50 0.84 s. 1120 ms chunks: p50 1.2–1.4 s. **CPU is not viable for live calls.** |
+| Parakeet-TDT 0.6B v3 (batch) | RTF 0.13–0.16 (≈ 7× faster than real time on 4 shared cores) |
+| faster-whisper `base` int8 (batch) | RTF 0.07–0.10 (the smoke test used `base`, not turbo) |
+
+These are CPU smoke numbers, not GPU projections. They show that **batch on CPU is
+viable at low volume**: a dedicated 8–16-core CPU host would process several
+recording-hours per hour. Live needs a GPU.
+
 ## 4. Recommendation (lowest cost that can meet the requirements)
 
 | Stage | Live | Batch | Approx. $/mo |
