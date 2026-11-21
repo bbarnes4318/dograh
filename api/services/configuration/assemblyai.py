@@ -46,14 +46,24 @@ from dataclasses import asdict, dataclass
 ASSEMBLYAI_PROVIDER = "assemblyai"
 ASSEMBLYAI_STREAMING_URL = "wss://streaming.assemblyai.com/v3/ws"
 ASSEMBLYAI_DEFAULT_MODEL = "assemblyai-stt-3-7-realtime-agent"
-# Models that run AssemblyAI's voice-agent feature set (semantic end of turn,
-# agent_context, mode, voice_focus, UpdateConfiguration). Older saved configs
-# keep working: ``u3-rt-pro`` and ``universal-3-6-pro`` are still accepted.
+# Streaming models offered for voice agents. ``universal-3-6-pro`` is
+# AssemblyAI's previous flagship and stays selectable on purpose.
 ASSEMBLYAI_STT_MODELS = [
     ASSEMBLYAI_DEFAULT_MODEL,
     "universal-3-6-pro",
-    "u3-rt-pro",
 ]
+# Older streaming models replaced by the default. Saved configurations that
+# name one are upgraded when they are loaded (see ``upgrade_assemblyai_model``),
+# so no call keeps running on them.
+ASSEMBLYAI_RETIRED_MODELS = frozenset(
+    {
+        "u3-rt-pro",
+        "u3-rt-pro-beta-1",
+        "universal-3-5-pro",
+        "universal-streaming-english",
+        "universal-streaming-multilingual",
+    }
+)
 ASSEMBLYAI_MODES = ["balanced", "min_latency", "max_accuracy"]
 ASSEMBLYAI_DEFAULT_MODE = "balanced"
 ASSEMBLYAI_VOICE_FOCUS_OPTIONS = ["near-field", "far-field", "off"]
@@ -61,7 +71,8 @@ ASSEMBLYAI_TURN_DETECTION_OPTIONS = ["assemblyai", "pipecat"]
 # "multi" = English/Spanish with native code-switching.
 ASSEMBLYAI_STT_LANGUAGES = ["en", "es", "multi", "de", "fr", "pt", "it"]
 ASSEMBLYAI_MULTI_LANGUAGE_CODES = ["en", "es"]
-ASSEMBLYAI_ENCODINGS = ["pcm_s16le", "pcm_mulaw"]
+# "auto": native 8 kHz mu-law for phone calls, 16-bit PCM otherwise.
+ASSEMBLYAI_ENCODINGS = ["auto", "pcm_mulaw", "pcm_s16le"]
 
 # Documented server limits.
 ASSEMBLYAI_MAX_KEYTERMS = 100
@@ -284,3 +295,18 @@ def sanitize_keyterms(terms: list[str] | None) -> list[str] | None:
         if len(out) >= ASSEMBLYAI_MAX_KEYTERMS:
             break
     return out or None
+
+
+def upgrade_assemblyai_model(model: str | None) -> str:
+    """Replace a retired AssemblyAI streaming model with the current default."""
+    if not model or model in ASSEMBLYAI_RETIRED_MODELS:
+        return ASSEMBLYAI_DEFAULT_MODEL
+    return model
+
+
+def resolve_encoding(encoding: str | None, sample_rate: int) -> str:
+    """Wire encoding for a call. ``auto`` sends phone audio (8 kHz) as native
+    G.711 mu-law, which halves the bytes sent, and anything else as PCM16."""
+    if encoding in ("pcm_mulaw", "pcm_s16le"):
+        return encoding
+    return "pcm_mulaw" if sample_rate == 8000 else "pcm_s16le"

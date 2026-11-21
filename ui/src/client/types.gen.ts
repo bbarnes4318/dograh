@@ -342,7 +342,7 @@ export type AssemblyAisttConfiguration = {
     /**
      * Encoding
      */
-    encoding?: 'pcm_s16le' | 'pcm_mulaw';
+    encoding?: 'auto' | 'pcm_mulaw' | 'pcm_s16le';
 };
 
 /**

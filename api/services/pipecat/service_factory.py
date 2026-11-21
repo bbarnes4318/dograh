@@ -576,7 +576,9 @@ def _create_assemblyai_stt_service(
         MISSING_CREDENTIAL_MESSAGE,
         language_codes_for,
         resolve_assemblyai_api_key,
+        resolve_encoding,
         sanitize_keyterms,
+        upgrade_assemblyai_model,
     )
     from api.services.pipecat.assemblyai_stt import DograhAssemblyAISTTService
 
@@ -587,9 +589,14 @@ def _create_assemblyai_stt_service(
     language = getattr(stt_config, "language", None)
     external_turns = assemblyai_uses_external_turns(stt_config)
     settings_kwargs: dict = {
-        "model": stt_config.model,
-        "language_detection": True,  # report the spoken language per turn
+        # Also covers configs that bypass pydantic (e.g. SimpleNamespace).
+        "model": upgrade_assemblyai_model(getattr(stt_config, "model", None)),
     }
+    language_codes = language_codes_for(language)
+    if len(language_codes) > 1:
+        # Only worth reporting when the call may switch languages; on single-
+        # language calls the declared language labels every transcript.
+        settings_kwargs["language_detection"] = True
     terms = (
         sanitize_keyterms(keyterms) if getattr(stt_config, "keyterms", True) else None
     )
@@ -605,8 +612,11 @@ def _create_assemblyai_stt_service(
 
     return DograhAssemblyAISTTService(
         api_key=api_key,
-        encoding=getattr(stt_config, "encoding", "pcm_s16le"),
-        language_codes=language_codes_for(language),
+        encoding=resolve_encoding(
+            getattr(stt_config, "encoding", "auto"),
+            audio_config.transport_in_sample_rate,
+        ),
+        language_codes=language_codes,
         language_hint=language,
         agent_context_enabled=getattr(stt_config, "agent_context", True),
         settings=AssemblyAISTTSettings(**settings_kwargs),

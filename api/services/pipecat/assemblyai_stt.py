@@ -276,6 +276,19 @@ class DograhAssemblyAISTTService(AssemblyAISTTService):
     async def _handle_transcription(self, message: TurnMessage):
         if not message.transcript:
             return
+        if (
+            self._language_codes
+            and len(self._language_codes) == 1
+            and not message.language_code
+        ):
+            # A single declared language labels the transcript (the base class
+            # would otherwise default every frame to English).
+            message = message.model_copy(
+                update={
+                    "language_code": self._language_codes[0],
+                    "language_confidence": 1.0,
+                }
+            )
         is_final = message.end_of_turn and (
             not self._settings.format_turns or message.turn_is_formatted
         )

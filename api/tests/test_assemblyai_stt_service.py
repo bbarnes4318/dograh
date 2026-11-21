@@ -73,20 +73,54 @@ def test_config_defaults_to_voice_agent_model_without_key():
     assert config.mode == "balanced"
     assert config.voice_focus == "near-field"
     assert config.turn_detection == "assemblyai"
-    assert config.encoding == "pcm_s16le"
+    assert config.encoding == "auto"
 
 
-def test_saved_legacy_configs_still_validate():
+@pytest.mark.parametrize(
+    "retired",
+    [
+        "u3-rt-pro",
+        "u3-rt-pro-beta-1",
+        "universal-3-5-pro",
+        "universal-streaming-english",
+        "universal-streaming-multilingual",
+        "",
+        None,
+    ],
+)
+def test_saved_configs_on_retired_models_load_as_the_new_model(retired):
     legacy = AssemblyAISTTConfiguration.model_validate(
-        {
-            "provider": "assemblyai",
-            "api_key": "k",
-            "model": "u3-rt-pro",
-            "language": "de",
-        }
+        {"provider": "assemblyai", "api_key": "k", "model": retired, "language": "de"}
     )
-    assert legacy.model == "u3-rt-pro"
+    assert legacy.model == MODEL
+    assert legacy.language == "de"  # everything else is kept
     assert legacy.get_all_api_keys() == ["k"]
+    assert legacy.model_dump()["model"] == MODEL  # a re-save stores the new model
+
+
+def test_explicit_previous_flagship_is_kept():
+    config = AssemblyAISTTConfiguration(
+        provider="assemblyai", model="universal-3-6-pro"
+    )
+    assert config.model == "universal-3-6-pro"
+
+
+def test_no_code_path_selects_a_retired_model(platform_key):
+    """Even a config that bypasses validation streams on the new model."""
+    raw = SimpleNamespace(
+        stt=SimpleNamespace(
+            provider=ServiceProviders.ASSEMBLYAI.value,
+            api_key=None,
+            model="u3-rt-pro",
+            language="en",
+            get_all_api_keys=lambda: [],
+        )
+    )
+    service = create_stt_service(raw, _audio(8000))
+    q = _query(service)
+    assert q["speech_model"] == MODEL
+    assert "u3-rt-pro" not in service._build_ws_url()
+    assert "u3-rt-pro" not in str(AssemblyAISTTConfiguration.model_json_schema())
 
 
 def test_schema_lists_new_model_first_for_the_ui():
@@ -192,14 +226,16 @@ def test_factory_builds_v3_session_for_8khz_phone_audio(platform_key):
     assert KEY not in url  # the key goes in the Authorization header only
     q = _query(service)
     assert q["speech_model"] == MODEL
-    assert q["encoding"] == "pcm_s16le"  # pipeline audio is linear PCM
+    assert q["encoding"] == "pcm_mulaw"  # native G.711 for phone calls
     assert q["sample_rate"] == "8000"  # no resampling of phone audio
+    service._sample_rate = 8000
+    assert service._bytes_for_ms(50) == 400  # 1 byte per mu-law sample
     assert json.loads(q["language_codes"]) == ["en", "es"]
     assert "language_code" not in q
     assert q["mode"] == "balanced"
     assert q["voice_focus"] == "near-field"
     assert json.loads(q["keyterms_prompt"]) == ["Final Expense", "beneficiary"]
-    assert q["language_detection"] == "true"
+    assert q["language_detection"] == "true"  # en+es call: report the language
     # AssemblyAI owns turn ends; local min/max silence overrides are not sent.
     assert "max_turn_silence" not in q
     assert service._vad_force_turn_endpoint is False
@@ -215,6 +251,7 @@ def test_factory_pipecat_turn_mode_pins_fast_finals(platform_key):
     )
     q = _query(service)
     assert q["sample_rate"] == "16000"
+    assert q["encoding"] == "pcm_s16le"  # auto: PCM16 off the phone network
     assert q["min_turn_silence"] == q["max_turn_silence"] == "100"
     assert "mode" not in q and "voice_focus" not in q and "keyterms_prompt" not in q
     assert service._vad_force_turn_endpoint is True
@@ -507,3 +544,39 @@ def test_eval_metrics_wer_and_endpoints():
     assert word_error_rate("", "hello") == 1.0
     assert endpoint_errors(1, 3) == {"false_endpoints": 2, "missed_endpoints": 0}
     assert endpoint_errors(2, 1) == {"false_endpoints": 0, "missed_endpoints": 1}
+
+
+def test_explicit_encoding_overrides_auto(platform_key):
+    service = create_stt_service(_user_config(encoding="pcm_s16le"), _audio(8000))
+    assert _query(service)["encoding"] == "pcm_s16le"
+    assert aai.resolve_encoding("auto", 8000) == "pcm_mulaw"
+    assert aai.resolve_encoding("auto", 16000) == "pcm_s16le"
+    assert aai.resolve_encoding(None, 8000) == "pcm_mulaw"
+
+
+async def test_mulaw_session_sends_encoded_chunks(platform_key):
+    """8 kHz PCM16 in, 50 ms mu-law chunks (400 bytes) out on the socket."""
+    service = create_stt_service(_user_config(), _audio(8000))
+    service._sample_rate = 8000
+    service._chunk_size_bytes = service._bytes_for_ms(50)
+    ws = SimpleNamespace(state=State.OPEN, send=AsyncMock())
+    service._websocket = ws
+    async for _ in service.run_stt(b"\x00\x10" * 800):  # 100 ms of PCM16
+        pass
+    sent = [c.args[0] for c in ws.send.await_args_list]
+    assert [len(c) for c in sent] == [400, 400]
+
+
+def test_single_language_calls_skip_detection(platform_key):
+    q = _query(create_stt_service(_user_config(language="es"), _audio(8000)))
+    assert json.loads(q["language_codes"]) == ["es"]
+    assert "language_detection" not in q
+
+
+async def test_single_language_labels_transcripts():
+    from pipecat.transcriptions.language import Language
+
+    svc = _service(language_codes=["es"])
+    await svc._handle_message(_turn(0, "Sí, tengo setenta y cuatro.", final=True))
+    frame = _pushed(svc, TranscriptionFrame)[0]
+    assert frame.language == Language.ES

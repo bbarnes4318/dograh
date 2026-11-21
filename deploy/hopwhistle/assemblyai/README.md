@@ -10,6 +10,18 @@ Model `assemblyai-stt-3-7-realtime-agent`, Streaming v3 at
 Nothing changes for running calls. Every call decides its STT once, when it
 starts.
 
+## Model and audio
+
+- Saved configurations that still name a retired AssemblyAI model
+  (`u3-rt-pro`, `u3-rt-pro-beta-1`, `universal-3-5-pro`,
+  `universal-streaming-*`) load as `assemblyai-stt-3-7-realtime-agent`, so no
+  call runs on them and a re-save stores the new name. `universal-3-6-pro`
+  (AssemblyAI's previous flagship) is kept when chosen explicitly.
+- Phone calls (8 kHz) are sent as native G.711 mu-law (`encoding=auto`);
+  other audio as 16-bit PCM. `encoding` can force either.
+- Calls with `language=multi` declare English and Spanish and report the
+  spoken language per turn; single-language calls are labelled with it.
+
 ## What decides a call's STT
 
 1. The workflow's own STT (model override) is used as it is.
