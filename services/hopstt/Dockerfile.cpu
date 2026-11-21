@@ -1,0 +1,37 @@
+# HopSTT CPU image: development (stub engines) and CPU batch
+# (faster-whisper int8; add nemo for parakeet on CPU).
+#
+#   docker build -f Dockerfile.cpu -t hopstt-cpu:0.1.0 .
+#   docker build -f Dockerfile.cpu --build-arg HOPSTT_EXTRAS=nemo,whisper,fetch -t hopstt-cpu-nemo:0.1.0 .
+FROM python:3.12-slim
+
+ENV PYTHONUNBUFFERED=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    HOPSTT_MODEL_CACHE=/models \
+    HF_HOME=/models/.hf \
+    HOPSTT_DEVICE=cpu
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      ffmpeg libsndfile1 ca-certificates build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY pyproject.toml ./
+COPY hopstt ./hopstt
+
+ARG TORCH_INDEX=https://download.pytorch.org/whl/cpu
+ARG HOPSTT_EXTRAS=whisper,fetch
+RUN pip install --no-cache-dir Cython packaging \
+    && if echo "${HOPSTT_EXTRAS}" | grep -q nemo; then \
+         pip install --no-cache-dir torch torchaudio --index-url ${TORCH_INDEX}; \
+       fi \
+    && pip install --no-cache-dir ".[${HOPSTT_EXTRAS}]"
+
+RUN useradd --create-home --uid 10001 hopstt \
+    && mkdir -p /models && chown -R hopstt:hopstt /models
+USER hopstt
+
+EXPOSE 8790
+HEALTHCHECK --interval=15s --timeout=5s --start-period=300s --retries=5 \
+  CMD python -c "import os,urllib.request;urllib.request.urlopen('http://127.0.0.1:%s/readyz' % os.getenv('HOPSTT_PORT','8790'),timeout=4)"
+CMD ["python", "-m", "hopstt"]

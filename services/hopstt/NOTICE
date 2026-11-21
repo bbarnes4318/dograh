@@ -1,0 +1,42 @@
+HopSTT
+Copyright Hopwhistle.
+
+This service downloads and runs third-party model weights at the pinned
+revisions listed in hopstt/models.py. The weights are not part of this
+repository; their licences apply to their use. Required notices:
+
+------------------------------------------------------------------------------
+nvidia/nemotron-speech-streaming-en-0.6b (model id: nemotron-en-streaming)
+
+Licensed by NVIDIA Corporation under the NVIDIA Open Model License
+
+https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-open-model-license/
+------------------------------------------------------------------------------
+nvidia/nemotron-3.5-asr-streaming-0.6b (model id: nemotron-3.5-streaming)
+
+Copyright NVIDIA Corporation. Made available under the Open Model, Data &
+Weights License (OpenMDW-1.1): https://openmdw.ai/license/1-1/
+------------------------------------------------------------------------------
+nvidia/parakeet-tdt-0.6b-v3 (model id: parakeet-tdt-0.6b-v3)
+
+"parakeet-tdt-0.6b-v3" by NVIDIA Corporation
+(https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3), licensed under the
+Creative Commons Attribution 4.0 International licence (CC BY 4.0,
+https://creativecommons.org/licenses/by/4.0/). Used without modification.
+------------------------------------------------------------------------------
+mistralai/Voxtral-Mini-4B-Realtime-2602 (model id: voxtral-realtime)
+Copyright Mistral AI. Licensed under the Apache License, Version 2.0.
+------------------------------------------------------------------------------
+Qwen/Qwen3-ASR-1.7B (model id: qwen3-asr-1.7b)
+Copyright Alibaba Cloud (Qwen team). Licensed under the Apache License, Version 2.0.
+------------------------------------------------------------------------------
+dropbox-dash/faster-whisper-large-v3-turbo (model id: whisper-large-v3-turbo)
+Systran/faster-whisper-base (model id: whisper-base)
+CTranslate2 conversions of OpenAI Whisper weights. Copyright OpenAI.
+Licensed under the MIT License.
+------------------------------------------------------------------------------
+
+Software dependencies with notable terms: NVIDIA NeMo (Apache-2.0),
+faster-whisper and CTranslate2 (MIT), vLLM (Apache-2.0, separate server),
+qwen-asr (Apache-2.0), FFmpeg (LGPL-2.1+/GPL depending on build; invoked as a
+separate process, not linked). See LICENSES.md.
