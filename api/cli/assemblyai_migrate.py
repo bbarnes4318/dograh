@@ -10,17 +10,17 @@ Dry run by default: prints a diff (secrets masked) and writes nothing. With
 Run from the repo root with the api environment loaded:
 
     # what the platform default reaches, and what stays explicit (read-only)
-    python -m scripts.assemblyai_migrate --report
+    python -m api.cli.assemblyai_migrate --report
 
     # an organization's v2 config (BYOK pipeline mode only)
-    python -m scripts.assemblyai_migrate --organization-id 7
-    python -m scripts.assemblyai_migrate --organization-id 7 --apply
+    python -m api.cli.assemblyai_migrate --organization-id 7
+    python -m api.cli.assemblyai_migrate --organization-id 7 --apply
 
     # one workflow's own model configuration override (live + draft version)
-    python -m scripts.assemblyai_migrate --organization-id 7 --workflow-id 42 --apply
+    python -m api.cli.assemblyai_migrate --organization-id 7 --workflow-id 42 --apply
 
     # undo, from the backup file --apply printed
-    python -m scripts.assemblyai_migrate --rollback assemblyai-backup-org7-....json --apply
+    python -m api.cli.assemblyai_migrate --rollback assemblyai-backup-org7-....json --apply
 
 Calls in progress keep their STT; the change applies to calls that start after
 it. Calls on the target need ASSEMBLYAI_API_KEY on the AI Voice runtime.
@@ -138,7 +138,7 @@ async def run(args) -> int:
             f"Prior STT saved to {backup_path} (may contain credentials; keep private)."
         )
         print(
-            f"Undo with: python -m scripts.assemblyai_migrate --rollback {backup_path} --apply"
+            f"Undo with: python -m api.cli.assemblyai_migrate --rollback {backup_path} --apply"
         )
     if not args.rollback and not platform_assemblyai_api_key():
         print(

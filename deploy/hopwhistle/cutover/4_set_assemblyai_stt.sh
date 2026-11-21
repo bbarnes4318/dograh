@@ -58,10 +58,10 @@ case "$cmd" in
         log "api sees ASSEMBLYAI_API_KEY (value not shown). Next: $0 smoke"
         ;;
     smoke)
-        compose exec -T api python -m scripts.assemblyai_smoke "$@"
+        compose exec -T api python -m api.cli.assemblyai_smoke "$@"
         ;;
     report)
-        compose exec -T api python -m scripts.assemblyai_migrate --report
+        compose exec -T api python -m api.cli.assemblyai_migrate --report
         ;;
     rollout)
         mode="${1:-}"; shift || true
@@ -82,7 +82,7 @@ case "$cmd" in
         if [[ "$mode" != "off" ]]; then
             compose exec -T api python -c 'import os,sys; sys.exit(0 if os.environ.get("ASSEMBLYAI_API_KEY") else 1)' \
                 || die "ASSEMBLYAI_API_KEY is not provisioned: run '$0 key' and '$0 smoke' first"
-            compose exec -T api python -m scripts.assemblyai_smoke >/dev/null \
+            compose exec -T api python -m api.cli.assemblyai_smoke >/dev/null \
                 || die "smoke test failed; rollout NOT changed (run '$0 smoke' to see why)"
         fi
         apply_env "$(json_of ASSEMBLYAI_STT_ROLLOUT "$mode" \

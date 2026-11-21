@@ -186,10 +186,11 @@ async def rollout_report() -> dict:
     return {
         "rollout": settings.as_dict(),
         "note": (
-            "Dry run. Only platform_inherited / not_configured STT choices follow "
-            "the platform default; workflow overrides, tenant BYOK keys, "
-            "Dograh-managed bundles and speech-to-speech configs are kept. Use "
-            "scripts/assemblyai_migrate.py to switch an explicit org or workflow."
+            "Dry run. platform_inherited, dograh_managed and not_configured STT "
+            "follow the platform default (managed configs keep their LLM and "
+            "TTS); workflow overrides, tenant BYOK keys and speech-to-speech "
+            "configs are kept. Use "
+            "api/cli/assemblyai_migrate.py to switch an explicit org or workflow."
         ),
         "organizations_by_classification": count(organizations, "classification"),
         "workflows_by_classification": count(workflow_entries, "classification"),

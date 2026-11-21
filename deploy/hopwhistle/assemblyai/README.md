@@ -25,16 +25,17 @@ starts.
 ## What decides a call's STT
 
 1. The workflow's own STT (model override) is used as it is.
-2. Otherwise the organization's STT is used, unless the platform supplied it
-   (the org's key is the server's own `DEEPGRAM_API_KEY` /
-   `CARTESIA_API_KEY` / ... or HopSTT with no key) **and** the rollout covers
-   the call. Then the call uses AssemblyAI on the platform key.
+2. Otherwise the organization's STT is used, unless it is the Dograh-managed
+   STT or the platform supplied it (the org's key is the server's own
+   `DEEPGRAM_API_KEY` / `CARTESIA_API_KEY` / ... or HopSTT with no key)
+   **and** the rollout covers the call. Then the call uses AssemblyAI on the
+   platform key. A managed config keeps its managed LLM and TTS.
 3. Speech-to-speech configs (OpenAI Realtime, Gemini Live, ...) have no STT
    stage and are left alone.
 
-Tenant BYOK keys, Dograh-managed bundles and workflow overrides are never
+Tenant BYOK keys and workflow overrides are never
 replaced by the rollout. To switch one of those, use
-`scripts/assemblyai_migrate.py` (one target, dry run first, backup file,
+`api/cli/assemblyai_migrate.py` (one target, dry run first, backup file,
 exact rollback).
 
 New configurations made in the UI start on AssemblyAI with a blank key, which
@@ -115,7 +116,7 @@ Optional caps, if ever wanted: `4_set_assemblyai_stt.sh budget --daily <USD>
 **Rollback.** `sudo bash 4_set_assemblyai_stt.sh rollout off`. The next calls
 use exactly what they used before. Orgs switched with
 `assemblyai_migrate.py --apply` roll back with
-`python -m scripts.assemblyai_migrate --rollback <backup.json> --apply`.
+`python -m api.cli.assemblyai_migrate --rollback <backup.json> --apply`.
 
 ## Turn detection
 

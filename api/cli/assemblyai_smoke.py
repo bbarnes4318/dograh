@@ -3,10 +3,10 @@
 Proves the platform key, connectivity and model selection before a rollout.
 Uses ASSEMBLYAI_API_KEY from the environment (never printed). Exit 0 = pass.
 
-    python -m scripts.assemblyai_smoke                      # 1 s of silence, 8 kHz PCM16
-    python -m scripts.assemblyai_smoke --wav sample.wav     # mono 16-bit WAV
-    python -m scripts.assemblyai_smoke --wav sample.wav --encoding pcm_mulaw
-    python -m scripts.assemblyai_smoke --language es --wav spanish.wav
+    python -m api.cli.assemblyai_smoke                      # 1 s of silence, 8 kHz PCM16
+    python -m api.cli.assemblyai_smoke --wav sample.wav     # mono 16-bit WAV
+    python -m api.cli.assemblyai_smoke --wav sample.wav --encoding pcm_mulaw
+    python -m api.cli.assemblyai_smoke --language es --wav spanish.wav
 
 Use synthetic or properly de-identified audio. Platform-key runs count against
 the application budget and stream cap; --no-meter skips that (needs no Redis).
