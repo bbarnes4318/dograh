@@ -1,6 +1,6 @@
 """One short, real AssemblyAI Streaming v3 session to prove the setup works.
 
-Used by the superuser smoke-test endpoint and ``scripts/assemblyai_smoke.py``.
+Used by the superuser smoke-test endpoint and ``api/cli/assemblyai_smoke.py``.
 It authenticates with the raw key in the ``Authorization`` header (never in
 the URL), checks that ``Begin`` reports the requested model, streams audio in
 real time (AssemblyAI rejects faster-than-real-time audio), forces an

@@ -5,7 +5,8 @@ Selection hierarchy for one call (nothing here runs mid-call):
   1. The workflow's own STT (``model_overrides.stt`` or a v2 model
      configuration override) is used as is.
   2. The organization's configured STT is used as is, *unless* it was inherited
-     from the platform (see :func:`classify_stt`) and the rollout
+     from the platform or is the Dograh-managed STT (see :func:`classify_stt`)
+     and the rollout
      (``ASSEMBLYAI_STT_ROLLOUT`` = canary/global) covers this call. Then the
      platform default, AssemblyAI ``assemblyai-stt-3-7-realtime-agent``, is used.
   3. A configuration with no STT stage (speech-to-speech realtime models) is
@@ -60,13 +61,14 @@ from api.services.pipecat.assemblyai_usage import (
 # Classification of where an STT choice came from.
 WORKFLOW_OVERRIDE = "workflow_override"  # explicit, never replaced
 TENANT_BYOK = "tenant_byok"  # tenant's own key, never replaced
-MANAGED = "dograh_managed"  # Dograh-managed bundle chosen by the org
+MANAGED = "dograh_managed"  # Dograh-managed STT; only its STT stage moves
 PLATFORM_INHERITED = "platform_inherited"  # platform-provisioned credential
 ALREADY_ASSEMBLYAI = "assemblyai"
 NO_STT_STAGE = "no_stt_stage"  # speech-to-speech realtime
 NOT_CONFIGURED = "not_configured"
 
-ROLLOUT_ELIGIBLE = {PLATFORM_INHERITED, NOT_CONFIGURED}
+# Managed configs keep their managed LLM and TTS; only STT follows the rollout.
+ROLLOUT_ELIGIBLE = {PLATFORM_INHERITED, MANAGED, NOT_CONFIGURED}
 
 # Env vars the platform uses to provision each provider's shared key. An org
 # STT whose every key equals the platform's key was inherited, not chosen.

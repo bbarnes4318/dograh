@@ -534,3 +534,32 @@ async def test_rollout_report_classifies_orgs_without_writing(db_session, org, e
     assert entry["moves_under_current_rollout"] is True
     assert "api_key" not in str(entry)
     assert (await db_session.get_configuration(org.id, key)).value == BYOK
+
+
+async def test_global_rollout_moves_managed_stt_only(env, admit_ok):
+    """A Dograh-managed config keeps its managed LLM/TTS; only STT moves."""
+    env.setenv("ASSEMBLYAI_STT_ROLLOUT", "global")
+    from api.services.configuration.registry import DograhLLMService, DograhTTSService
+
+    managed = EffectiveAIModelConfiguration(
+        llm=DograhLLMService(provider="dograh", api_key="m", model="default"),
+        tts=DograhTTSService(provider="dograh", api_key="m", model="default"),
+        stt=DograhSTTService(
+            provider="dograh", api_key="m", model="default", language="multi"
+        ),
+        managed_service_version=2,
+    )
+    plan = await _plan(managed)
+    assert plan.selection == "rollout"
+    assert plan.classification == rollout.MANAGED
+    assert plan.user_config.stt.provider == ServiceProviders.ASSEMBLYAI
+    assert plan.user_config.stt.model == MODEL
+    assert plan.user_config.stt.language == "multi"
+    assert plan.user_config.llm == managed.llm
+    assert plan.user_config.tts == managed.tts
+    assert plan.user_config.managed_service_version == 2
+
+
+async def test_managed_stays_when_rollout_off(env, admit_ok):
+    managed = _cfg(DograhSTTService(provider="dograh", api_key="m", model="default"))
+    assert (await _plan(managed)).user_config is managed
