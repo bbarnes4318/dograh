@@ -202,3 +202,51 @@ async def get_workflow_runs(
         limit=limit,
         total_pages=total_pages,
     )
+
+
+# ----------------------------------------------------------------------------
+# AssemblyAI platform STT default (status, smoke test, rollout dry run)
+# ----------------------------------------------------------------------------
+
+
+class AssemblyAISmokeTestRequest(BaseModel):
+    """Run one short real session on the platform key (1 s of silence)."""
+
+    sample_rate: int = 8000
+    language_codes: list[str] | None = None
+
+
+@router.get("/stt/assemblyai/status")
+async def get_assemblyai_stt_status(
+    days: int = Query(7, ge=1, le=90),
+    user: UserModel = Depends(get_superuser),
+):
+    """Credential presence (never the key), rollout, budgets and usage."""
+    from api.services.configuration.assemblyai_admin import assemblyai_status
+
+    return await assemblyai_status(days=days)
+
+
+@router.post("/stt/assemblyai/smoke-test")
+async def post_assemblyai_stt_smoke_test(
+    request: AssemblyAISmokeTestRequest,
+    user: UserModel = Depends(get_superuser),
+):
+    """Open a real AssemblyAI session with the platform key and report the result."""
+    from api.services.pipecat.assemblyai_smoke import run_smoke_test
+
+    if request.sample_rate not in (8000, 16000):
+        raise HTTPException(status_code=400, detail="sample_rate must be 8000 or 16000")
+    return await run_smoke_test(
+        sample_rate=request.sample_rate, language_codes=request.language_codes
+    )
+
+
+@router.get("/stt/assemblyai/rollout-report")
+async def get_assemblyai_stt_rollout_report(
+    user: UserModel = Depends(get_superuser),
+):
+    """Dry run: which orgs/workflows follow the platform default, which stay explicit."""
+    from api.services.configuration.assemblyai_admin import rollout_report
+
+    return await rollout_report()

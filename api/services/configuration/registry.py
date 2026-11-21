@@ -11,6 +11,16 @@ from pydantic import (
     model_validator,
 )
 
+from api.services.configuration.assemblyai import (
+    ASSEMBLYAI_DEFAULT_MODE,
+    ASSEMBLYAI_DEFAULT_MODEL,
+    ASSEMBLYAI_ENCODINGS,
+    ASSEMBLYAI_MODES,
+    ASSEMBLYAI_STT_LANGUAGES,
+    ASSEMBLYAI_STT_MODELS,
+    ASSEMBLYAI_TURN_DETECTION_OPTIONS,
+    ASSEMBLYAI_VOICE_FOCUS_OPTIONS,
+)
 from api.services.configuration.options import (
     AZURE_EMBEDDING_MODELS,
     AZURE_MODELS,
@@ -2081,23 +2091,91 @@ class HuggingFaceSTTConfiguration(BaseSTTConfiguration):
     )
 
 
-ASSEMBLYAI_STT_MODELS = ["u3-rt-pro"]
-ASSEMBLYAI_STT_LANGUAGES = ["en", "es", "de", "fr", "pt", "it"]
-
-
 @register_stt
 class AssemblyAISTTConfiguration(BaseSTTConfiguration):
+    """AssemblyAI Streaming v3 (wss://streaming.assemblyai.com/v3/ws).
+
+    The platform default STT for cascaded voice pipelines. Fields marked
+    ``advanced`` are collapsed in the configuration form.
+    """
+
     model_config = ASSEMBLYAI_PROVIDER_MODEL_CONFIG
     provider: Literal[ServiceProviders.ASSEMBLYAI] = ServiceProviders.ASSEMBLYAI
     model: str = Field(
-        default="u3-rt-pro",
-        description="AssemblyAI realtime STT model.",
+        default=ASSEMBLYAI_DEFAULT_MODEL,
+        description=(
+            "AssemblyAI streaming model. assemblyai-stt-3-7-realtime-agent is "
+            "built for voice agents."
+        ),
         json_schema_extra={"examples": ASSEMBLYAI_STT_MODELS},
     )
     language: str = Field(
         default="en",
-        description="ISO 639-1 language code.",
+        description=(
+            "Caller language. 'multi' declares English and Spanish; the model "
+            "code-switches between them."
+        ),
         json_schema_extra={"examples": ASSEMBLYAI_STT_LANGUAGES},
+    )
+    api_key: str | list[str] | None = Field(
+        default=None,
+        description=(
+            "Optional AssemblyAI API key. Leave blank to use the platform key "
+            "configured on the server."
+        ),
+    )
+    mode: Literal["balanced", "min_latency", "max_accuracy"] = Field(
+        default=ASSEMBLYAI_DEFAULT_MODE,
+        description=(
+            "Latency/accuracy preset for end-of-turn: min_latency, balanced or "
+            "max_accuracy."
+        ),
+        json_schema_extra={"examples": ASSEMBLYAI_MODES, "advanced": True},
+    )
+    turn_detection: Literal["assemblyai", "pipecat"] = Field(
+        default="assemblyai",
+        description=(
+            "Who decides when the caller has finished: 'assemblyai' (semantic "
+            "end of turn, the STT owns turn boundaries) or 'pipecat' (local VAD "
+            "and turn settings; AssemblyAI only transcribes)."
+        ),
+        json_schema_extra={
+            "examples": ASSEMBLYAI_TURN_DETECTION_OPTIONS,
+            "advanced": True,
+        },
+    )
+    voice_focus: Literal["near-field", "far-field", "off"] = Field(
+        default="near-field",
+        description=(
+            "Isolate the primary voice and suppress background noise. "
+            "near-field suits phones and headsets. Adds to the per-hour price."
+        ),
+        json_schema_extra={
+            "examples": ASSEMBLYAI_VOICE_FOCUS_OPTIONS,
+            "advanced": True,
+        },
+    )
+    agent_context: bool = Field(
+        default=True,
+        description=(
+            "Send the agent's last question to AssemblyAI so short replies "
+            "(yes/no, ages, states, names) are transcribed accurately."
+        ),
+        json_schema_extra={"advanced": True},
+    )
+    keyterms: bool = Field(
+        default=True,
+        description="Boost the workflow's dictionary words (keyterm prompting).",
+        json_schema_extra={"advanced": True},
+    )
+    encoding: Literal["pcm_s16le", "pcm_mulaw"] = Field(
+        default="pcm_s16le",
+        description=(
+            "Audio encoding sent to AssemblyAI. Pipeline audio is 16-bit PCM at "
+            "the call's sample rate (8 kHz on phone calls), so pcm_s16le needs "
+            "no conversion."
+        ),
+        json_schema_extra={"examples": ASSEMBLYAI_ENCODINGS, "advanced": True},
     )
 
 

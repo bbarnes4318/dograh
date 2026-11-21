@@ -290,6 +290,11 @@ export type AppendTextChatMessageRequest = {
 
 /**
  * AssemblyAI
+ *
+ * AssemblyAI Streaming v3 (wss://streaming.assemblyai.com/v3/ws).
+ *
+ * The platform default STT for cascaded voice pipelines. Fields marked
+ * ``advanced`` are collapsed in the configuration form.
  */
 export type AssemblyAisttConfiguration = {
     /**
@@ -298,20 +303,46 @@ export type AssemblyAisttConfiguration = {
     provider?: 'assemblyai';
     /**
      * Api Key
+     *
+     * Optional AssemblyAI API key. Leave blank to use the platform key configured on the server.
      */
-    api_key: string | Array<string>;
+    api_key?: string | Array<string> | null;
     /**
      * Model
      *
-     * AssemblyAI realtime STT model.
+     * AssemblyAI streaming model. assemblyai-stt-3-7-realtime-agent is built for voice agents.
      */
     model?: string;
     /**
      * Language
      *
-     * ISO 639-1 language code.
+     * Caller language. 'multi' declares English and Spanish; the model code-switches between them.
      */
     language?: string;
+    /**
+     * Mode
+     */
+    mode?: 'balanced' | 'min_latency' | 'max_accuracy';
+    /**
+     * Turn Detection
+     */
+    turn_detection?: 'assemblyai' | 'pipecat';
+    /**
+     * Voice Focus
+     */
+    voice_focus?: 'near-field' | 'far-field' | 'off';
+    /**
+     * Agent Context
+     */
+    agent_context?: boolean;
+    /**
+     * Keyterms
+     */
+    keyterms?: boolean;
+    /**
+     * Encoding
+     */
+    encoding?: 'pcm_s16le' | 'pcm_mulaw';
 };
 
 /**

@@ -460,7 +460,7 @@ export function ServiceConfigurationForm({
     };
 
     const buildServiceConfig = (service: ServiceSegment, data: FormValues) => {
-        const config: Record<string, string | number | string[]> = {
+        const config: Record<string, string | number | boolean | string[]> = {
             provider: serviceProviders[service],
         };
         const keys = apiKeys[service].map(k => k.trim()).filter(k => k.length > 0);
@@ -471,7 +471,7 @@ export function ServiceConfigurationForm({
             if (!property.startsWith(`${service}_`)) return;
             const field = property.slice(service.length + 1);
             if (field === "api_key" || field === "provider") return;
-            config[field] = value as string | number;
+            config[field] = value as string | number | boolean;
         });
         return config;
     };
@@ -733,6 +733,19 @@ export function ServiceConfigurationForm({
             actualSchema,
             watch(`${service}_model`) as string | undefined,
         );
+
+        if (actualSchema?.type === "boolean") {
+            const fieldKey = `${service}_${field}`;
+            const raw = watch(fieldKey);
+            const checked = raw === undefined ? actualSchema.default === true : raw === true || raw === "true";
+            return (
+                <Switch
+                    id={fieldKey}
+                    checked={checked}
+                    onCheckedChange={(value) => setValue(fieldKey, value, { shouldDirty: true })}
+                />
+            );
+        }
 
         if (actualSchema?.voice_catalog && field === "voice") {
             return (

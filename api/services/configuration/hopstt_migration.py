@@ -120,24 +120,28 @@ def _validated(config: dict) -> dict:
     return config
 
 
-def switch_v2_stt(config: dict, new_stt: dict) -> tuple[dict, dict]:
+def switch_v2_stt(
+    config: dict, new_stt: dict, *, provider: str = "hopstt"
+) -> tuple[dict, dict]:
     """Return (new_config, prior_stt) with the pipeline STT replaced."""
     updated = copy.deepcopy(config)
     pipeline = _pipeline_of(updated)
     prior = copy.deepcopy(pipeline.get("stt") or {})
-    if prior.get("provider") == "hopstt":
-        raise HopSTTMigrationError("STT is already hopstt; nothing to do")
+    if prior.get("provider") == provider:
+        raise HopSTTMigrationError(f"STT is already {provider}; nothing to do")
     pipeline["stt"] = copy.deepcopy(new_stt)
     return _validated(updated), prior
 
 
-def restore_v2_stt(config: dict, prior_stt: dict, *, force: bool = False) -> dict:
+def restore_v2_stt(
+    config: dict, prior_stt: dict, *, force: bool = False, provider: str = "hopstt"
+) -> dict:
     updated = copy.deepcopy(config)
     pipeline = _pipeline_of(updated)
     current = (pipeline.get("stt") or {}).get("provider")
-    if current != "hopstt" and not force:
+    if current != provider and not force:
         raise HopSTTMigrationError(
-            f"current STT provider is {current!r}, not hopstt; refusing to "
+            f"current STT provider is {current!r}, not {provider}; refusing to "
             "overwrite a change made since the migration (use --force)"
         )
     pipeline["stt"] = copy.deepcopy(prior_stt)
@@ -207,14 +211,33 @@ async def plan_switch(
     model: str | None = None,
     language: str | None = None,
 ) -> MigrationPlan:
+    return await plan_provider_switch(
+        organization_id=organization_id,
+        workflow_id=workflow_id,
+        provider="hopstt",
+        build_stt_block=lambda prior: build_hopstt_stt_block(
+            prior, endpoint=endpoint, model=model, language=language
+        ),
+    )
+
+
+async def plan_provider_switch(
+    *,
+    organization_id: int,
+    workflow_id: int | None,
+    provider: str,
+    build_stt_block,
+) -> MigrationPlan:
+    """Plan switching an org's (or one workflow's override) STT to ``provider``.
+
+    ``build_stt_block(prior_stt_dict)`` returns the validated new STT block.
+    """
     plan = MigrationPlan(organization_id=organization_id, workflow_id=workflow_id)
     if workflow_id is None:
         before = await _org_config(organization_id)
         prior = _pipeline_of(before).get("stt")
-        new_stt = build_hopstt_stt_block(
-            prior, endpoint=endpoint, model=model, language=language
-        )
-        after, prior = switch_v2_stt(before, new_stt)
+        new_stt = build_stt_block(prior)
+        after, prior = switch_v2_stt(before, new_stt, provider=provider)
         plan.changes.append(
             TargetChange("organization", organization_id, before, after, prior)
         )
@@ -226,10 +249,8 @@ async def plan_switch(
         if not override:
             continue
         prior = _pipeline_of(override).get("stt")
-        new_stt = build_hopstt_stt_block(
-            prior, endpoint=endpoint, model=model, language=language
-        )
-        new_override, prior = switch_v2_stt(override, new_stt)
+        new_stt = build_stt_block(prior)
+        new_override, prior = switch_v2_stt(override, new_stt, provider=provider)
         after = {**configs, WORKFLOW_MODEL_CONFIGURATION_V2_OVERRIDE_KEY: new_override}
         plan.changes.append(
             TargetChange("workflow_definition", definition.id, configs, after, prior)
@@ -243,7 +264,9 @@ async def plan_switch(
     return plan
 
 
-async def plan_rollback(backup: dict, *, force: bool = False) -> MigrationPlan:
+async def plan_rollback(
+    backup: dict, *, force: bool = False, provider: str = "hopstt"
+) -> MigrationPlan:
     organization_id = int(backup["organization_id"])
     plan = MigrationPlan(
         organization_id=organization_id, workflow_id=backup.get("workflow_id")
@@ -263,7 +286,9 @@ async def plan_rollback(backup: dict, *, force: bool = False) -> MigrationPlan:
                     "backup target does not match its organization"
                 )
             before = await _org_config(organization_id)
-            after = restore_v2_stt(before, target["prior_stt"], force=force)
+            after = restore_v2_stt(
+                before, target["prior_stt"], force=force, provider=provider
+            )
         else:
             definition = definitions.get(int(target["id"]))
             if definition is None:
@@ -280,7 +305,7 @@ async def plan_rollback(backup: dict, *, force: bool = False) -> MigrationPlan:
             after = {
                 **before,
                 WORKFLOW_MODEL_CONFIGURATION_V2_OVERRIDE_KEY: restore_v2_stt(
-                    override, target["prior_stt"], force=force
+                    override, target["prior_stt"], force=force, provider=provider
                 ),
             }
         plan.changes.append(
@@ -291,10 +316,12 @@ async def plan_rollback(backup: dict, *, force: bool = False) -> MigrationPlan:
     return plan
 
 
-def backup_document(plan: MigrationPlan) -> dict:
+def backup_document(
+    plan: MigrationPlan, *, kind: str = "hopstt_migration_backup"
+) -> dict:
     """What --apply saves. Contains the prior STT credentials: keep it private."""
     return {
-        "kind": "hopstt_migration_backup",
+        "kind": kind,
         "taken_at": datetime.now(UTC).isoformat(),
         "organization_id": plan.organization_id,
         "workflow_id": plan.workflow_id,
