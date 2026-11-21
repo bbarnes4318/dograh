@@ -20,6 +20,7 @@ from api.services.configuration.assemblyai import (
     ASSEMBLYAI_STT_MODELS,
     ASSEMBLYAI_TURN_DETECTION_OPTIONS,
     ASSEMBLYAI_VOICE_FOCUS_OPTIONS,
+    upgrade_assemblyai_model,
 )
 from api.services.configuration.options import (
     AZURE_EMBEDDING_MODELS,
@@ -2168,15 +2169,21 @@ class AssemblyAISTTConfiguration(BaseSTTConfiguration):
         description="Boost the workflow's dictionary words (keyterm prompting).",
         json_schema_extra={"advanced": True},
     )
-    encoding: Literal["pcm_s16le", "pcm_mulaw"] = Field(
-        default="pcm_s16le",
+    encoding: Literal["auto", "pcm_mulaw", "pcm_s16le"] = Field(
+        default="auto",
         description=(
-            "Audio encoding sent to AssemblyAI. Pipeline audio is 16-bit PCM at "
-            "the call's sample rate (8 kHz on phone calls), so pcm_s16le needs "
-            "no conversion."
+            "Audio encoding sent to AssemblyAI. auto sends phone calls (8 kHz) "
+            "as native G.711 mu-law and other audio as 16-bit PCM."
         ),
         json_schema_extra={"examples": ASSEMBLYAI_ENCODINGS, "advanced": True},
     )
+
+    @field_validator("model", mode="before")
+    @classmethod
+    def upgrade_retired_model(cls, value):
+        # Saved configs that still name u3-rt-pro (or another retired model)
+        # load as the current voice-agent model.
+        return upgrade_assemblyai_model(value)
 
 
 @register_stt
