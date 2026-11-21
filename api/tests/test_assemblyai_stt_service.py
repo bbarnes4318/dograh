@@ -162,8 +162,19 @@ def test_cost_estimate_and_budget_defaults(monkeypatch):
     assert aai.estimate_cost_usd(3600, voice_focus=False) == pytest.approx(0.45)
     assert aai.estimate_cost_usd(3600, voice_focus=True) == pytest.approx(0.55)
     budgets = aai.budget_settings()
-    assert (budgets.daily_budget_usd, budgets.total_budget_usd) == (5.0, 25.0)
-    assert budgets.max_concurrent_streams == 5
+    # No limits unless an operator sets them.
+    assert budgets.daily_budget_usd is None
+    assert budgets.total_budget_usd is None
+    assert budgets.max_concurrent_streams is None
+    assert budgets.unlimited
+    monkeypatch.setenv("ASSEMBLYAI_DAILY_BUDGET_USD", "40")
+    monkeypatch.setenv("ASSEMBLYAI_MAX_CONCURRENT_STREAMS", "unlimited")
+    monkeypatch.setenv("ASSEMBLYAI_TOTAL_BUDGET_USD", "-1")
+    budgets = aai.budget_settings()
+    assert budgets.daily_budget_usd == 40.0
+    assert budgets.max_concurrent_streams is None
+    assert budgets.total_budget_usd is None
+    assert not budgets.unlimited
 
 
 # -------------------------------------------------------------- factory

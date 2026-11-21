@@ -387,6 +387,43 @@ async def test_usage_is_metered_by_org_workflow_and_product(isolated_redis):
     assert "not AssemblyAI's account balance" in snap["note"]
 
 
+@requires_redis
+async def test_no_limits_by_default_admits_everything(isolated_redis):
+    unlimited = BudgetSettings(
+        daily_budget_usd=None,
+        total_budget_usd=None,
+        max_concurrent_streams=None,
+        reserve_minutes_per_call=5.0,
+    )
+    for i in range(50):
+        result = await usage_mod.admit_platform_session(
+            f"run:u{i}",
+            voice_focus=True,
+            settings=unlimited,
+            redis_client=isolated_redis,
+        )
+        assert result.admitted
+    # Streams are still counted for the status view.
+    assert await isolated_redis.zcard(usage_mod.ACTIVE_KEY) == 50
+
+
+async def test_no_limits_never_refuses_even_without_redis():
+    class Broken:
+        async def eval(self, *args):
+            raise ConnectionError("down")
+
+    unlimited = BudgetSettings(
+        daily_budget_usd=None,
+        total_budget_usd=None,
+        max_concurrent_streams=None,
+        reserve_minutes_per_call=5.0,
+    )
+    result = await usage_mod.admit_platform_session(
+        "run:y", voice_focus=False, settings=unlimited, redis_client=Broken()
+    )
+    assert result.admitted
+
+
 async def test_admission_fails_closed_without_redis():
     class Broken:
         async def eval(self, *args):

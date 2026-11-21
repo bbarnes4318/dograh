@@ -21,12 +21,12 @@ Environment (all optional unless noted):
   ASSEMBLYAI_STT_CANARY_WORKFLOW_IDS   Comma-separated workflow ids for "canary".
   ASSEMBLYAI_STT_PRICE_PER_HOUR        Estimated USD per streaming hour (0.45).
   ASSEMBLYAI_VOICE_FOCUS_PRICE_PER_HOUR  Voice Focus add-on USD/hour (0.10).
-  ASSEMBLYAI_DAILY_BUDGET_USD          Application-side daily budget for
-                                       platform-key sessions (default 5).
-  ASSEMBLYAI_TOTAL_BUDGET_USD          Application-side lifetime budget for
-                                       platform-key sessions (default 25).
-  ASSEMBLYAI_MAX_CONCURRENT_STREAMS    Max simultaneous platform-key sessions
-                                       (default 5).
+  ASSEMBLYAI_DAILY_BUDGET_USD          Optional application-side daily budget
+                                       for platform-key sessions. Unset (the
+                                       default) = no limit.
+  ASSEMBLYAI_TOTAL_BUDGET_USD          Optional lifetime budget. Unset = no limit.
+  ASSEMBLYAI_MAX_CONCURRENT_STREAMS    Optional cap on simultaneous platform-key
+                                       sessions. Unset = no limit.
   ASSEMBLYAI_RESERVE_MINUTES_PER_CALL  Minutes reserved against the budget at
                                        call start, trued up at call end (5).
   ASSEMBLYAI_FALLBACK_PROVIDER         STT provider to use when AssemblyAI cannot
@@ -79,13 +79,6 @@ def _env(name: str, default: str = "") -> str:
 def _float_env(name: str, default: float) -> float:
     try:
         return float(_env(name) or default)
-    except ValueError:
-        return default
-
-
-def _int_env(name: str, default: int) -> int:
-    try:
-        return int(_env(name) or default)
     except ValueError:
         return default
 
@@ -165,17 +158,42 @@ def estimate_cost_usd(seconds: float, *, voice_focus: bool) -> float:
 
 @dataclass(frozen=True)
 class BudgetSettings:
-    daily_budget_usd: float
-    total_budget_usd: float
-    max_concurrent_streams: int
+    """``None`` means no limit (the default for every limit)."""
+
+    daily_budget_usd: float | None
+    total_budget_usd: float | None
+    max_concurrent_streams: int | None
     reserve_minutes_per_call: float
+
+    @property
+    def unlimited(self) -> bool:
+        return (
+            self.daily_budget_usd is None
+            and self.total_budget_usd is None
+            and self.max_concurrent_streams is None
+        )
+
+
+_UNLIMITED = {"", "none", "unlimited", "off", "no"}
+
+
+def _limit_env(name: str, cast):
+    """An optional limit: unset, empty, 'unlimited' or negative = no limit."""
+    raw = _env(name).lower()
+    if raw in _UNLIMITED:
+        return None
+    try:
+        value = cast(float(raw))
+    except ValueError:
+        return None
+    return None if value < 0 else value
 
 
 def budget_settings() -> BudgetSettings:
     return BudgetSettings(
-        daily_budget_usd=max(_float_env("ASSEMBLYAI_DAILY_BUDGET_USD", 5.0), 0.0),
-        total_budget_usd=max(_float_env("ASSEMBLYAI_TOTAL_BUDGET_USD", 25.0), 0.0),
-        max_concurrent_streams=max(_int_env("ASSEMBLYAI_MAX_CONCURRENT_STREAMS", 5), 0),
+        daily_budget_usd=_limit_env("ASSEMBLYAI_DAILY_BUDGET_USD", float),
+        total_budget_usd=_limit_env("ASSEMBLYAI_TOTAL_BUDGET_USD", float),
+        max_concurrent_streams=_limit_env("ASSEMBLYAI_MAX_CONCURRENT_STREAMS", int),
         reserve_minutes_per_call=max(
             _float_env("ASSEMBLYAI_RESERVE_MINUTES_PER_CALL", 5.0), 0.0
         ),
