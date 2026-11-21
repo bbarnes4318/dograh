@@ -258,7 +258,12 @@ def test_keepalive_and_idle_timeout(server_factory):
 def test_model_error_closes_and_cleans_up(server):
     ws, _ = open_stream(server)
     server.engine().fail_next_steps = 1
-    send_audio(ws, tone(0.2))
+    # The server closes as soon as the first step fails, which can race the
+    # remaining sends; the error message is still queued for recv below.
+    try:
+        send_audio(ws, tone(0.2))
+    except ConnectionClosed:
+        pass
     msg = recv_until(ws, lambda m: m["type"] == "error")[-1]
     assert msg["code"] == "model_error" and msg["retryable"] is True
     assert close_code(ws) == 1011
