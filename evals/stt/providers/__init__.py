@@ -3,6 +3,7 @@ from .deepgram_provider import DeepgramProvider
 from .deepgram_flux_provider import DeepgramFluxProvider
 from .speechmatics_provider import SpeechmaticsProvider
 from .local_smart_turn_provider import LocalSmartTurnProvider
+from .hopstt_provider import HopSTTProvider
 
 __all__ = [
     "EventCallback",
@@ -13,4 +14,5 @@ __all__ = [
     "DeepgramFluxProvider",
     "SpeechmaticsProvider",
     "LocalSmartTurnProvider",
+    "HopSTTProvider",
 ]

@@ -544,10 +544,66 @@ def create_stt_service(
             should_interrupt=False,
             sample_rate=audio_config.transport_in_sample_rate,
         )
+    elif user_config.stt.provider == ServiceProviders.HOPSTT.value:
+        return _create_hopstt_stt_service(
+            user_config.stt,
+            audio_config,
+            keyterms=keyterms,
+            correlation_id=correlation_id,
+        )
     else:
         raise HTTPException(
             status_code=400, detail=f"Invalid STT provider {user_config.stt.provider}"
         )
+
+
+def _create_hopstt_stt_service(
+    stt_config,
+    audio_config: "AudioConfig",
+    *,
+    keyterms: list[str] | None = None,
+    correlation_id: str | None = None,
+):
+    """Build the self-hosted HopSTT streaming client (services/hopstt)."""
+    from api.services.configuration.hopstt import (
+        HOPSTT_DISABLED_MESSAGE,
+        hopstt_enabled,
+        resolve_hopstt_api_key,
+        resolve_hopstt_endpoints,
+    )
+    from api.services.configuration.registry import HOPSTT_DEFAULT_TTFS_P99
+    from api.services.pipecat.hopstt_stt import (
+        HopSTTService,
+        HopSTTSettings,
+        hopstt_session_id,
+    )
+
+    if not hopstt_enabled():
+        raise HTTPException(status_code=503, detail=HOPSTT_DISABLED_MESSAGE)
+
+    endpoints = resolve_hopstt_endpoints(stt_config)
+    for endpoint in endpoints:
+        _validate_runtime_service_url(endpoint, "endpoint")
+
+    session_id = hopstt_session_id(correlation_id)
+    return HopSTTService(
+        endpoints=endpoints,
+        api_key=resolve_hopstt_api_key(stt_config),
+        session_id=session_id,
+        correlation_id=session_id,
+        sample_rate=audio_config.transport_in_sample_rate,
+        chunk_ms=getattr(stt_config, "chunk_ms", 320),
+        keyterms=keyterms,
+        connect_timeout_s=getattr(stt_config, "connect_timeout_s", 2.0),
+        recovery_deadline_s=getattr(stt_config, "recovery_deadline_s", 5.0),
+        max_reconnect_attempts=getattr(stt_config, "max_reconnect_attempts", 6),
+        ttfs_p99_latency=getattr(stt_config, "ttfs_p99_latency", None)
+        or HOPSTT_DEFAULT_TTFS_P99,
+        settings=HopSTTSettings(
+            model=stt_config.model,
+            language=getattr(stt_config, "language", None) or "en",
+        ),
+    )
 
 
 def create_tts_service(

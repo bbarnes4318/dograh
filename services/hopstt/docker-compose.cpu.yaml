@@ -1,0 +1,51 @@
+# HopSTT for development on any machine (no GPU):
+#   - live: the deterministic stub engine (protocol testing for the Dograh and
+#     Hoppwhistle clients; it does not transcribe)
+#   - batch: faster-whisper "whisper-base" int8 on CPU (real transcripts;
+#     switch HOPSTT_DEV_BATCH_MODEL to whisper-large-v3-turbo for quality)
+#
+#   cd services/hopstt
+#   HOPSTT_API_KEY=dev-key-0123456789ab docker compose -f docker-compose.cpu.yaml up --build
+services:
+  hopstt-fetch:
+    build:
+      context: .
+      dockerfile: Dockerfile.cpu
+    image: ${HOPSTT_CPU_IMAGE:-hopstt-cpu:0.1.0}
+    restart: "no"
+    volumes:
+      - hopstt-models-cpu:/models
+    environment:
+      HOPSTT_DEV_INSECURE: "true"
+      HOPSTT_ALLOWED_MODELS: ${HOPSTT_DEV_BATCH_MODEL:-whisper-base}
+    command: ["python", "-m", "hopstt.tools.fetch_models"]
+
+  hopstt-dev:
+    image: ${HOPSTT_CPU_IMAGE:-hopstt-cpu:0.1.0}
+    depends_on:
+      hopstt-fetch:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    ports:
+      - "${HOPSTT_BIND:-127.0.0.1}:8790:8790"
+    volumes:
+      - hopstt-models-cpu:/models
+    environment:
+      HOPSTT_API_KEY: ${HOPSTT_API_KEY:?set HOPSTT_API_KEY (>= 16 chars)}
+      HOPSTT_ROLE: both
+      HOPSTT_DEVICE: cpu
+      HOPSTT_ALLOWED_MODELS: stub-streaming,${HOPSTT_DEV_BATCH_MODEL:-whisper-base}
+      HOPSTT_DEFAULT_STREAMING_MODEL: stub-streaming
+      HOPSTT_DEFAULT_BATCH_MODEL: ${HOPSTT_DEV_BATCH_MODEL:-whisper-base}
+      HOPSTT_STUB_STEP_LATENCY_MS: ${HOPSTT_STUB_STEP_LATENCY_MS:-5}
+      HOPSTT_MAX_STREAMS: ${HOPSTT_MAX_STREAMS:-16}
+      HF_HUB_OFFLINE: "1"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8790/readyz',timeout=4)"]
+      interval: 10s
+      timeout: 5s
+      start_period: 120s
+      retries: 5
+
+volumes:
+  hopstt-models-cpu:

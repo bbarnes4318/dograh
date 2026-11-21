@@ -166,6 +166,16 @@ def _resolve_provisional_vad_pause_secs(run_configs: dict) -> float:
     )
 
 
+def _maybe_hopstt_shadow_tap(workflow_id, workflow_run_id):
+    """HopSTT shadow tap for allow-listed workflows (HOPSTT_SHADOW_*); else None."""
+    from api.services.pipecat.hopstt_shadow import HopSTTShadowTap, shadow_enabled_for
+
+    if not shadow_enabled_for(workflow_id):
+        return None
+    logger.info(f"HopSTT shadow enabled for workflow {workflow_id}")
+    return HopSTTShadowTap(call_id=f"run:{workflow_run_id}")
+
+
 def _create_non_realtime_user_turn_start_strategies(
     run_configs: dict, *, uses_external_turns: bool
 ):
@@ -724,6 +734,17 @@ async def _run_pipeline_impl(
             correlation_id=mps_correlation_id,
         )
     else:
+        if user_config.stt is not None and (
+            user_config.stt.provider == ServiceProviders.HOPSTT.value
+        ):
+            # Off unless HOPSTT_PAID_FALLBACK_* is configured; call start only.
+            from api.services.pipecat.hopstt_fallback import (
+                apply_hopstt_paid_fallback,
+            )
+
+            user_config = await apply_hopstt_paid_fallback(
+                user_config, organization_id=workflow.organization_id
+            )
         stt = create_stt_service(
             user_config,
             audio_config,
@@ -1266,6 +1287,7 @@ async def _run_pipeline_impl(
             assistant_turn_guard=assistant_turn_guard,
             output_gate=output_gate,
             repeat_guard=repeat_guard,
+            shadow_tap=_maybe_hopstt_shadow_tap(workflow_id, workflow_run_id),
         )
 
     # Create pipeline task with audio configuration

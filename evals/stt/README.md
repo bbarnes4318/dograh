@@ -10,6 +10,7 @@ Benchmark for comparing Speech-to-Text providers using **WebSocket streaming** w
 |----------|-------------|---------------|-----------|
 | Deepgram | Yes | Yes | WebSocket (v1/v2) |
 | Speechmatics | Yes | Additional vocab | WebSocket RT |
+| HopSTT (self-hosted) | No | Accepted, engine-dependent | WebSocket (`/v1/stt/stream`); set `HOPSTT_ENDPOINT`, optional `HOPSTT_API_KEY`, `HOPSTT_MODEL` |
 
 ## Setup
 

@@ -1,15 +1,16 @@
 #!/usr/bin/env bash
 # dograh local CI -- the replacement for the GitHub Actions checks
-# (api-tests.yml, pre-pr-drift-check.yml, hopvoice-tests.yml).
+# (api-tests.yml, pre-pr-drift-check.yml, hopvoice-tests.yml) plus the
+# HopSTT service tests.
 #
-#   ./scripts/ci/run.sh fast        # before every PR: all three (~5 min)
-#   ./scripts/ci/run.sh <check>     # one of: drift api hopvoice
+#   ./scripts/ci/run.sh fast        # before every PR: all checks (~5 min)
+#   ./scripts/ci/run.sh <check>     # one of: drift api hopvoice hopstt
 #   ./scripts/ci/run.sh clean       # remove containers a killed run left behind
 #
 # Exit codes: 0 PASS, 1 FAIL, 2 usage, 3 INCOMPLETE (a required check could
 # not run here -- never a pass), 130 interrupted.
 #
-# Needs Python 3.13 (and 3.12 for Hopvoice), Node 22, Docker, and the
+# Needs Python 3.13 (and 3.12 for Hopvoice/HopSTT), Node 22, Docker, and the
 # pipecat submodule (fetched automatically if missing).
 # Reports: .ci-reports/<time>-<profile>-<sha>/summary.md (newest 20 kept).
 # Documentation: scripts/ci/README.md
@@ -46,7 +47,7 @@ log() { printf '%s[ci %s]%s %s\n' "$D" "$(date +%H:%M:%S)" "$O" "$*" >&2; }
 
 PROFILE="${1:-}"
 case "$PROFILE" in
-  fast | drift | api | hopvoice) ;;
+  fast | drift | api | hopvoice | hopstt) ;;
   clean)
     docker ps -aq --filter label=dograh-ci=1 | xargs -r docker rm -f
     exit 0
@@ -56,7 +57,7 @@ case "$PROFILE" in
     exit 0
     ;;
   *)
-    echo "unknown profile '$PROFILE' (fast|drift|api|hopvoice|clean)" >&2
+    echo "unknown profile '$PROFILE' (fast|drift|api|hopvoice|hopstt|clean)" >&2
     exit 2
     ;;
 esac
@@ -74,8 +75,10 @@ CRIT=''
 [[ -n "$(git status --porcelain --untracked-files=no -- . ':!pipecat')" ]] && DIRTY=yes || DIRTY=no
 PY="${CI_PYTHON:-python3.13}"
 PY_HOPVOICE="${CI_PYTHON_HOPVOICE:-python3.12}"
+PY_HOPSTT="${CI_PYTHON_HOPSTT:-python3.12}"
 VENV="$REPO/.venv"
 HV_VENV="$REPO/.ci-reports/.hopvoice-venv"
+HS_VENV="$REPO/.ci-reports/.hopstt-venv"
 
 # ── Cleanup and report, whatever happens ────────────────────────────────
 INTERRUPTED=''
@@ -174,13 +177,16 @@ if [[ -n "${DGCI_SENSITIVE:-}" ]]; then
     exit 0
   fi
 fi
-if [[ $PROFILE != hopvoice ]]; then
+if [[ $PROFILE != hopvoice && $PROFILE != hopstt ]]; then
   command -v "$PY" >/dev/null || { blocked python "$PY not found (the API tests and drift check use Python 3.13; set CI_PYTHON)"; exit 0; }
   nm=$(node -p 'process.versions.node.split(".")[0]' 2>/dev/null || echo none)
   [[ "$nm" == "${CI_NODE_MAJOR:-22}" ]] || { blocked node-version "node $nm on PATH; the workflows used Node 22 (set CI_NODE_DIR)"; exit 0; }
 fi
 if [[ $PROFILE == hopvoice || $PROFILE == fast ]]; then
   command -v "$PY_HOPVOICE" >/dev/null || { blocked python3.12 "$PY_HOPVOICE not found (hopvoice-tests.yml used Python 3.12; set CI_PYTHON_HOPVOICE)"; exit 0; }
+fi
+if [[ $PROFILE == hopstt || $PROFILE == fast ]]; then
+  command -v "$PY_HOPSTT" >/dev/null || { blocked python3.12 "$PY_HOPSTT not found (the HopSTT service tests use Python 3.12; set CI_PYTHON_HOPSTT)"; exit 0; }
 fi
 if [[ $PROFILE == api || $PROFILE == fast ]] && ! docker info >/dev/null 2>&1; then
   blocked docker "Docker is required (Postgres+pgvector and Redis run as throwaway containers) and the daemon is not reachable"
@@ -333,12 +339,55 @@ PY
   return "$rc"
 }
 
-export -f do_setup do_drift do_api do_hopvoice
-export RD SHA RUN_ID REPO VENV HV_VENV PY PY_HOPVOICE
+do_hopstt() {
+  # services/hopstt: install with the test extra into its own venv and run the
+  # stub-engine tests (no GPU, no model weights). The client side of the
+  # protocol is covered by api/tests/test_hopstt_*.py in the api step.
+  if [[ ! -x "$HS_VENV/bin/python" ]]; then "$PY_HOPSTT" -m venv "$HS_VENV"; fi
+  # shellcheck disable=SC1091
+  source "$HS_VENV/bin/activate"
+  python -m pip install -q -e 'services/hopstt[test]'
+  python -m compileall -q services/hopstt
+  python -m py_compile api/services/pipecat/hopstt_stt.py
+  local junit="$RD/pytest-hopstt.xml" rc=0
+  (cd services/hopstt && python -m pytest -q -rs -p no:cacheprovider --junitxml="$junit") || rc=$?
+  # Only tests that need a GPU, real weights or a real engine may skip
+  # (torch/NeMo/vLLM/CUDA, or the opt-in HOPSTT_REAL_MODEL_TESTS suite).
+  python - "$junit" "$RD/notes.txt" <<'PY' || rc=1
+import re, sys, xml.etree.ElementTree as ET
+r = ET.parse(sys.argv[1]).getroot()
+cases = list(r.iter("testcase"))
+skipped = [c for c in cases if c.find("skipped") is not None]
+gpu = re.compile(r"torch|nemo|vllm|cuda|gpu|HOPSTT_REAL_MODEL_TESTS|real-model", re.I)
+def expected(c):
+    sk = c.find("skipped")
+    return bool(gpu.search((sk.get("message") or "") + (sk.text or "")))
+other = [c.get("classname", "") + "::" + c.get("name", "") for c in skipped if not expected(c)]
+line = f"hopstt: {len(cases)} tests, {len(skipped)} skipped ({len(skipped) - len(other)} expected: no GPU/real model)"
+print(line); open(sys.argv[2], "a").write(line + "\n")
+if not cases: print("no tests ran"); sys.exit(1)
+if other: print("unexpected skips:\n  " + "\n  ".join(other)); sys.exit(1)
+PY
+  return "$rc"
+}
+
+# The service is built alongside this client; until it has a pyproject the
+# step cannot run, which is INCOMPLETE, never a pass.
+hopstt_step() {
+  if [[ -f services/hopstt/pyproject.toml ]]; then
+    step hopstt 900 do_hopstt
+  else
+    blocked hopstt "services/hopstt/pyproject.toml not found"
+  fi
+}
+
+export -f do_setup do_drift do_api do_hopvoice do_hopstt
+export RD SHA RUN_ID REPO VENV HV_VENV HS_VENV PY PY_HOPVOICE PY_HOPSTT
 
 # ── Profiles ────────────────────────────────────────────────────────────
 case "$PROFILE" in
   hopvoice) step hopvoice 900 do_hopvoice ;;
+  hopstt) hopstt_step ;;
   drift)
     step --critical setup 1200 do_setup
     step drift 1200 do_drift
@@ -352,6 +401,7 @@ case "$PROFILE" in
     step drift 1200 do_drift
     step api 2400 do_api
     step hopvoice 900 do_hopvoice
+    hopstt_step
     ;;
 esac
 exit 0

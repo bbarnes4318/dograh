@@ -1,0 +1,46 @@
+# NVIDIA NeMo-Speech.cpp server (CPU build) for the HopSTT nemo_speech_cpp engine.
+#
+#   docker build -f Dockerfile.nemo-speech-cpp -t hopstt-nemo-speech-cpp:0.3.0 .
+#
+# Source: https://github.com/NVIDIA/NeMo-Speech.cpp (Apache-2.0), tag v0.3.0,
+# verified against its commit hash below. The runtime downloads the official
+# q8_0 GGUF from the pinned Hugging Face revision and checks its sha256
+# (see nemo-speech-cpp-entrypoint.sh). For a GPU build use the upstream
+# docker/Dockerfile (CUDA) and the same entrypoint.
+FROM ubuntu:24.04 AS build
+
+ARG NEMO_SPEECH_TAG=v0.3.0
+ARG NEMO_SPEECH_COMMIT=20999cc921d2b14aa58708f61756a8b2e787ba20
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      build-essential cmake ninja-build git pkg-config ca-certificates \
+      libsentencepiece-dev libssl-dev python3 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /src
+RUN git clone --depth 1 --branch "${NEMO_SPEECH_TAG}" https://github.com/NVIDIA/NeMo-Speech.cpp.git . \
+    && test "$(git rev-parse HEAD)" = "${NEMO_SPEECH_COMMIT}" \
+    && git submodule update --init --depth 1 llama.cpp third_party/cpp-httplib \
+    && scripts/configure.sh cpu-server \
+    && cmake --build --preset cpu-server \
+    && mkdir -p /out/bin /out/lib \
+    && cp "$(find build/cpu-server -type f -name nemo-speech -perm -u+x | head -1)" /out/bin/ \
+    && find build/cpu-server -name '*.so*' -exec cp -P {} /out/lib/ \; \
+    && cp LICENSE NOTICE THIRD_PARTY_NOTICES.md /out/
+
+FROM ubuntu:24.04
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      libsentencepiece0 libgomp1 libssl3 ca-certificates curl \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=build /out/bin/nemo-speech /usr/local/bin/nemo-speech
+COPY --from=build /out/lib/ /usr/local/lib/nemo-speech/
+COPY --from=build /out/LICENSE /out/NOTICE /out/THIRD_PARTY_NOTICES.md /usr/share/doc/nemo-speech/
+COPY nemo-speech-cpp-entrypoint.sh /usr/local/bin/nemo-speech-cpp-entrypoint.sh
+ENV LD_LIBRARY_PATH=/usr/local/lib/nemo-speech
+RUN chmod +x /usr/local/bin/nemo-speech-cpp-entrypoint.sh \
+    && useradd --create-home --uid 10001 nemo && mkdir -p /models && chown nemo /models
+USER nemo
+EXPOSE 8080
+ENTRYPOINT ["/usr/local/bin/nemo-speech-cpp-entrypoint.sh"]

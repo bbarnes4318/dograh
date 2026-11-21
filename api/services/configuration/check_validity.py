@@ -110,6 +110,27 @@ class UserConfigurationValidator:
 
         return {"status": [{"model": "all", "message": "ok"}]}
 
+    def _validate_hopstt(self, service_config, service_name: str) -> list[APIKeyStatus]:
+        from api.services.configuration.hopstt import (
+            HOPSTT_DISABLED_MESSAGE,
+            hopstt_enabled,
+            resolve_hopstt_endpoints,
+        )
+
+        if not hopstt_enabled():
+            return [{"model": service_name, "message": HOPSTT_DISABLED_MESSAGE}]
+        endpoints = resolve_hopstt_endpoints(service_config)
+        if not endpoints:
+            return [
+                {"model": service_name, "message": "endpoint is required for HopSTT"}
+            ]
+        for endpoint in endpoints:
+            try:
+                validate_user_configured_service_url(endpoint, field_name="endpoint")
+            except ValueError as e:
+                return [{"model": service_name, "message": str(e)}]
+        return []
+
     def _validate_service(
         self,
         service_config: Optional[ServiceConfig],
@@ -123,6 +144,11 @@ class UserConfigurationValidator:
             return []  # Optional service not configured is OK
 
         provider = service_config.provider
+
+        # HopSTT is self-hosted: bearer auth is optional and ``endpoint`` may be
+        # a comma-separated failover list, so each URL is checked on its own.
+        if provider == ServiceProviders.HOPSTT.value:
+            return self._validate_hopstt(service_config, service_name)
 
         for url_field in ("base_url", "endpoint"):
             url = getattr(service_config, url_field, None)

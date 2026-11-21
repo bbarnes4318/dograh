@@ -25,6 +25,7 @@ from evals.stt.providers import (
     DeepgramFluxProvider,
     SpeechmaticsProvider,
     LocalSmartTurnProvider,
+    HopSTTProvider,
     STTProvider,
     TranscriptionResult,
 )
@@ -37,6 +38,7 @@ def get_provider(name: str) -> STTProvider:
         "deepgram-flux": DeepgramFluxProvider,
         "speechmatics": SpeechmaticsProvider,
         "local-smart-turn": LocalSmartTurnProvider,
+        "hopstt": HopSTTProvider,
     }
     if name not in providers:
         raise ValueError(f"Unknown provider: {name}. Available: {list(providers.keys())}")
@@ -154,7 +156,7 @@ Examples:
         "--providers",
         nargs="+",
         default=["deepgram", "speechmatics"],
-        choices=["deepgram", "deepgram-flux", "speechmatics", "local-smart-turn"],
+        choices=["deepgram", "deepgram-flux", "speechmatics", "local-smart-turn", "hopstt"],
         help="Providers to test (default: all)",
     )
     parser.add_argument(

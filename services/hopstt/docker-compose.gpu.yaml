@@ -1,0 +1,112 @@
+# HopSTT on a GPU host (NVIDIA driver + Container Toolkit). Live and batch run
+# as separate containers so recorded-call backlogs can never slow a live call:
+#
+#   cd services/hopstt
+#   cp env.example .env   # set HOPSTT_API_KEY, HOPSTT_BIND=<private-ip>, GPUs
+#   docker compose -f docker-compose.gpu.yaml up -d --build
+#
+#   hopstt-fetch  one-shot: downloads the pinned model revisions into the
+#                 shared cache volume and verifies sha256, then exits 0.
+#   hopstt-live   :8790  role=live   Nemotron 3.5 streaming (WebSocket)
+#   hopstt-batch  :8791  role=batch  parakeet-tdt-0.6b-v3 (+ whisper turbo)
+#
+# Pin each service to a GPU with HOPSTT_LIVE_GPU / HOPSTT_BATCH_GPU (both 0 on
+# a one-GPU host; batch then shares the card, live keeps priority only inside
+# one process with role=both, so prefer a second GPU or CPU batch).
+# Keep the ports on a private network; the bearer key is the only auth.
+x-hopstt-common: &common
+  build:
+    context: .
+    args:
+      HOPSTT_EXTRAS: ${HOPSTT_EXTRAS:-nemo,whisper,vllm-client,gpu-metrics,fetch}
+  image: ${HOPSTT_IMAGE:-hopstt:0.1.0}
+  restart: unless-stopped
+  stop_grace_period: 11m  # HOPSTT_DRAIN_TIMEOUT_S (600 s) + margin
+  volumes:
+    - hopstt-models:/models
+  environment: &common-env
+    HOPSTT_API_KEY: ${HOPSTT_API_KEY:?set HOPSTT_API_KEY (>= 16 chars)}
+    HOPSTT_DEVICE: cuda:0
+    HOPSTT_MODEL_CACHE: /models
+    HOPSTT_ALLOW_DOWNLOAD: "false"
+    HOPSTT_DRAIN_TIMEOUT_S: ${HOPSTT_DRAIN_TIMEOUT_S:-600}
+    HOPSTT_MODEL_REVISIONS: ${HOPSTT_MODEL_REVISIONS:-}
+    HF_HUB_OFFLINE: "1"
+
+services:
+  hopstt-fetch:
+    <<: *common
+    restart: "no"
+    environment:
+      HOPSTT_DEV_INSECURE: "true"
+      HOPSTT_MODEL_CACHE: /models
+      HOPSTT_ALLOWED_MODELS: ${HOPSTT_FETCH_MODELS:-nemotron-3.5-streaming,parakeet-tdt-0.6b-v3}
+      HOPSTT_MODEL_REVISIONS: ${HOPSTT_MODEL_REVISIONS:-}
+      HF_TOKEN: ${HF_TOKEN:-}
+    command: ["python3", "-m", "hopstt.tools.fetch_models"]
+
+  hopstt-live:
+    <<: *common
+    depends_on:
+      hopstt-fetch:
+        condition: service_completed_successfully
+    ports:
+      - "${HOPSTT_BIND:-127.0.0.1}:8790:8790"
+    environment:
+      <<: *common-env
+      HOPSTT_ROLE: live
+      HOPSTT_PORT: "8790"
+      HOPSTT_WORKER_ID: ${HOPSTT_LIVE_WORKER_ID:-hopstt-live-1}
+      HOPSTT_ALLOWED_MODELS: ${HOPSTT_LIVE_MODELS:-nemotron-3.5-streaming}
+      HOPSTT_DEFAULT_STREAMING_MODEL: ${HOPSTT_DEFAULT_STREAMING_MODEL:-nemotron-3.5-streaming}
+      HOPSTT_MAX_STREAMS: ${HOPSTT_MAX_STREAMS:-64}
+      HOPSTT_MAX_BATCH_SIZE: ${HOPSTT_MAX_BATCH_SIZE:-64}
+      NVIDIA_VISIBLE_DEVICES: ${HOPSTT_LIVE_GPU:-0}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["${HOPSTT_LIVE_GPU:-0}"]
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8790/readyz',timeout=4)"]
+      interval: 15s
+      timeout: 5s
+      start_period: 600s
+      retries: 5
+
+  hopstt-batch:
+    <<: *common
+    depends_on:
+      hopstt-fetch:
+        condition: service_completed_successfully
+    ports:
+      - "${HOPSTT_BIND:-127.0.0.1}:8791:8791"
+    environment:
+      <<: *common-env
+      HOPSTT_ROLE: batch
+      HOPSTT_PORT: "8791"
+      HOPSTT_WORKER_ID: ${HOPSTT_BATCH_WORKER_ID:-hopstt-batch-1}
+      HOPSTT_ALLOWED_MODELS: ${HOPSTT_BATCH_MODELS:-parakeet-tdt-0.6b-v3}
+      HOPSTT_DEFAULT_BATCH_MODEL: ${HOPSTT_DEFAULT_BATCH_MODEL:-parakeet-tdt-0.6b-v3}
+      HOPSTT_BATCH_MAX_CONCURRENCY: ${HOPSTT_BATCH_MAX_CONCURRENCY:-1}
+      HOPSTT_BATCH_QUEUE_LIMIT: ${HOPSTT_BATCH_QUEUE_LIMIT:-100}
+      HOPSTT_MAX_UPLOAD_MB: ${HOPSTT_MAX_UPLOAD_MB:-200}
+      NVIDIA_VISIBLE_DEVICES: ${HOPSTT_BATCH_GPU:-0}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["${HOPSTT_BATCH_GPU:-0}"]
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8791/readyz',timeout=4)"]
+      interval: 15s
+      timeout: 5s
+      start_period: 600s
+      retries: 5
+
+volumes:
+  hopstt-models:

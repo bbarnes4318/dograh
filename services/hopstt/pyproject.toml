@@ -1,0 +1,65 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hopwhistle-hopstt"
+version = "0.1.0"
+description = "Hopwhistle first-party self-hosted speech-to-text inference service"
+requires-python = ">=3.11"
+# Base install runs the protocol with the stub engines (no GPU, no ML deps).
+dependencies = [
+  "fastapi>=0.115,<1",
+  "uvicorn[standard]>=0.30,<1",
+  "python-multipart>=0.0.9",
+  "numpy>=1.26,<3",
+  "scipy>=1.12,<2",
+  "prometheus-client>=0.20,<1",
+]
+
+[project.optional-dependencies]
+fetch = ["huggingface_hub>=0.24"]
+# Nemotron 3.5 streaming + parakeet-tdt-v3. The model card names NeMo 26.06
+# (the container release); nemo_toolkit 3.0.0 is the PyPI release that
+# contains EncDecRNNTBPEModelWithPrompt / set_inference_prompt and was
+# verified on CPU against nemotron-3.5-asr-streaming-0.6b@ea30d66.
+nemo = [
+  "nemo_toolkit[asr]==3.0.0",
+  "huggingface_hub>=0.24",
+]
+whisper = [
+  "faster-whisper==1.2.1",
+  "huggingface_hub>=0.24",
+]
+# qwen-asr pins transformers==4.57.6: build it into its own image.
+qwen = [
+  "qwen-asr==0.0.6",
+  "huggingface_hub>=0.24",
+]
+vllm-client = ["websockets>=13"]
+# nemo_speech_cpp engine (proxy to the NeMo-Speech.cpp sidecar)
+nemo-cpp = ["websockets>=13"]
+# bench/ tools (accuracy, latency, capacity)
+bench = ["numpy>=1.26,<3", "httpx>=0.27,<1", "websockets>=13"]
+gpu-metrics = ["nvidia-ml-py>=12"]
+test = [
+  "httpx>=0.27,<1",
+  "pytest>=8,<10",
+  "websockets>=13",
+]
+
+[project.scripts]
+hopstt = "hopstt.server:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["hopstt*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+filterwarnings = ["ignore:connect\\(\\) must be used as a context manager:DeprecationWarning"]
+markers = [
+  "gpu: needs a CUDA GPU (skipped unless HOPSTT_REAL_MODEL_TESTS=1)",
+  "real_model: loads real model weights (skipped unless HOPSTT_REAL_MODEL_TESTS=1)",
+]
