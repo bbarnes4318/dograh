@@ -780,6 +780,11 @@ class PipecatEngine:
         self._apply_prompt_cache_key(node.id)
         await self._update_llm_context(system_prompt, functions)
 
+    @property
+    def current_node_name(self) -> Optional[str]:
+        """Name of the workflow node the call is on, if any."""
+        return self._current_node.name if self._current_node else None
+
     async def set_node(self, node_id: str, emit_transition_event: bool = True):
         """
         Simplified set_node implementation according to v2 PRD.

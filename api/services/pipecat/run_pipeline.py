@@ -596,6 +596,13 @@ async def _run_pipeline(
             await call_concurrency.unregister_active_call(workflow_run_id)
         finally:
             unregister_worker_active_call(workflow_run_id)
+            # Frees an AssemblyAI platform stream slot even if the pipeline
+            # never reached the STT's own stop (idempotent).
+            from api.services.pipecat.assemblyai_usage import (
+                release_platform_session,
+            )
+
+            await release_platform_session(f"run:{workflow_run_id}")
 
 
 async def _run_pipeline_impl(
@@ -683,6 +690,14 @@ async def _run_pipeline_impl(
                     term.strip() for term in dictionary.split(",") if term.strip()
                 ]
 
+        # Opt-in per-workflow vocabulary presets (e.g. "insurance"), added
+        # after the workflow's own dictionary words.
+        from api.services.pipecat.stt_keyterm_presets import keyterms_for_presets
+
+        preset_terms = keyterms_for_presets(run_configs.get("stt_keyterm_presets"))
+        if preset_terms:
+            keyterms = (keyterms or []) + preset_terms
+
     # Resolve model overrides from the version onto global org config (skip
     # when the caller already resolved it).
     if resolved_user_config is None:
@@ -734,6 +749,18 @@ async def _run_pipeline_impl(
             correlation_id=mps_correlation_id,
         )
     else:
+        # Platform STT default (AssemblyAI): decided once, at call start.
+        from api.services.pipecat.assemblyai_rollout import plan_call_stt
+
+        stt_plan = await plan_call_stt(
+            user_config,
+            organization_id=workflow.organization_id,
+            workflow_id=workflow_id,
+            workflow_run_id=workflow_run_id,
+            run_configs=run_configs,
+            initial_context=merged_call_context_vars,
+        )
+        user_config = stt_plan.user_config
         if user_config.stt is not None and (
             user_config.stt.provider == ServiceProviders.HOPSTT.value
         ):
@@ -745,12 +772,18 @@ async def _run_pipeline_impl(
             user_config = await apply_hopstt_paid_fallback(
                 user_config, organization_id=workflow.organization_id
             )
-        stt = create_stt_service(
-            user_config,
-            audio_config,
-            keyterms=keyterms,
-            correlation_id=mps_correlation_id,
-        )
+        try:
+            stt = create_stt_service(
+                user_config,
+                audio_config,
+                keyterms=keyterms,
+                correlation_id=mps_correlation_id,
+                assemblyai_usage=stt_plan.usage,
+            )
+        except Exception:
+            if stt_plan.usage is not None:
+                await stt_plan.usage.finish()
+            raise
         # Agents with Local Accent Voice on answer in the Fish clone of the
         # prospect's regional accent; resolved before the Fish TTS is built.
         user_config, accent_pick = apply_local_accent_voice(
@@ -784,6 +817,9 @@ async def _run_pipeline_impl(
         runtime_configuration = {
             "stt_provider": user_config.stt.provider,
             "stt_model": user_config.stt.model,
+            "stt_selection": stt_plan.selection,
+            "stt_selection_reason": stt_plan.reason,
+            "stt_source": stt_plan.classification,
             "tts_provider": user_config.tts.provider,
             "tts_model": user_config.tts.model,
             "tts_voice": getattr(user_config.tts, "voice", None),
@@ -971,6 +1007,9 @@ async def _run_pipeline_impl(
     # Set the context, audio_config, and audio_buffer after creation
     engine.set_context(context)
     engine.set_audio_config(audio_config)
+    if stt is not None and hasattr(stt, "set_node_name_provider"):
+        # AssemblyAI agent_context names the workflow step being answered.
+        stt.set_node_name_provider(lambda: engine.current_node_name)
 
     assistant_params = LLMAssistantAggregatorParams(
         correct_aggregation_callback=engine.create_aggregation_correction_callback(),

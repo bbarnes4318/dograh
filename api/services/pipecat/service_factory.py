@@ -35,7 +35,7 @@ from api.services.voice_routing.blocked_voices import (
     is_blocked_fish_voice,
 )
 from api.utils.url_security import validate_user_configured_service_url
-from pipecat.services.assemblyai.stt import AssemblyAISTTService, AssemblyAISTTSettings
+from pipecat.services.assemblyai.stt import AssemblyAISTTSettings
 from pipecat.services.aws.llm import AWSBedrockLLMService, AWSBedrockLLMSettings
 from pipecat.services.azure.llm import AzureLLMService, AzureLLMSettings
 from pipecat.services.azure.stt import AzureSTTService, AzureSTTSettings
@@ -186,6 +186,8 @@ def stt_uses_external_turns(user_config) -> bool:
         return dograh_stt_uses_flux_language(getattr(user_config.stt, "language", None))
     if user_config.stt.provider == ServiceProviders.CARTESIA.value:
         return user_config.stt.model == "ink-2"
+    if user_config.stt.provider == ServiceProviders.ASSEMBLYAI.value:
+        return assemblyai_uses_external_turns(user_config.stt)
     return False
 
 
@@ -253,12 +255,14 @@ def create_stt_service(
     audio_config: "AudioConfig",
     keyterms: list[str] | None = None,
     correlation_id: str | None = None,
+    assemblyai_usage=None,
 ):
     """Create and return appropriate STT service based on user configuration
 
     Args:
         user_config: User configuration containing STT settings
-        keyterms: Optional list of keyterms for speech recognition boosting (Deepgram only)
+        keyterms: Optional list of keyterms for speech recognition boosting
+        assemblyai_usage: Usage meter from the call-start STT plan (AssemblyAI only)
     """
     logger.info(
         f"Creating STT service: provider={user_config.stt.provider}, model={user_config.stt.model}"
@@ -447,14 +451,11 @@ def create_stt_service(
             sample_rate=audio_config.transport_in_sample_rate,
         )
     elif user_config.stt.provider == ServiceProviders.ASSEMBLYAI.value:
-        language = getattr(user_config.stt, "language", None)
-        settings_kwargs = {"model": user_config.stt.model, "language": language}
-        if keyterms:
-            settings_kwargs["keyterms_prompt"] = keyterms
-        return AssemblyAISTTService(
-            api_key=user_config.stt.api_key,
-            settings=AssemblyAISTTSettings(**settings_kwargs),
-            sample_rate=audio_config.transport_in_sample_rate,
+        return _create_assemblyai_stt_service(
+            user_config.stt,
+            audio_config,
+            keyterms=keyterms,
+            usage=assemblyai_usage,
         )
     elif user_config.stt.provider == ServiceProviders.GLADIA.value:
         from pipecat.services.gladia.config import LanguageConfig
@@ -555,6 +556,69 @@ def create_stt_service(
         raise HTTPException(
             status_code=400, detail=f"Invalid STT provider {user_config.stt.provider}"
         )
+
+
+def assemblyai_uses_external_turns(stt_config) -> bool:
+    """AssemblyAI's semantic end of turn owns turn boundaries (the default)."""
+    return getattr(stt_config, "turn_detection", "assemblyai") == "assemblyai"
+
+
+def _create_assemblyai_stt_service(
+    stt_config,
+    audio_config: "AudioConfig",
+    *,
+    keyterms: list[str] | None = None,
+    usage=None,
+):
+    """AssemblyAI Streaming v3 (see api/services/pipecat/assemblyai_stt.py)."""
+    from api.services.configuration.assemblyai import (
+        ASSEMBLYAI_DEFAULT_MODE,
+        MISSING_CREDENTIAL_MESSAGE,
+        language_codes_for,
+        resolve_assemblyai_api_key,
+        sanitize_keyterms,
+    )
+    from api.services.pipecat.assemblyai_stt import DograhAssemblyAISTTService
+
+    api_key, _source = resolve_assemblyai_api_key(stt_config)
+    if not api_key:
+        raise HTTPException(status_code=503, detail=MISSING_CREDENTIAL_MESSAGE)
+
+    language = getattr(stt_config, "language", None)
+    external_turns = assemblyai_uses_external_turns(stt_config)
+    settings_kwargs: dict = {
+        "model": stt_config.model,
+        "language_detection": True,  # report the spoken language per turn
+    }
+    terms = (
+        sanitize_keyterms(keyterms) if getattr(stt_config, "keyterms", True) else None
+    )
+    if terms:
+        settings_kwargs["keyterms_prompt"] = terms
+    voice_focus = getattr(stt_config, "voice_focus", "off")
+    if voice_focus in ("near-field", "far-field"):
+        settings_kwargs["voice_focus"] = voice_focus
+    if external_turns:
+        # The mode preset only matters when AssemblyAI decides turn ends; in
+        # pipecat mode the fork pins min/max turn silence for fast finals.
+        settings_kwargs["mode"] = getattr(stt_config, "mode", ASSEMBLYAI_DEFAULT_MODE)
+
+    return DograhAssemblyAISTTService(
+        api_key=api_key,
+        encoding=getattr(stt_config, "encoding", "pcm_s16le"),
+        language_codes=language_codes_for(language),
+        language_hint=language,
+        agent_context_enabled=getattr(stt_config, "agent_context", True),
+        settings=AssemblyAISTTSettings(**settings_kwargs),
+        sample_rate=audio_config.transport_in_sample_rate,
+        # External turns: AssemblyAI emits the user turn start/stop frames and
+        # the user aggregator (ExternalUserTurnStartStrategy) issues the
+        # interruption, exactly as for Deepgram Flux. Pipecat mode: local VAD
+        # and turn strategies decide; VAD stop sends ForceEndpoint.
+        vad_force_turn_endpoint=not external_turns,
+        should_interrupt=False,
+        usage=usage,
+    )
 
 
 def _create_hopstt_stt_service(

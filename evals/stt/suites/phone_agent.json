@@ -1,0 +1,25 @@
+{
+  "description": "Phone voice-agent STT scenarios. Audio under audio/phone/ is not committed: record synthetic or de-identified clips (mono, any format ffmpeg reads) and keep the reference text exact. Clips without audio are reported as SKIPPED.",
+  "clips": [
+    {"id": "yes", "category": "short_answers", "audio": "audio/yes.m4a", "reference": "yes", "expected_turns": 1, "label_source": "provisional (earlier provider output); verify by ear"},
+    {"id": "nope", "category": "short_answers", "audio": "audio/nope.m4a", "reference": "no", "expected_turns": 1, "label_source": "provisional (earlier provider output); verify by ear"},
+    {"id": "not_so_sure", "category": "short_answers", "audio": "audio/not_so_sure.m4a", "reference": "I don't know. I'm not so sure.", "expected_turns": 1, "label_source": "provisional (earlier provider output); verify by ear"},
+    {"id": "maybe", "category": "short_answers", "audio": "audio/phone/maybe.wav", "reference": "maybe", "expected_turns": 1},
+    {"id": "age_74", "category": "ages", "audio": "audio/phone/age_74.wav", "reference": "seventy four", "expected_turns": 1, "agent_context": "How old are you?"},
+    {"id": "age_81", "category": "ages", "audio": "audio/phone/age_81.wav", "reference": "I'm eighty one", "expected_turns": 1, "agent_context": "How old are you?"},
+    {"id": "state_texas", "category": "states", "audio": "audio/phone/state_texas.wav", "reference": "yes Texas", "expected_turns": 1, "agent_context": "You're in Texas, correct?"},
+    {"id": "state_abbrev", "category": "states", "audio": "audio/phone/state_fl.wav", "reference": "F L Florida", "expected_turns": 1, "agent_context": "What state do you live in?"},
+    {"id": "background_talk", "category": "background_conversation", "audio": "audio/phone/background_talk.wav", "reference": null, "expected_turns": 1},
+    {"id": "long_pause", "category": "long_pauses", "audio": "audio/phone/long_pause.wav", "reference": null, "expected_turns": 1, "notes": "caller pauses ~2 s mid-answer to think; a correct run does NOT split the turn"},
+    {"id": "silence_5s", "category": "silence", "audio": "generate:silence:5", "reference": "", "expected_turns": 0},
+    {"id": "voicemail_greeting", "category": "voicemail", "audio": "audio/phone/voicemail.wav", "reference": null, "expected_turns": null},
+    {"id": "barge_in", "category": "interruptions", "audio": "audio/phone/barge_in.wav", "reference": null, "expected_turns": 1},
+    {"id": "backchannel", "category": "false_barge_in", "audio": "audio/phone/backchannel_mhm.wav", "reference": "mm hmm", "expected_turns": 1, "notes": "pipeline test: should not interrupt the bot"},
+    {"id": "cough", "category": "false_barge_in", "audio": "audio/phone/cough.wav", "reference": "", "expected_turns": 0},
+    {"id": "spanish_age", "category": "spanish", "audio": "audio/phone/es_age.wav", "reference": "tengo setenta y cuatro años", "expected_turns": 1, "language": "es"},
+    {"id": "code_switch", "category": "code_switching", "audio": "audio/phone/code_switch.wav", "reference": null, "expected_turns": 1, "language": "multi"},
+    {"id": "insurance_terms", "category": "keyterms", "audio": "audio/billing_department.m4a", "reference": null, "expected_turns": null, "keyterms": ["Final Expense", "beneficiary", "premium"]},
+    {"id": "multi_speaker", "category": "background_conversation", "audio": "audio/multi_speaker.m4a", "reference": null, "expected_turns": null},
+    {"id": "vad", "category": "long_pauses", "audio": "audio/vad.m4a", "reference": null, "expected_turns": null}
+  ]
+}

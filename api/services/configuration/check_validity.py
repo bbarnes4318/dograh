@@ -572,7 +572,18 @@ class UserConfigurationValidator:
             raise ValueError("AWS access key and secret key are required for Bedrock")
         return True
 
-    def _check_assemblyai_api_key(self, model: str, service_config) -> bool:
+    def _check_assemblyai_api_key(self, model: str, api_key) -> bool:
+        # A blank key means "use the platform key" (ASSEMBLYAI_API_KEY), which
+        # must then exist. Keys are not probed over the network here; the
+        # admin smoke test does that.
+        if not api_key:
+            from api.services.configuration.assemblyai import (
+                MISSING_CREDENTIAL_MESSAGE,
+                platform_assemblyai_api_key,
+            )
+
+            if not platform_assemblyai_api_key():
+                raise ValueError(MISSING_CREDENTIAL_MESSAGE)
         return True
 
     def _check_gladia_api_key(self, model: str, api_key: str) -> bool:

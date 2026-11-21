@@ -11,6 +11,7 @@ Benchmark for comparing Speech-to-Text providers using **WebSocket streaming** w
 | Deepgram | Yes | Yes | WebSocket (v1/v2) |
 | Speechmatics | Yes | Additional vocab | WebSocket RT |
 | HopSTT (self-hosted) | No | Accepted, engine-dependent | WebSocket (`/v1/stt/stream`); set `HOPSTT_ENDPOINT`, optional `HOPSTT_API_KEY`, `HOPSTT_MODEL` |
+| AssemblyAI | Optional (`--diarize`) | Yes (`keyterms_prompt`, max 100) | Streaming v3 (`wss://streaming.assemblyai.com/v3/ws`); set `ASSEMBLYAI_API_KEY`, optional `ASSEMBLYAI_MODEL` (default `assemblyai-stt-3-7-realtime-agent`) |
 
 ## Setup
 
@@ -48,6 +49,32 @@ python -m evals.stt.benchmark audio/multi_speaker.m4a --diarize --show-words
 # Save results to JSON
 python -m evals.stt.benchmark audio/multi_speaker.m4a --diarize --save
 ```
+
+## Labeled comparison suite (phone agents)
+
+`suite.py` runs every clip of a manifest through each provider and reports WER
+(on clips with a reference), end-of-turn events vs expected (false / missed
+endpoints), time to first partial, time from end of audio to the final, errors
+and approximate cost per minute:
+
+```bash
+python -m evals.stt.suite suites/phone_agent.json --providers assemblyai deepgram-flux
+python -m evals.stt.suite suites/phone_agent.json --providers assemblyai --mode min_latency
+python -m evals.stt.suite suites/phone_agent.json --only short_answers ages states --save
+```
+
+`suites/phone_agent.json` covers short answers, ages, states, background talk,
+long pauses, silence, voicemail, interruptions, false barge-in, Spanish and
+English/Spanish switching. Most of its audio (`audio/phone/`) is not committed:
+record synthetic or properly de-identified clips with exact reference text.
+Missing clips are reported as SKIPPED, never as passes. Three existing clips
+carry provisional labels taken from an earlier provider's output; verify them by
+ear before trusting their WER. Small samples prove little: don't declare a
+provider better without enough labeled clips.
+
+Pipeline behaviour (barge-in, DNC and transfer handling, simultaneous calls,
+tenant isolation, provider disconnects) is covered by the API unit tests
+(`api/tests/test_assemblyai_*.py`), not by this file-level benchmark.
 
 ## CLI Options
 
