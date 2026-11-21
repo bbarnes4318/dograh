@@ -7,10 +7,10 @@ Replaces the GitHub Actions checks (GitHub Actions no longer runs here):
 ./scripts/ci/run.sh fast      # before every PR (~3-4 min)
 ```
 
-One check at a time: `drift`, `api`, `hopvoice`. `./scripts/ci/run.sh clean`
+One check at a time: `drift`, `api`, `hopvoice`, `hopstt`. `./scripts/ci/run.sh clean`
 removes containers a killed run left behind.
 
-Needs **Python 3.13** (3.12 for Hopvoice), **Node 22** and **Docker**. The
+Needs **Python 3.13** (3.12 for Hopvoice and HopSTT), **Node 22** and **Docker**. The
 `pipecat` submodule is fetched if missing; `.venv` is created/updated with
 `scripts/setup_requirements.sh --dev`. Linux/macOS/WSL only (bash).
 
@@ -30,6 +30,7 @@ Report: `.ci-reports/<time>-<profile>-<sha>/summary.md` (newest 20 kept).
 | `drift` | `ruff check --select I,F401` + `ruff format --check` on `api/`; ESLint `--fix-dry-run` on `ui/` (fails if `npm run fix-lint` would change a file or an error remains); OpenAPI spec regenerated and compared with `docs/api-reference/openapi.json` | `pre-pr-drift-check.yml` |
 | `api` | the whole `api/tests` pytest suite against Postgres 17 + pgvector and Redis 7 (throwaway containers); **fails if any test is skipped** | `api-tests.yml` |
 | `hopvoice` | Hopvoice install, compile, no-GPU tests; the only skip allowed is the GPU streaming test without `torch` | `hopvoice-tests.yml` |
+| `hopstt` | `services/hopstt[test]` in its own venv, compile, stub-engine tests; only GPU/real-model skips (torch, NeMo, vLLM, CUDA, opt-in `HOPSTT_REAL_MODEL_TESTS`) allowed. BLOCKED (INCOMPLETE) while `services/hopstt/pyproject.toml` is missing | new |
 
 The drift check is **read-only**: the workflow ran `scripts/format.sh`, which
 rewrites files, and failed on the diff. Here the same rules run in check

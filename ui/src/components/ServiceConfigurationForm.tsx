@@ -39,6 +39,8 @@ interface SchemaProperty {
     voice_catalog?: VoiceCatalogEntry[];
     /** Only show this field when every listed sibling field has the given value. */
     show_when?: Record<string, string>;
+    /** Rarely-changed tuning field; rendered inside a collapsed "Advanced" section. */
+    advanced?: boolean;
 }
 
 export interface ProviderSchema {
@@ -554,6 +556,9 @@ export function ServiceConfigurationForm({
         const providerSchema = schemas?.[service]?.[currentProvider];
         const availableProviders = schemas?.[service] ? Object.keys(schemas[service]) : [];
         const configFields = getConfigFields(service);
+        const isAdvanced = (field: string) => providerSchema?.properties[field]?.advanced === true;
+        const basicFields = configFields.filter((field) => !isAdvanced(field));
+        const advancedFields = configFields.filter(isAdvanced);
 
         return (
             <div className="space-y-6">
@@ -594,30 +599,27 @@ export function ServiceConfigurationForm({
                         )}
                     </div>
 
-                    {currentProvider && providerSchema && configFields[0] && (
+                    {currentProvider && providerSchema && basicFields[0] && (
                         <div className="space-y-2">
-                            <Label className="capitalize">{fieldLabel(providerSchema, configFields[0])}</Label>
-                            {renderField(service, configFields[0], providerSchema)}
+                            <Label className="capitalize">{fieldLabel(providerSchema, basicFields[0])}</Label>
+                            {renderField(service, basicFields[0], providerSchema)}
                         </div>
                     )}
                 </div>
 
-                {currentProvider && providerSchema && configFields.length > 1 && (
+                {currentProvider && providerSchema && basicFields.length > 1 && (
                     <div className="grid grid-cols-2 gap-4">
-                        {configFields.slice(1).map((field) => {
-                            const fieldSchema = providerSchema.properties[field];
-                            const actualFieldSchema = fieldSchema?.$ref && providerSchema.$defs
-                                ? providerSchema.$defs[fieldSchema.$ref.split('/').pop() || '']
-                                : fieldSchema;
-                            const fullWidth = actualFieldSchema?.multiline;
-                            return (
-                                <div key={field} className={`space-y-2 ${fullWidth ? "col-span-2" : ""}`}>
-                                    <Label className="capitalize">{fieldLabel(providerSchema, field)}</Label>
-                                    {renderField(service, field, providerSchema)}
-                                </div>
-                            );
-                        })}
+                        {basicFields.slice(1).map((field) => renderFieldCell(service, field, providerSchema))}
                     </div>
+                )}
+
+                {currentProvider && providerSchema && advancedFields.length > 0 && (
+                    <details className="rounded-md border p-3">
+                        <summary className="cursor-pointer text-sm font-medium">Advanced</summary>
+                        <div className="mt-4 grid grid-cols-2 gap-4">
+                            {advancedFields.map((field) => renderFieldCell(service, field, providerSchema))}
+                        </div>
+                    </details>
                 )}
 
                 {currentProvider && providerSchema && providerSchema.properties.api_key && (
@@ -671,6 +673,20 @@ export function ServiceConfigurationForm({
                         )}
                     </div>
                 )}
+            </div>
+        );
+    };
+
+    const renderFieldCell = (service: ServiceSegment, field: string, providerSchema: ProviderSchema) => {
+        const fieldSchema = providerSchema.properties[field];
+        const actualFieldSchema = fieldSchema?.$ref && providerSchema.$defs
+            ? providerSchema.$defs[fieldSchema.$ref.split('/').pop() || '']
+            : fieldSchema;
+        const fullWidth = actualFieldSchema?.multiline;
+        return (
+            <div key={field} className={`space-y-2 ${fullWidth ? "col-span-2" : ""}`}>
+                <Label className="capitalize">{fieldLabel(providerSchema, field)}</Label>
+                {renderField(service, field, providerSchema)}
             </div>
         );
     };

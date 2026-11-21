@@ -12,3 +12,19 @@ Transcriber providers receive the data needed to transcribe speech, such as call
 For locally deployed or self-hosted STT models, Dograh also supports Speaches, an OpenAI API-compatible server for streaming transcription.
 
 Example: Deepgram has their language support documentation at https://developers.deepgram.com/docs/models-languages-overview#nova-3
+
+## HopSTT (self-hosted streaming)
+
+HopSTT is Hopwhistle's self-hosted streaming transcriber (`services/hopstt`). It is off until the operator deploys the HopSTT GPU service and sets `HOPSTT_ENABLED=true` on the AI Voice runtime; until then, saving a configuration that selects HopSTT fails validation.
+
+| Setting | Notes |
+|---|---|
+| Model | `nemotron-3.5-streaming` (English + Spanish, default), `nemotron-en-streaming` (English only), `voxtral-realtime` |
+| Language | `en`, `es`, or `auto` (multilingual models only) |
+| Endpoint | Base URL, or several separated by commas for failover. Left at the default, the runtime's `HOPSTT_DEFAULT_ENDPOINT` is used |
+| API key | Optional; falls back to the runtime's `HOPSTT_API_KEY` |
+| Advanced | `chunk_ms`, connect timeout, recovery deadline, reconnect attempts, `ttfs_p99_latency` |
+
+If a HopSTT connection drops mid-call, Dograh reconnects (to another endpoint when one is listed) and replays the audio that has not been transcribed yet, so the call continues. The call is only ended, gracefully, when the server rejects the key or configuration, or when it cannot reconnect within the recovery deadline.
+
+A paid fallback provider can be enabled for call start only (`HOPSTT_PAID_FALLBACK_ENABLED`, `HOPSTT_PAID_FALLBACK_PROVIDER`, `HOPSTT_PAID_FALLBACK_MAX_MINUTES_PER_DAY`). It is off by default, uses the organization's own credentials for that provider, and is logged every time it is used.

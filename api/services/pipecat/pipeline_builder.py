@@ -44,6 +44,7 @@ def build_pipeline(
     assistant_turn_guard=None,
     output_gate=None,
     repeat_guard=None,
+    shadow_tap=None,
 ):
     """Build the main pipeline with all components.
 
@@ -70,6 +71,10 @@ def build_pipeline(
         repeat_guard: Optional RepeatGuard. Sits directly after the LLM, ahead
             of the assistant-turn guard, and drops sentences the agent already
             said on this call.
+        shadow_tap: Optional HopSTTShadowTap (migration shadow test). Sits
+            directly under the transport and copies caller audio to a
+            background HopSTT session; its primary observer sits right after
+            STT. Both pass every frame through unchanged.
     """
     # Build processors list with optional voicemail detection. DTMF capture
     # sits directly under the transport so keypresses are collected into whole
@@ -77,10 +82,15 @@ def build_pipeline(
     processors = [
         transport.input(),  # Transport user input
     ]
+    if shadow_tap:
+        logger.info("Adding HopSTT shadow tap to pipeline")
+        processors.append(shadow_tap)
     if dtmf_capture:
         logger.info("Adding DTMF capture to pipeline")
         processors.append(dtmf_capture)
     processors.append(stt)
+    if shadow_tap:
+        processors.append(shadow_tap.primary_observer())
 
     if machine_answer_guard:
         logger.info("Adding machine-answer guard to pipeline")

@@ -132,6 +132,7 @@ class ServiceProviders(str, Enum):
     LMNT = "lmnt"
     FISH = "fish"  # HOPWHISTLE_FISH_TTS_V1
     HOPVOICE = "hopvoice"
+    HOPSTT = "hopstt"
 
 
 class BaseServiceConfiguration(BaseModel):
@@ -168,6 +169,7 @@ class BaseServiceConfiguration(BaseModel):
         ServiceProviders.LMNT,
         ServiceProviders.FISH,  # HOPWHISTLE_FISH_TTS_V1
         ServiceProviders.HOPVOICE,
+        ServiceProviders.HOPSTT,
     ]
     api_key: str | list[str]
 
@@ -329,6 +331,13 @@ HOPVOICE_PROVIDER_MODEL_CONFIG = provider_model_config(
     description=(
         "Hopwhistle first-party persistent-streaming neural TTS. Requires the "
         "Hopvoice GPU sidecar and HOPVOICE_ENABLED=true on the AI Voice runtime."
+    ),
+)
+HOPSTT_PROVIDER_MODEL_CONFIG = provider_model_config(
+    "HopSTT",
+    description=(
+        "Hopwhistle self-hosted streaming speech-to-text. Requires the HopSTT "
+        "GPU service and HOPSTT_ENABLED=true on the AI Voice runtime."
     ),
 )
 INWORLD_PROVIDER_MODEL_CONFIG = provider_model_config(
@@ -2223,6 +2232,140 @@ class SmallestAISTTConfiguration(BaseSTTConfiguration):
     )
 
 
+HOPSTT_DEFAULT_ENDPOINT = "http://hopstt-live:8790"
+HOPSTT_STT_MODELS = (
+    "nemotron-3.5-streaming",
+    "nemotron-en-streaming",
+    "voxtral-realtime",
+)
+# "auto" (language detection) only works on multilingual models; the server
+# rejects it with invalid_config for English-only ones.
+HOPSTT_STT_LANGUAGES = ("en", "es", "auto")
+HOPSTT_CHUNK_MS_OPTIONS = (80, 160, 320, 560, 1120)
+HOPSTT_DEFAULT_TTFS_P99 = 0.5
+
+
+@register_stt
+class HopSTTSTTConfiguration(BaseSTTConfiguration):
+    """Self-hosted HopSTT live streaming (services/hopstt/PROTOCOL.md §2).
+
+    Fields marked ``advanced`` are collapsed in the configuration form; their
+    defaults are right for production telephony.
+    """
+
+    model_config = HOPSTT_PROVIDER_MODEL_CONFIG
+    provider: Literal[ServiceProviders.HOPSTT] = ServiceProviders.HOPSTT
+    model: str = Field(
+        default="nemotron-3.5-streaming",
+        description=(
+            "HopSTT streaming model id (from the server's /v1/models). "
+            "nemotron-3.5-streaming covers English and Spanish."
+        ),
+        json_schema_extra={
+            "examples": list(HOPSTT_STT_MODELS),
+            "allow_custom_input": True,
+        },
+    )
+    language: str = Field(
+        default="en",
+        description=(
+            "Language of the caller: en, es, or auto (auto only for "
+            "multilingual models such as nemotron-3.5-streaming)."
+        ),
+        json_schema_extra={
+            "examples": list(HOPSTT_STT_LANGUAGES),
+            "model_options": {
+                "nemotron-3.5-streaming": list(HOPSTT_STT_LANGUAGES),
+                "nemotron-en-streaming": ["en"],
+                "voxtral-realtime": list(HOPSTT_STT_LANGUAGES),
+            },
+        },
+    )
+    endpoint: str = Field(
+        default=HOPSTT_DEFAULT_ENDPOINT,
+        description=(
+            "HopSTT base URL, or several separated by commas for failover "
+            "(e.g. http://10.0.0.5:8790,http://10.0.0.6:8790). When left at "
+            "the default, the runtime's HOPSTT_DEFAULT_ENDPOINT is used if set."
+        ),
+        json_schema_extra={
+            "examples": [
+                HOPSTT_DEFAULT_ENDPOINT,
+                "http://10.0.0.5:8790,http://10.0.0.6:8790",
+            ]
+        },
+    )
+    api_key: str | list[str] | None = Field(
+        default=None,
+        description=(
+            "Optional HopSTT bearer token. Leave blank to use the runtime's "
+            "HOPSTT_API_KEY."
+        ),
+    )
+    chunk_ms: int = Field(
+        default=320,
+        description=(
+            "Streaming chunk size in ms. Smaller is lower latency, larger "
+            "serves more concurrent calls per GPU."
+        ),
+        json_schema_extra={
+            "examples": list(HOPSTT_CHUNK_MS_OPTIONS),
+            "advanced": True,
+        },
+    )
+    connect_timeout_s: float = Field(
+        default=2.0,
+        gt=0,
+        le=30,
+        description="Seconds to wait for one connection attempt (handshake + ready).",
+        json_schema_extra={"advanced": True},
+    )
+    recovery_deadline_s: float = Field(
+        default=5.0,
+        gt=0,
+        le=60,
+        description=(
+            "Total seconds to keep reconnecting after a drop before the call "
+            "is ended gracefully."
+        ),
+        json_schema_extra={"advanced": True},
+    )
+    max_reconnect_attempts: int = Field(
+        default=6,
+        ge=1,
+        le=50,
+        description="Maximum connection attempts per outage.",
+        json_schema_extra={"advanced": True},
+    )
+    ttfs_p99_latency: float = Field(
+        default=HOPSTT_DEFAULT_TTFS_P99,
+        gt=0,
+        le=5,
+        title="TTFS p99 latency",
+        description=(
+            "Measured p99 seconds from end of speech to final transcript. "
+            "Turn detection waits this long for the transcript."
+        ),
+        json_schema_extra={"advanced": True},
+    )
+
+    @field_validator("chunk_ms")
+    @classmethod
+    def validate_chunk_ms(cls, v: int) -> int:
+        if v not in HOPSTT_CHUNK_MS_OPTIONS:
+            raise ValueError(
+                f"chunk_ms must be one of {', '.join(map(str, HOPSTT_CHUNK_MS_OPTIONS))}"
+            )
+        return v
+
+    @field_validator("endpoint")
+    @classmethod
+    def validate_endpoint(cls, v: str) -> str:
+        if not [part for part in (v or "").split(",") if part.strip()]:
+            raise ValueError("endpoint must contain at least one URL")
+        return v.strip()
+
+
 STTConfig = Annotated[
     Union[
         DeepgramSTTConfiguration,
@@ -2239,6 +2382,7 @@ STTConfig = Annotated[
         AzureSpeechSTTConfiguration,
         SmallestAISTTConfiguration,
         ElevenlabsSTTConfiguration,
+        HopSTTSTTConfiguration,
     ],
     Field(discriminator="provider"),
 ]
