@@ -10,7 +10,7 @@
 // <html>, which is what the palette blocks in globals.css and <BrandLogo>
 // answer to. Nothing here is security-sensitive: a brand is a skin.
 
-export const BRAND_KEYS = ["netenroll", "life-leads-plus", "home-payouts"] as const;
+export const BRAND_KEYS = ["netenroll", "life-leads-plus", "home-payouts", "holiday-voices"] as const;
 export type BrandKey = (typeof BRAND_KEYS)[number];
 
 export const DEFAULT_BRAND: BrandKey = "netenroll";
@@ -78,7 +78,46 @@ export const BRANDS: Record<BrandKey, Brand> = {
     hosts: ["homepayouts.com"],
     portalUrl: "https://agents.homepayouts.com/re",
   },
+  // Holiday Voices (retail), a separate business with its own voice workspace.
+  // Its people come from holidayvoices.help or demo.holidayvoices.help and
+  // land on aivoice.holidayvoices.help, which must never wear NetEnroll.
+  "holiday-voices": {
+    key: "holiday-voices",
+    name: "Holiday Voices",
+    wordmark: "/brands/holiday-voices/wordmark.png",
+    wordmarkOnDark: "/brands/holiday-voices/wordmark-on-dark.png",
+    mark: "/brands/holiday-voices/mark-128.png",
+    favicon: "/brands/holiday-voices/favicon-32.png",
+    appleTouchIcon: "/brands/holiday-voices/apple-touch-icon.png",
+    hosts: ["holidayvoices.help"],
+    portalUrl: "https://holidayvoices.help/hv",
+  },
 };
+
+export const PORTAL_ORIGIN_KEY = "ai_voice_portal_origin";
+
+/**
+ * Where "back to <portal>" goes. A brand with several portal hosts (Holiday
+ * Voices: the store's workspace and its demonstration) returns to the one the
+ * person came from -- remembered by the boot script from the referrer, and
+ * only when that host is one of the brand's own -- else to Brand.portalUrl.
+ */
+export function portalHref(brand: Brand): string | null {
+  if (!brand.portalUrl) return null;
+  try {
+    const origin = sessionStorage.getItem(PORTAL_ORIGIN_KEY);
+    if (origin && brand.hosts?.length) {
+      const host = new URL(origin).hostname;
+      const ours = brand.hosts.some((d) => host === d || host.endsWith("." + d));
+      if (ours && host !== location.hostname) {
+        return origin + new URL(brand.portalUrl).pathname;
+      }
+    }
+  } catch {
+    // Storage blocked or a malformed value: the default portal.
+  }
+  return brand.portalUrl;
+}
 
 export function isBrandKey(value: unknown): value is BrandKey {
   return typeof value === "string" && (BRAND_KEYS as readonly string[]).includes(value);
@@ -110,6 +149,7 @@ if(!k){var m=document.cookie.match(/(?:^|; )${BRAND_COOKIE}=([^;]+)/);if(m&&B[m[
 if(!k){try{var s=localStorage.getItem(${JSON.stringify(BRAND_STORAGE_KEY)});if(s&&B[s])k=s;}catch(e){}}
 if(!k)k=${JSON.stringify(DEFAULT_BRAND)};
 try{localStorage.setItem(${JSON.stringify(BRAND_STORAGE_KEY)},k);}catch(e){}
+try{var rf=document.referrer?new URL(document.referrer):null;if(rf&&rf.hostname!==hn){for(var j=0;j<B[k].h.length;j++){var d1=B[k].h[j];if(rf.hostname===d1||rf.hostname.slice(-d1.length-1)==="."+d1)sessionStorage.setItem(${JSON.stringify(PORTAL_ORIGIN_KEY)},rf.origin);}}}catch(e){}
 var d=document.documentElement;d.setAttribute('data-brand',k);
 function L(r,h){var l=document.createElement('link');l.rel=r;l.href=h;l.setAttribute('data-brand-icon','');document.head.appendChild(l);}
 L('icon',B[k].f);L('apple-touch-icon',B[k].a);

@@ -3,7 +3,7 @@
 import { ArrowLeft } from "lucide-react";
 import React, { useEffect, useState } from "react";
 
-import { type Brand, getActiveBrand } from "@/lib/brand";
+import { type Brand, getActiveBrand, portalHref } from "@/lib/brand";
 import { cn } from "@/lib/utils";
 
 /**
@@ -14,11 +14,16 @@ import { cn } from "@/lib/utils";
  */
 export function PortalHomeLink({ compact = false, className }: { compact?: boolean; className?: string }) {
   const [brand, setBrand] = useState<Brand | null>(null);
-  useEffect(() => setBrand(getActiveBrand()), []);
-  if (!brand?.portalUrl) return null;
+  const [href, setHref] = useState<string | null>(null);
+  useEffect(() => {
+    const active = getActiveBrand();
+    setBrand(active);
+    setHref(portalHref(active));
+  }, []);
+  if (!brand || !href) return null;
   return (
     <a
-      href={brand.portalUrl}
+      href={href}
       target="_top"
       title={`Back to ${brand.name}`}
       aria-label={`Back to ${brand.name} main menu`}
