@@ -18,6 +18,12 @@ const HIGHLIGHTS = [
   "Every call recorded",
 ];
 
+const HOLIDAY_VOICES_HIGHLIGHTS = [
+  "Helps choose the gift",
+  "Sends a secure payment link",
+  "Hands off to your team",
+];
+
 export function AuthShell({
   children,
   enterpriseSlot,
@@ -58,24 +64,45 @@ export function AuthShell({
         </div>
 
         <div className="relative max-w-md space-y-5">
-          <h1 className="text-3xl font-semibold leading-tight tracking-tight text-zinc-50 xl:text-4xl">
+          <h1
+            data-brand-copy="default"
+            className="text-3xl font-semibold leading-tight tracking-tight text-zinc-50 xl:text-4xl"
+          >
             AI voice agents that answer, qualify and transfer your callers.
           </h1>
-          <ul className="flex flex-wrap gap-2">
-            {HIGHLIGHTS.map((point) => (
-              <li
-                key={point}
-                className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-medium text-zinc-300"
-              >
-                {point}
-              </li>
-            ))}
-          </ul>
+          {/* A retail store, not a call centre: its own words (see lib/brand.ts). */}
+          <h1
+            data-brand-copy="holiday-voices"
+            className="text-3xl font-semibold leading-tight tracking-tight text-zinc-50 xl:text-4xl"
+          >
+            Your AI concierge, answering every call for the store.
+          </h1>
+          {(
+            [
+              ["default", HIGHLIGHTS],
+              ["holiday-voices", HOLIDAY_VOICES_HIGHLIGHTS],
+            ] as const
+          ).map(([copy, points]) => (
+            <ul key={copy} data-brand-copy={copy} className="flex flex-wrap gap-2">
+              {points.map((point) => (
+                <li
+                  key={point}
+                  className="mb-2 mr-2 inline-block rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-medium text-zinc-300"
+                >
+                  {point}
+                </li>
+              ))}
+            </ul>
+          ))}
         </div>
 
         {/* Enterprise CTA block (Bland-style) — bottom margin lifts it off the
-            viewport edge while justify-between keeps the column layout */}
-        <div className="relative mb-12 max-w-md space-y-3 rounded-xl border border-white/10 bg-white/[0.03] p-5 xl:mb-16">
+            viewport edge while justify-between keeps the column layout. Not
+            shown to a retail store: it sells this platform, not the store's. */}
+        <div
+          data-brand-copy="default"
+          className="relative mb-12 max-w-md space-y-3 rounded-xl border border-white/10 bg-white/[0.03] p-5 xl:mb-16"
+        >
           <h2 className="text-sm font-semibold text-zinc-100">
             Need on-prem, data residency &amp; a data perimeter?
           </h2>
@@ -85,6 +112,8 @@ export function AuthShell({
           </p>
           {enterpriseSlot}
         </div>
+        {/* Holds the bottom slot so the headline keeps its place without the CTA. */}
+        <div data-brand-copy="holiday-voices" aria-hidden className="relative mb-12 h-px xl:mb-16" />
       </aside>
     </div>
   );

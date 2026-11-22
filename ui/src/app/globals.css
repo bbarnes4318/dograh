@@ -201,6 +201,65 @@
   --brand-imprint: none;
 }
 
+/* Holiday Voices: the store workspace's own tokens (apps/web/src/app/hv/hv.css
+   in hoppwhistle) -- evergreen #173d34 for structure and action (11.6:1 with
+   white), champagne gold as an accent fill only, on warm ivory. */
+[data-brand="holiday-voices"] {
+  --radius: 0.625rem;
+  --background: #fbf8f1;
+  --foreground: #1d2824;
+  --card: #ffffff;
+  --card-foreground: #1d2824;
+  --popover: #ffffff;
+  --popover-foreground: #1d2824;
+  --primary: #173d34;
+  --primary-foreground: #ffffff;
+  --secondary: #f4efe3;
+  --secondary-foreground: #1d2824;
+  --muted: #f4efe3;
+  --muted-foreground: #5c6863;
+  --accent: #e6ede6;
+  --accent-foreground: #173d34;
+  --destructive: #a52a36;
+  --border: #e8e2d4;
+  --input: #d6ccb7;
+  --ring: #173d34;
+  --chart-1: #24584b;
+  --chart-2: #c7a76d;
+  --chart-3: #a52a36;
+  --chart-4: #33586b;
+  --chart-5: #7a5f2c;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #46524d;
+  --sidebar-primary: #173d34;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #f4efe3;
+  --sidebar-accent-foreground: #173d34;
+  --sidebar-border: #e8e2d4;
+  --sidebar-ring: #173d34;
+  --cta: #173d34;
+  --cta-foreground: #ffffff;
+  --brand: #c7a76d;
+  --brand-ink: #173d34;
+  --brand-tint: #f6efe1;
+  --brand-panel: #173d34;
+  --brand-panel-image:
+    radial-gradient(90% 55% at 0% 100%, rgba(199, 167, 109, 0.3), transparent 70%),
+    linear-gradient(165deg, #1d4a3f 0%, #173d34 52%, #102b24 100%);
+  --brand-panel-accent: #c7a76d;
+  --shadow-card: 0 1px 2px rgba(32, 43, 39, 0.05), 0 6px 18px -10px rgba(32, 43, 39, 0.18);
+  --brand-imprint: none;
+}
+
+/* Copy and blocks that belong to one brand only (the sign-in panel). */
+[data-brand-copy] {
+  display: none;
+}
+html:not([data-brand="holiday-voices"]) [data-brand-copy="default"],
+[data-brand="holiday-voices"] [data-brand-copy="holiday-voices"] {
+  display: revert;
+}
+
 /* Brand-specific artwork: every variant is in the DOM and CSS shows the one
    for the active brand, so a logo never flashes from one brand to another on
    hydration. */
@@ -210,7 +269,8 @@
 html:not([data-brand]) [data-brand-only="netenroll"],
 [data-brand="netenroll"] [data-brand-only="netenroll"],
 [data-brand="life-leads-plus"] [data-brand-only="life-leads-plus"],
-[data-brand="home-payouts"] [data-brand-only="home-payouts"] {
+[data-brand="home-payouts"] [data-brand-only="home-payouts"],
+[data-brand="holiday-voices"] [data-brand-only="holiday-voices"] {
   display: inline-flex !important;
 }
 
