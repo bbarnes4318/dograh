@@ -6,7 +6,7 @@ workflows by weight. Numbers join a group through
 these rows lives in ``api/services/telephony/inbound_routing.py``.
 """
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any, Dict, List, Optional, Sequence, Union
 
 from sqlalchemy import func, or_, update
@@ -23,6 +23,24 @@ from api.db.models import (
     WorkflowModel,
     WorkflowRunModel,
 )
+
+
+class StaleRoutingGroupError(Exception):
+    """The group was saved by someone else after the editor loaded it."""
+
+    def __init__(self, current_updated_at: Optional[datetime]):
+        super().__init__("Routing group was changed since it was loaded")
+        self.current_updated_at = current_updated_at
+
+
+def _same_instant(a: Optional[datetime], b: Optional[datetime]) -> bool:
+    if a is None or b is None:
+        return a is b
+    if a.tzinfo is None:
+        a = a.replace(tzinfo=UTC)
+    if b.tzinfo is None:
+        b = b.replace(tzinfo=UTC)
+    return a == b
 
 
 class InboundRoutingClient(BaseDBClient):
@@ -101,10 +119,16 @@ class InboundRoutingClient(BaseDBClient):
         is_active: Optional[bool] = None,
         sticky_by_caller: Optional[bool] = None,
         targets: Optional[Sequence[Dict[str, int]]] = None,
+        expected_updated_at: Optional[datetime] = None,
     ) -> Optional[InboundRoutingGroupModel]:
-        """Partial update. ``targets``, when given, replaces the whole set."""
+        """Partial update. ``targets``, when given, replaces the whole set.
+
+        With ``expected_updated_at`` the row is locked and the update is
+        refused with :class:`StaleRoutingGroupError` if someone saved the
+        group since that version was read, so two editors can't silently
+        overwrite each other."""
         async with self.async_session() as session:
-            result = await session.execute(
+            query = (
                 select(InboundRoutingGroupModel)
                 .options(selectinload(InboundRoutingGroupModel.targets))
                 .where(
@@ -112,9 +136,16 @@ class InboundRoutingClient(BaseDBClient):
                     InboundRoutingGroupModel.organization_id == organization_id,
                 )
             )
+            if expected_updated_at is not None:
+                query = query.with_for_update()
+            result = await session.execute(query)
             group = result.scalars().first()
             if not group:
                 return None
+            if expected_updated_at is not None and not _same_instant(
+                group.updated_at, expected_updated_at
+            ):
+                raise StaleRoutingGroupError(group.updated_at)
             if name is not None:
                 group.name = name
             if is_active is not None:
@@ -371,6 +402,131 @@ class InboundRoutingClient(BaseDBClient):
                 .group_by(WorkflowRunModel.workflow_id)
             )
             return {workflow_id: count for workflow_id, count in result.all()}
+
+    async def list_numbers_with_routing(
+        self,
+        organization_id: int,
+        group_ids: Optional[Sequence[int]] = None,
+        limit: int = 5000,
+    ) -> List[Dict[str, Any]]:
+        """The org's phone numbers with the routing that controls their
+        inbound calls (routing group, else inbound agent). ``group_ids``
+        limits it to numbers in those groups."""
+        async with self.async_session() as session:
+            query = (
+                select(
+                    TelephonyPhoneNumberModel.id,
+                    TelephonyPhoneNumberModel.address,
+                    TelephonyPhoneNumberModel.label,
+                    TelephonyPhoneNumberModel.is_active,
+                    TelephonyPhoneNumberModel.telephony_configuration_id,
+                    TelephonyConfigurationModel.name,
+                    TelephonyConfigurationModel.provider,
+                    TelephonyPhoneNumberModel.inbound_routing_group_id,
+                    TelephonyPhoneNumberModel.inbound_workflow_id,
+                    WorkflowModel.name,
+                )
+                .join(
+                    TelephonyConfigurationModel,
+                    TelephonyConfigurationModel.id
+                    == TelephonyPhoneNumberModel.telephony_configuration_id,
+                )
+                .join(
+                    WorkflowModel,
+                    WorkflowModel.id == TelephonyPhoneNumberModel.inbound_workflow_id,
+                    isouter=True,
+                )
+                .where(TelephonyPhoneNumberModel.organization_id == organization_id)
+                .order_by(TelephonyPhoneNumberModel.address_normalized)
+                .limit(limit)
+            )
+            if group_ids is not None:
+                if not group_ids:
+                    return []
+                query = query.where(
+                    TelephonyPhoneNumberModel.inbound_routing_group_id.in_(
+                        list(group_ids)
+                    )
+                )
+            result = await session.execute(query)
+            return [
+                {
+                    "phone_number_id": pid,
+                    "address": address,
+                    "label": label,
+                    "is_active": is_active,
+                    "telephony_configuration_id": config_id,
+                    "telephony_configuration_name": config_name,
+                    "provider": provider,
+                    "inbound_routing_group_id": group_id,
+                    "inbound_workflow_id": workflow_id,
+                    "inbound_workflow_name": workflow_name,
+                }
+                for (
+                    pid,
+                    address,
+                    label,
+                    is_active,
+                    config_id,
+                    config_name,
+                    provider,
+                    group_id,
+                    workflow_id,
+                    workflow_name,
+                ) in result.all()
+            ]
+
+    async def list_routing_decisions_for_group(
+        self,
+        group_id: int,
+        organization_ids: Sequence[int],
+        since: datetime,
+    ) -> List[Dict[str, Any]]:
+        """The routing decision of every inbound run the group routed since
+        ``since``, in the group's org and its linked workspaces: the agent
+        that took the call, its workspace, and the decision recorded on the
+        run (``initial_context["inbound_routing"]``)."""
+        meta = WorkflowRunModel.initial_context.op("->")("inbound_routing")
+        async with self.async_session() as session:
+            result = await session.execute(
+                select(
+                    WorkflowRunModel.workflow_id,
+                    WorkflowModel.organization_id,
+                    meta,
+                )
+                .join(WorkflowModel, WorkflowModel.id == WorkflowRunModel.workflow_id)
+                .where(
+                    WorkflowRunModel.created_at >= since,
+                    WorkflowModel.organization_id.in_(list(organization_ids)),
+                    meta.op("->>")("group_id") == str(group_id),
+                )
+            )
+            return [
+                {
+                    "workflow_id": workflow_id,
+                    "organization_id": org_id,
+                    "meta": decision if isinstance(decision, dict) else {},
+                }
+                for workflow_id, org_id, decision in result.all()
+            ]
+
+    async def list_inbound_routing_audit_since(
+        self,
+        organization_id: int,
+        group_id: int,
+        action: str,
+        since: datetime,
+    ) -> List[InboundRoutingAuditModel]:
+        async with self.async_session() as session:
+            result = await session.execute(
+                select(InboundRoutingAuditModel).where(
+                    InboundRoutingAuditModel.organization_id == organization_id,
+                    InboundRoutingAuditModel.group_id == group_id,
+                    InboundRoutingAuditModel.action == action,
+                    InboundRoutingAuditModel.created_at >= since,
+                )
+            )
+            return list(result.scalars().all())
 
     async def add_inbound_routing_audit(
         self,

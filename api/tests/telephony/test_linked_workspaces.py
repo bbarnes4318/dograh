@@ -395,7 +395,10 @@ async def test_split_to_linked_agent_creates_the_run_in_that_workspace(monkeypat
     await conn._handle_inbound_stasis_start("chan-1", "Ring", _EVENT)
 
     fx.resolver.assert_awaited_once_with(
-        fx.phone_row, "+15557650000", linked_organization_ids=[REAL_ESTATE]
+        fx.phone_row,
+        "+15557650000",
+        linked_organization_ids=[REAL_ESTATE],
+        unavailable_organizations={},
     )
     fx.caller_check.assert_awaited_once_with(
         MAIN, "+15557650000", also_organization_ids=[REAL_ESTATE]

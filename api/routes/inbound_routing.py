@@ -4,6 +4,7 @@ several agents (workflows) by weight. Changes apply to the next call."""
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from api.db import db_client
+from api.db.inbound_routing_client import StaleRoutingGroupError
 from api.db.models import UserModel
 from api.schemas.inbound_routing import (
     InboundRoutingAuditEntry,
@@ -19,6 +20,7 @@ from api.schemas.inbound_routing import (
     RoutingNumbersChangeResponse,
     RoutingNumberSelection,
     RoutingNumbersSummaryResponse,
+    SharedNumbersResponse,
 )
 from api.services.auth.depends import get_user_with_selected_organization
 from api.services.telephony.inbound_routing_groups import (
@@ -31,6 +33,8 @@ from api.services.telephony.inbound_routing_groups import (
     validate_configurations,
     validate_target_workflows,
 )
+from api.services.telephony.linked_workspaces import self_label
+from api.services.telephony.shared_numbers import numbers_shared_with, owned_numbers
 
 router = APIRouter(prefix="/inbound-routing-groups", tags=["inbound-routing"])
 
@@ -139,7 +143,26 @@ async def list_linked_workspace_agents(
     """Agents in the workspaces this org has linked (set by an operator),
     which its routing groups can also split calls to."""
     return LinkedWorkspaceAgentsResponse(
-        workspaces=await linked_workspace_agents(user.selected_organization_id)
+        workspaces=await linked_workspace_agents(user.selected_organization_id),
+        self_label=await self_label(user.selected_organization_id),
+    )
+
+
+@router.get("/shared-numbers", response_model=SharedNumbersResponse)
+async def list_shared_numbers(
+    user: UserModel = Depends(get_user_with_selected_organization),
+):
+    """The one inventory of inbound numbers, as this workspace sees it: the
+    numbers it owns (with the routing group that controls each and the linked
+    workspaces it shares them with), and, read-only, the numbers other
+    workspaces share with it. Derived from the owner's routing on every
+    request, so both sides always show the same thing."""
+    org_id = user.selected_organization_id
+    owned = await owned_numbers(org_id)
+    return SharedNumbersResponse(
+        organization_label=owned["organization_label"],
+        owned=owned["numbers"],
+        shared_with_me=await numbers_shared_with(org_id),
     )
 
 
@@ -172,18 +195,33 @@ async def update_inbound_routing_group(
         except RoutingGroupValidationError as e:
             raise HTTPException(status_code=422, detail=str(e))
 
-    group = await db_client.update_inbound_routing_group(
-        group_id,
-        org_id,
-        name=request.name,
-        is_active=request.is_active,
-        sticky_by_caller=request.sticky_by_caller,
-        targets=(
-            [t.model_dump() for t in request.targets]
-            if request.targets is not None
-            else None
-        ),
-    )
+    try:
+        group = await db_client.update_inbound_routing_group(
+            group_id,
+            org_id,
+            name=request.name,
+            is_active=request.is_active,
+            sticky_by_caller=request.sticky_by_caller,
+            targets=(
+                [t.model_dump() for t in request.targets]
+                if request.targets is not None
+                else None
+            ),
+            expected_updated_at=request.expected_updated_at,
+        )
+    except StaleRoutingGroupError as e:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": (
+                    "Someone else saved this routing group after you opened "
+                    "it. Reload it to see their change, then make yours again."
+                ),
+                "current_updated_at": (
+                    e.current_updated_at.isoformat() if e.current_updated_at else None
+                ),
+            },
+        )
     if not group:
         raise HTTPException(status_code=404, detail="Routing group not found")
 

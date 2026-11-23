@@ -47,6 +47,7 @@ from api.services.telephony.inbound_routing import (
     ROUTING_META_KEY,
     resolve_inbound_workflow_id,
 )
+from api.services.telephony.linked_workspaces import linked_organization_ids
 from api.services.telephony.repeat_callers import (
     AI_TRANSFER_KEY,
     check_inbound_caller,
@@ -867,8 +868,16 @@ async def handle_inbound_run(request: Request):
             return generic_hangup_response()
 
         # Routing group split (if any), else the number's inbound_workflow_id.
+        # This path never hands calls to a linked workspace (only ARI does);
+        # a split that picks one of their agents moves on, and the run's
+        # routing decision says why.
         workflow_id, routing_meta = await resolve_inbound_workflow_id(
-            phone_row, normalized_data.from_number
+            phone_row,
+            normalized_data.from_number,
+            unavailable_organizations={
+                org: "can't take calls over the provider webhook (ARI only)"
+                for org in await linked_organization_ids(config.organization_id)
+            },
         )
         if not workflow_id:
             logger.warning(

@@ -14,7 +14,14 @@ API writes it: linking hands another workspace calls to your numbers, which is
 a decision about both tenants, not something either one's users can grant
 themselves. Value::
 
-    {"workspaces": [{"organization_id": 3, "label": "Real estate"}]}
+    {"self_label": "Final Expense",
+     "workspaces": [{"organization_id": 3, "label": "Real estate"}]}
+
+``self_label`` (optional) is how the source workspace is named next to the
+linked ones: on its own agents in the routing editor ("Alex — Final
+Expense") and, in a linked workspace, as the owner of the numbers shared
+with it. Without it the source is "This workspace" to itself and
+"Workspace <id>" to the workspaces it links.
 
 On ARI a linked workspace can only take a call when it has an ARI
 configuration on the same Asterisk app as the number (the run needs one of
@@ -43,6 +50,24 @@ LINKED_WORKSPACES_KEY = (
 class LinkedWorkspace:
     organization_id: int
     label: str
+
+
+@dataclass(frozen=True)
+class LinkingWorkspace:
+    """A workspace that has linked this one: it owns numbers whose routing
+    may send calls here. ``label`` is its ``self_label``; ``my_label`` is
+    what it calls this workspace."""
+
+    organization_id: int
+    label: str
+    my_label: str
+
+
+def parse_self_label(value: Any, organization_id: int) -> str:
+    """The source workspace's own name from its stored setting."""
+    raw = value.get("self_label") if isinstance(value, dict) else None
+    label = str(raw or "").strip()
+    return label or f"Workspace {organization_id}"
 
 
 def parse_linked_workspaces(value: Any, organization_id: int) -> List[LinkedWorkspace]:
@@ -81,3 +106,52 @@ async def linked_workspaces(organization_id: Optional[int]) -> List[LinkedWorksp
 
 async def linked_organization_ids(organization_id: Optional[int]) -> List[int]:
     return [link.organization_id for link in await linked_workspaces(organization_id)]
+
+
+async def self_label(organization_id: Optional[int]) -> Optional[str]:
+    """The workspace's operator-set ``self_label``, or None when unset or
+    unreadable (callers then show their own default)."""
+    if not organization_id:
+        return None
+    try:
+        row = await db_client.get_configuration(organization_id, LINKED_WORKSPACES_KEY)
+    except Exception as e:
+        logger.warning(
+            f"Could not read the routing label of org {organization_id}: {e}"
+        )
+        return None
+    raw = row.value.get("self_label") if row and isinstance(row.value, dict) else None
+    label = str(raw or "").strip()
+    return label or None
+
+
+async def linking_workspaces(organization_id: Optional[int]) -> List[LinkingWorkspace]:
+    """The workspaces that have linked ``organization_id`` (the reverse of
+    :func:`linked_workspaces`). Only an operator writes these rows, so this
+    is the authoritative list of who may hand this workspace calls.
+
+    If the settings can't be read, nobody has linked it: callers then show
+    and allow nothing shared."""
+    if not organization_id:
+        return []
+    try:
+        rows = await db_client.get_configurations_by_key(LINKED_WORKSPACES_KEY)
+    except Exception as e:
+        logger.warning(
+            f"Could not read which workspaces link org {organization_id}: {e}"
+        )
+        return []
+    result: List[LinkingWorkspace] = []
+    for row in rows:
+        if row.organization_id == organization_id:
+            continue
+        for link in parse_linked_workspaces(row.value, row.organization_id):
+            if link.organization_id == organization_id:
+                result.append(
+                    LinkingWorkspace(
+                        organization_id=row.organization_id,
+                        label=parse_self_label(row.value, row.organization_id),
+                        my_label=link.label,
+                    )
+                )
+    return sorted(result, key=lambda w: w.organization_id)

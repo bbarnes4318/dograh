@@ -3856,6 +3856,10 @@ export type InboundRoutingGroupUpdateRequest = {
      * Targets
      */
     targets?: Array<RoutingTarget> | null;
+    /**
+     * Expected Updated At
+     */
+    expected_updated_at?: string | null;
 };
 
 /**
@@ -3882,6 +3886,40 @@ export type InboundRoutingStatsResponse = {
      * Targets
      */
     targets: Array<RoutingTargetStats>;
+    /**
+     * Eligible Calls
+     */
+    eligible_calls?: number;
+    /**
+     * Fallback Calls
+     */
+    fallback_calls?: number;
+    /**
+     * Fallback Reasons
+     */
+    fallback_reasons?: {
+        [key: string]: number;
+    };
+    /**
+     * Cross Workspace Fallbacks
+     */
+    cross_workspace_fallbacks?: number;
+    /**
+     * Refused Calls
+     */
+    refused_calls?: number;
+    /**
+     * Refusals
+     */
+    refusals?: Array<RoutingRefusal>;
+    /**
+     * Sticky By Caller
+     */
+    sticky_by_caller?: boolean;
+    /**
+     * Sample Note
+     */
+    sample_note?: string | null;
 };
 
 /**
@@ -4131,6 +4169,10 @@ export type LinkedWorkspaceAgentsResponse = {
      * Workspaces
      */
     workspaces: Array<LinkedWorkspaceAgents>;
+    /**
+     * Self Label
+     */
+    self_label?: string | null;
 };
 
 /**
@@ -6131,6 +6173,22 @@ export type RoutingTargetResponse = {
      * Weight
      */
     weight: number;
+    /**
+     * Agent Name
+     */
+    agent_name?: string | null;
+    /**
+     * Organization Id
+     */
+    organization_id?: number | null;
+    /**
+     * Organization Label
+     */
+    organization_label?: string | null;
+    /**
+     * Is Linked Workspace
+     */
+    is_linked_workspace?: boolean;
 };
 
 /**
@@ -6161,6 +6219,36 @@ export type RoutingTargetStats = {
      * Is Target
      */
     is_target?: boolean;
+    /**
+     * Agent Name
+     */
+    agent_name?: string | null;
+    /**
+     * Organization Id
+     */
+    organization_id?: number | null;
+    /**
+     * Organization Label
+     */
+    organization_label?: string | null;
+    /**
+     * Picked
+     */
+    picked?: number;
+    /**
+     * Unavailable
+     */
+    unavailable?: number;
+    /**
+     * Unavailable Reasons
+     */
+    unavailable_reasons?: {
+        [key: string]: number;
+    };
+    /**
+     * Fallback Calls
+     */
+    fallback_calls?: number;
 };
 
 /**
@@ -16785,3 +16873,229 @@ export type ActiveCallsApiV1HealthActiveCallsGetResponses = {
 };
 
 export type ActiveCallsApiV1HealthActiveCallsGetResponse = ActiveCallsApiV1HealthActiveCallsGetResponses[keyof ActiveCallsApiV1HealthActiveCallsGetResponses];
+
+/**
+ * RoutingRefusal
+ */
+export type RoutingRefusal = {
+    /**
+     * Reason
+     */
+    reason: string;
+    /**
+     * Organization Id
+     */
+    organization_id?: number | null;
+    /**
+     * Workflow Id
+     */
+    workflow_id?: number | null;
+    /**
+     * Count
+     */
+    count: number;
+};
+
+/**
+ * SharedWithWorkspace
+ */
+export type SharedWithWorkspace = {
+    /**
+     * Organization Id
+     */
+    organization_id: number;
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Share Percent
+     */
+    share_percent: number;
+};
+
+/**
+ * OwnedNumber
+ */
+export type OwnedNumber = {
+    /**
+     * Phone Number Id
+     */
+    phone_number_id: number;
+    /**
+     * Address
+     */
+    address: string;
+    /**
+     * Label
+     */
+    label?: string | null;
+    /**
+     * Is Active
+     */
+    is_active: boolean;
+    /**
+     * Telephony Configuration Id
+     */
+    telephony_configuration_id: number;
+    /**
+     * Telephony Configuration Name
+     */
+    telephony_configuration_name?: string | null;
+    /**
+     * Provider
+     */
+    provider?: string | null;
+    /**
+     * Inbound Routing Group Id
+     */
+    inbound_routing_group_id?: number | null;
+    /**
+     * Routing Group Name
+     */
+    routing_group_name?: string | null;
+    /**
+     * Routing Group Active
+     */
+    routing_group_active?: boolean | null;
+    /**
+     * Inbound Workflow Id
+     */
+    inbound_workflow_id?: number | null;
+    /**
+     * Inbound Workflow Name
+     */
+    inbound_workflow_name?: string | null;
+    /**
+     * Shared With
+     */
+    shared_with?: Array<SharedWithWorkspace>;
+};
+
+/**
+ * SharedAgentShare
+ */
+export type SharedAgentShare = {
+    /**
+     * Workflow Id
+     */
+    workflow_id: number;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Share Percent
+     */
+    share_percent: number;
+};
+
+/**
+ * NumberSharedWithMe
+ *
+ * A number another workspace owns and routes (partly) to this
+ * workspace's agents. Read-only here: only the owner changes it.
+ */
+export type NumberSharedWithMe = {
+    /**
+     * Address
+     */
+    address: string;
+    /**
+     * Is Active
+     */
+    is_active: boolean;
+    /**
+     * Owner Organization Id
+     */
+    owner_organization_id: number;
+    /**
+     * Owner Label
+     */
+    owner_label: string;
+    /**
+     * Routing Group Id
+     */
+    routing_group_id: number;
+    /**
+     * Routing Group Name
+     */
+    routing_group_name: string;
+    /**
+     * Routing Group Active
+     */
+    routing_group_active: boolean;
+    /**
+     * Sticky By Caller
+     */
+    sticky_by_caller: boolean;
+    /**
+     * My Share Percent
+     */
+    my_share_percent: number;
+    /**
+     * Other Share Percent
+     */
+    other_share_percent: number;
+    /**
+     * My Agents
+     */
+    my_agents: Array<SharedAgentShare>;
+};
+
+/**
+ * SharedNumbersResponse
+ */
+export type SharedNumbersResponse = {
+    /**
+     * Organization Label
+     */
+    organization_label: string;
+    /**
+     * Owned
+     */
+    owned: Array<OwnedNumber>;
+    /**
+     * Shared With Me
+     */
+    shared_with_me: Array<NumberSharedWithMe>;
+};
+
+export type ListSharedNumbersApiV1InboundRoutingGroupsSharedNumbersGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/inbound-routing-groups/shared-numbers';
+};
+
+export type ListSharedNumbersApiV1InboundRoutingGroupsSharedNumbersGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListSharedNumbersApiV1InboundRoutingGroupsSharedNumbersGetError = ListSharedNumbersApiV1InboundRoutingGroupsSharedNumbersGetErrors[keyof ListSharedNumbersApiV1InboundRoutingGroupsSharedNumbersGetErrors];
+
+export type ListSharedNumbersApiV1InboundRoutingGroupsSharedNumbersGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: SharedNumbersResponse;
+};
+
+export type ListSharedNumbersApiV1InboundRoutingGroupsSharedNumbersGetResponse = ListSharedNumbersApiV1InboundRoutingGroupsSharedNumbersGetResponses[keyof ListSharedNumbersApiV1InboundRoutingGroupsSharedNumbersGetResponses];

@@ -82,6 +82,7 @@ from api.services.organization_preferences import (
 from api.services.posthog_client import capture_event
 from api.services.telephony import registry as telephony_registry
 from api.services.telephony.factory import get_telephony_provider_by_id
+from api.services.telephony.shared_numbers import shared_number_owner_for
 from api.services.worker_sync.manager import get_worker_sync_manager
 from api.services.worker_sync.protocol import WorkerSyncEventType
 from api.utils.common import get_backend_endpoints
@@ -829,6 +830,22 @@ async def _ensure_workflow_belongs_to_org(workflow_id: int, organization_id: int
     return workflow
 
 
+async def _ensure_not_owner_routed(organization_id: int, address: str, provider: str):
+    """A workspace that another workspace has linked can't put its own
+    inbound agent on a number that owner routes: the owner's routing group
+    decides where that shared number's calls go (shared_numbers.py)."""
+    owner = await shared_number_owner_for(organization_id, address, provider)
+    if owner:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"{address} is a shared number: its inbound calls are routed by "
+                f"{owner.label}. Ask them to send calls to your agent from "
+                f"their Inbound Routing page instead."
+            ),
+        )
+
+
 @router.get(
     "/telephony-configs/{config_id}/phone-numbers",
     response_model=PhoneNumberListResponse,
@@ -860,6 +877,9 @@ async def create_phone_number(
     if request.inbound_workflow_id is not None:
         await _ensure_workflow_belongs_to_org(
             request.inbound_workflow_id, user.selected_organization_id
+        )
+        await _ensure_not_owner_routed(
+            user.selected_organization_id, request.address, cfg.provider
         )
 
     # Inbound dispatch (find_inbound_route_by_account) keys on (provider,
@@ -960,7 +980,7 @@ async def update_phone_number(
 ):
     if not user.selected_organization_id:
         raise HTTPException(status_code=400, detail="No organization selected")
-    await _ensure_config_belongs_to_org(config_id, user.selected_organization_id)
+    cfg = await _ensure_config_belongs_to_org(config_id, user.selected_organization_id)
 
     existing = await db_client.get_phone_number_for_config(phone_number_id, config_id)
     if not existing:
@@ -970,6 +990,10 @@ async def update_phone_number(
         await _ensure_workflow_belongs_to_org(
             request.inbound_workflow_id, user.selected_organization_id
         )
+        if request.inbound_workflow_id != existing.inbound_workflow_id:
+            await _ensure_not_owner_routed(
+                user.selected_organization_id, existing.address, cfg.provider
+            )
 
     row = await db_client.update_phone_number(
         phone_number_id=phone_number_id,

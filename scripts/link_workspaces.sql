@@ -24,11 +24,20 @@
 --
 -- Re-running with the same pair updates the label. To unlink, add
 -- -v unlink=1. One transaction.
+--
+-- Optional -v self_label='Final Expense' names the source workspace: on its
+-- own agents in the routing editor ("Alex — Final Expense") and, in the linked
+-- workspace's Shared numbers view, as the owner of the numbers. Kept on later
+-- runs that leave it out.
 
 \set QUIET on
 \if :{?unlink}
 \else
   \set unlink 0
+\endif
+\if :{?self_label}
+\else
+  \set self_label ''
 \endif
 BEGIN;
 
@@ -49,7 +58,12 @@ VALUES (:source_org, 'INBOUND_ROUTING_LINKED_WORKSPACES', '{"workspaces": []}'::
 ON CONFLICT ON CONSTRAINT _organization_key_uc DO NOTHING;
 
 UPDATE organization_configurations c
-   SET value = json_build_object(
+   SET value = (
+       (coalesce(c.value::jsonb, '{}'::jsonb) - 'workspaces')
+       || CASE WHEN :'self_label' <> ''
+               THEN jsonb_build_object('self_label', :'self_label')
+               ELSE '{}'::jsonb END
+       || jsonb_build_object(
          'workspaces',
          coalesce((
            SELECT jsonb_agg(e ORDER BY (e->>'organization_id')::int)
@@ -65,7 +79,7 @@ UPDATE organization_configurations c
                 WHERE NOT (:unlink)::int::boolean
              ) AS kept
          ), '[]'::jsonb)
-       )::json,
+       ))::json,
        updated_at = now()
  WHERE c.organization_id = :source_org
    AND c.key = 'INBOUND_ROUTING_LINKED_WORKSPACES';

@@ -42,12 +42,16 @@ from api.services.telephony.inbound_routing import (
     ROUTING_META_KEY,
     resolve_inbound_workflow_id,
 )
+from api.services.telephony.inbound_routing_groups import (
+    record_routed_call_refusal,
+)
 from api.services.telephony.linked_workspaces import linked_organization_ids
 from api.services.telephony.providers.ari.external_pbx import create_adapter
 from api.services.telephony.repeat_callers import (
     AI_TRANSFER_KEY,
     check_inbound_caller,
 )
+from api.services.telephony.shared_numbers import choose_inbound_row
 from api.services.telephony.transfer_event_protocol import (
     TransferEvent,
     TransferEventType,
@@ -159,21 +163,32 @@ class ARIConnection:
         outbound caller ID. Which connection Asterisk hands the call to is
         arbitrary, so the row that routes inbound (an inbound agent or routing
         group) wins over a caller-ID-only copy, whichever org it is in. With
-        no routed row, the first match is used, as before."""
-        first = None
+        no routed row, the first match is used, as before.
+
+        A shared number is routed only by its owner, but if a linked
+        workspace also routes its own copy, the owner's row wins
+        (shared_numbers.choose_inbound_row), whichever connection got the
+        call."""
+        rows = []
         for org_id in self._orgs_on_this_app():
             row = await db_client.find_active_phone_number_for_inbound(
                 org_id, called_number, "ari"
             )
-            if not row:
-                continue
-            if getattr(row, "inbound_workflow_id", None) or getattr(
-                row, "inbound_routing_group_id", None
-            ):
-                return row
-            if first is None:
-                first = row
-        return first
+            if row:
+                rows.append(row)
+        routed = [
+            r
+            for r in rows
+            if getattr(r, "inbound_workflow_id", None)
+            or getattr(r, "inbound_routing_group_id", None)
+        ]
+        links = {}
+        if len(routed) > 1:
+            for r in routed:
+                links[r.organization_id] = await linked_organization_ids(
+                    r.organization_id
+                )
+        return choose_inbound_row(rows, links)
 
     async def _run_organization_id(self, workflow_run_id: str) -> int:
         """The org a run belongs to (through its workflow). Falls back to this
@@ -752,11 +767,15 @@ class ARIConnection:
         # Workspaces this number's routing may send calls to (see
         # linked_workspaces.py). Only those with an ARI config on this app
         # can take a call here.
-        linked_orgs = [
-            org
-            for org in await linked_organization_ids(number_org)
-            if org in self.app_configs
-        ]
+        all_linked = await linked_organization_ids(number_org)
+        linked_orgs = [org for org in all_linked if org in self.app_configs]
+        # Linked, but this path can't hand them calls: the reason is recorded
+        # on the run's routing decision when their agent is skipped.
+        unavailable_orgs = {
+            org: "has no ARI configuration on this Asterisk app"
+            for org in all_linked
+            if org not in self.app_configs
+        }
 
         # 0c. One inbound call per customer number, across the number's
         #    workspace and the workspaces it routes to; a handoff from another
@@ -775,12 +794,16 @@ class ARIConnection:
                 pass
             return
 
+        routing_meta = None
         try:
             # 1. Routing group split (if any), else the number's
             #    inbound_workflow_id. A split may pick an agent in a linked
             #    workspace; the run is then that workspace's.
             inbound_workflow_id, routing_meta = await resolve_inbound_workflow_id(
-                phone_row, caller_number, linked_organization_ids=linked_orgs
+                phone_row,
+                caller_number,
+                linked_organization_ids=linked_orgs,
+                unavailable_organizations=unavailable_orgs,
             )
             if not inbound_workflow_id:
                 logger.warning(
@@ -809,6 +832,12 @@ class ARIConnection:
                     f"[ARI org={number_org}] Org {run_org} has no ARI config on "
                     f"this Asterisk app; hanging up channel {channel_id}"
                 )
+                await record_routed_call_refusal(
+                    routing_meta,
+                    number_org,
+                    "workspace has no ARI configuration on this Asterisk app",
+                    called_number,
+                )
                 await self._delete_channel(channel_id)
                 return
 
@@ -820,6 +849,9 @@ class ARIConnection:
                 logger.warning(
                     f"[ARI org={run_org}] Workflow {inbound_workflow_id} "
                     f"not found or doesn't belong to this organization — hanging up"
+                )
+                await record_routed_call_refusal(
+                    routing_meta, number_org, "agent not found", called_number
                 )
                 await self._delete_channel(channel_id)
                 return
@@ -836,6 +868,12 @@ class ARIConnection:
                 logger.warning(
                     f"[ARI org={run_org}] Concurrent call limit "
                     f"reached; hanging up inbound channel {channel_id}"
+                )
+                await record_routed_call_refusal(
+                    routing_meta,
+                    number_org,
+                    "workspace at its concurrent call limit",
+                    called_number,
                 )
                 await self._delete_channel(channel_id)
                 return
@@ -915,6 +953,13 @@ class ARIConnection:
                 f"[ARI org={self.organization_id}] Error handling inbound StasisStart "
                 f"for channel {channel_id}: {e}"
             )
+            if not workflow_run:
+                await record_routed_call_refusal(
+                    routing_meta,
+                    number_org,
+                    f"error before the agent answered: {type(e).__name__}",
+                    called_number,
+                )
             try:
                 await self._delete_channel(channel_id)
             except Exception:

@@ -19,6 +19,16 @@ Rules:
 * Numbers with no group (or an inactive/empty one) use
   ``inbound_workflow_id`` exactly as before.
 
+Fallback policy (explicit and recorded, never silent): when the weighted pick
+can't take the call, the other targets with weight > 0 are tried in a fixed
+order (workflow id), then the number's ``inbound_workflow_id``. Every skipped
+target is recorded with its workspace and the reason
+(``skipped_targets``), and ``changed_workspace`` is set when the call ends up
+in a different workspace (business) than the one the weights picked. A
+linked workspace this call path can't hand calls to (on ARI: no ARI
+configuration on this Asterisk app) is passed in ``unavailable_organizations``
+so the reason names it instead of "not found".
+
 Group rows are read from the DB on every call (no cache), so a change made in
 the UI applies to the next call. A routing config problem never drops a call:
 any failure falls back to ``inbound_workflow_id``.
@@ -27,7 +37,7 @@ any failure falls back to ``inbound_workflow_id``.
 import hashlib
 import random
 from datetime import UTC, datetime
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from loguru import logger
 
@@ -47,6 +57,13 @@ def normalize_caller(caller_number: Optional[str]) -> Optional[str]:
     raw = (caller_number or "").strip()
     if raw.lower() in _UNKNOWN_CALLERS:
         return None
+    # A bare 10-digit North American number is the same caller as its +1
+    # form (carriers and PBXes send either). Without this the two hash to
+    # different buckets and a sticky caller can land on another agent.
+    # +E.164 callers keep the key they always had.
+    digits = "".join(ch for ch in raw if ch.isdigit())
+    if not raw.startswith("+") and len(digits) == 10 and digits[0] in "23456789":
+        return f"+1{digits}"
     try:
         return normalize_telephony_address(raw).canonical
     except Exception:
@@ -104,10 +121,11 @@ async def _usable_workflow(
     workflow_id: int,
     organization_id: int,
     linked_organization_ids: Sequence[int] = (),
+    unavailable_organizations: Mapping[int, str] = {},
 ) -> Tuple[Optional[str], int]:
     """``(None, org_id)`` when the workflow can take the call, with the org it
     belongs to (the number's org or a linked workspace), else
-    ``(why not, organization_id)``."""
+    ``(why not, org_id)`` with the org it was found in, when known."""
     workflow = await db_client.get_workflow(
         workflow_id, organization_id=organization_id
     )
@@ -123,6 +141,26 @@ async def _usable_workflow(
                 owner = linked_org
                 break
     if not workflow:
+        for other_org, why in unavailable_organizations.items():
+            if other_org == organization_id or other_org in linked_organization_ids:
+                continue
+            if await db_client.get_workflow(workflow_id, organization_id=other_org):
+                return (f"linked workspace {other_org} {why}", other_org)
+    if not workflow:
+        # Only to record which business the skipped agent belongs to (e.g. a
+        # workspace that was unlinked); it is never routed to.
+        try:
+            other = await db_client.get_workflow_by_id(workflow_id)
+        except Exception:
+            other = None
+        other_org = getattr(other, "organization_id", None)
+        if isinstance(other_org, int) and other_org != organization_id:
+            return (
+                f"in workspace {other_org}, which is not linked to this "
+                f"number's workspace",
+                other_org,
+            )
+    if not workflow:
         return (
             "not found in this organization"
             + (" or its linked workspaces" if linked_organization_ids else ""),
@@ -137,6 +175,7 @@ async def resolve_inbound_workflow_id(
     phone_row,
     caller_number: Optional[str],
     linked_organization_ids: Sequence[int] = (),
+    unavailable_organizations: Optional[Mapping[int, str]] = None,
 ) -> Tuple[Optional[int], Optional[Dict[str, Any]]]:
     """Return ``(workflow_id, routing_meta)`` for an inbound call.
 
@@ -144,6 +183,8 @@ async def resolve_inbound_workflow_id(
     this call path can hand the call to. A target in one of them is usable;
     ``routing_meta["organization_id"]`` then names that workspace, and the run
     must be created there. Targets in any other org are skipped.
+    ``unavailable_organizations`` (``{org_id: why}``) are linked workspaces
+    this path can't hand calls to; their targets are skipped with that reason.
 
     ``routing_meta`` is None for numbers outside any group (today's
     behaviour, nothing extra is recorded); otherwise it explains the decision
@@ -195,26 +236,43 @@ async def resolve_inbound_workflow_id(
         meta["picked_workflow_id"] = ordered[0]
 
         skipped = []
+        picked_org: Optional[int] = None
         for workflow_id in ordered:
             problem, owner = await _usable_workflow(
-                workflow_id, organization_id, linked_organization_ids
+                workflow_id,
+                organization_id,
+                linked_organization_ids,
+                unavailable_organizations or {},
             )
+            if picked_org is None:
+                picked_org = owner
+                meta["picked_organization_id"] = owner
             if problem is None:
                 meta["workflow_id"] = workflow_id
                 meta["source"] = "group"
+                meta["answered_organization_id"] = owner
                 if owner != organization_id:
                     meta["organization_id"] = owner
                     meta["number_organization_id"] = organization_id
                 if skipped:
                     meta["skipped_targets"] = skipped
+                    meta["changed_workspace"] = owner != picked_org
                 return workflow_id, meta
             logger.warning(
                 f"Inbound routing: group {group_id} ({group.name}) target workflow "
                 f"{workflow_id} can't take calls ({problem}); trying the next target"
             )
-            skipped.append({"workflow_id": workflow_id, "reason": problem})
+            skipped.append(
+                {
+                    "workflow_id": workflow_id,
+                    "organization_id": owner,
+                    "reason": problem,
+                }
+            )
 
         meta["skipped_targets"] = skipped
+        meta["answered_organization_id"] = organization_id
+        meta["changed_workspace"] = picked_org not in (None, organization_id)
         logger.warning(
             f"Inbound routing: no usable target in group {group_id} ({group.name}); "
             f"using inbound_workflow_id {fallback_id}"
