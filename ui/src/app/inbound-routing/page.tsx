@@ -21,6 +21,7 @@ import {
   describeSplit,
   type WorkflowOption,
 } from "@/components/inbound-routing/routingUtils";
+import { SharedNumbersPanel } from "@/components/inbound-routing/SharedNumbersPanel";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -52,6 +53,8 @@ export default function InboundRoutingPage() {
   const [loading, setLoading] = useState(true);
   const [selection, setSelection] = useState<Selection>(null);
   const [confirm, setConfirm] = useState<ConfirmRequest | null>(null);
+  // Bumped after any routing change so the shared-numbers view reloads.
+  const [numbersVersion, setNumbersVersion] = useState(0);
 
   const headers = useCallback(async () => {
     const token = await getAccessToken();
@@ -91,15 +94,27 @@ export default function InboundRoutingPage() {
         );
       }
       // Agents in linked workspaces can take a share of the calls too; those
-      // calls show up in that workspace. Labelled with the workspace's name.
+      // calls run and are stored in that workspace. Every agent is shown with
+      // the workspace it belongs to: "Alex — Final Expense".
+      const ownLabel = linked.data?.self_label ?? null;
       const linkedAgents: WorkflowOption[] = (linked.data?.workspaces ?? []).flatMap(
-        (ws) => ws.agents.map((a) => ({ id: a.workflow_id, name: `${a.name} (${ws.label})` })),
+        (ws) =>
+          ws.agents.map((a) => ({
+            id: a.workflow_id,
+            name: a.name,
+            organizationLabel: ws.label,
+            linked: true,
+          })),
       );
       setWorkflows([
         ...(wf.data ?? [])
-          .map((w) => ({ id: w.id, name: w.name }))
+          .map((w) => ({ id: w.id, name: w.name, organizationLabel: ownLabel }))
           .sort((a, b) => a.id - b.id),
-        ...linkedAgents.sort((a, b) => a.id - b.id),
+        ...linkedAgents.sort(
+          (a, b) =>
+            (a.organizationLabel ?? "").localeCompare(b.organizationLabel ?? "") ||
+            a.name.localeCompare(b.name),
+        ),
       ]);
       setLoading(false);
     })();
@@ -121,6 +136,7 @@ export default function InboundRoutingPage() {
           return;
         }
         await fetchGroups();
+        setNumbersVersion((v) => v + 1);
       },
     });
   };
@@ -141,6 +157,7 @@ export default function InboundRoutingPage() {
         }
         if (selection === group.id) setSelection(null);
         await fetchGroups();
+        setNumbersVersion((v) => v + 1);
       },
     });
   };
@@ -246,11 +263,18 @@ export default function InboundRoutingPage() {
             onSaved={async (saved) => {
               await fetchGroups();
               setSelection(saved.id);
+              setNumbersVersion((v) => v + 1);
             }}
-            onNumbersChanged={fetchGroups}
+            onReload={fetchGroups}
+            onNumbersChanged={async () => {
+              await fetchGroups();
+              setNumbersVersion((v) => v + 1);
+            }}
             onClose={() => setSelection(null)}
           />
         )}
+
+        <SharedNumbersPanel refreshKey={numbersVersion} />
 
         <ConfirmDialog request={confirm} onClose={() => setConfirm(null)} />
       </div>
