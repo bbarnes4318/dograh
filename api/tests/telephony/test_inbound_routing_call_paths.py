@@ -110,7 +110,10 @@ async def test_ari_inbound_uses_resolver(monkeypatch, number_config_id):
     await conn._handle_inbound_stasis_start("chan-1", "Ring", event)
 
     resolver.assert_awaited_once_with(
-        phone_row, "+15557650000", linked_organization_ids=[]
+        phone_row,
+        "+15557650000",
+        linked_organization_ids=[],
+        unavailable_organizations={},
     )
     kwargs = fake_db.create_workflow_run.await_args.kwargs
     assert kwargs["workflow_id"] == 25
@@ -198,7 +201,9 @@ async def test_webhook_inbound_run_uses_resolver():
         response = await handle_inbound_run(request)
 
     assert response == "stream-response"
-    resolver.assert_awaited_once_with(phone_row, "+15557650000")
+    resolver.assert_awaited_once_with(
+        phone_row, "+15557650000", unavailable_organizations={}
+    )
     args = mock_db.create_workflow_run.await_args
     assert args.args[1] == 25  # workflow_id
     assert args.kwargs["initial_context"]["inbound_routing"] == ROUTING_META

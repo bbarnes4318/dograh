@@ -21,6 +21,19 @@ class OrganizationConfigurationClient(BaseDBClient):
             )
             return result.scalars().first()
 
+    async def get_configurations_by_key(
+        self, key: str
+    ) -> list[OrganizationConfigurationModel]:
+        """Every organization's row for one key (operator-set, cross-org
+        settings such as INBOUND_ROUTING_LINKED_WORKSPACES)."""
+        async with self.async_session() as session:
+            result = await session.execute(
+                select(OrganizationConfigurationModel)
+                .where(OrganizationConfigurationModel.key == key)
+                .order_by(OrganizationConfigurationModel.organization_id)
+            )
+            return list(result.scalars().all())
+
     async def get_all_configurations(
         self, organization_id: int
     ) -> list[OrganizationConfigurationModel]:

@@ -1,17 +1,36 @@
 import type { InboundRoutingGroupResponse, RoutingTarget } from "@/client/types.gen";
 
-export type WorkflowOption = { id: number; name: string };
+export type WorkflowOption = {
+  id: number;
+  name: string;
+  /** The workspace the agent runs in (its calls are stored there). */
+  organizationLabel?: string | null;
+  /** True for an agent in a workspace this one has linked. */
+  linked?: boolean;
+};
 
 export function workflowLabel(id: number, name?: string | null): string {
   return name ? `${id} ${name}` : `${id}`;
 }
 
-/** "15 Alex 50% / 25 Robert 50%" */
+/** "Alex — Final Expense", or just the name when the workspace is unnamed. */
+export function agentLabel(name?: string | null, organizationLabel?: string | null): string {
+  const agent = name || "Unknown agent";
+  return organizationLabel ? `${agent} — ${organizationLabel}` : agent;
+}
+
+/** "Alex — Final Expense 50% / Riley — Real Estate 25% / ..." */
 export function describeSplit(group: InboundRoutingGroupResponse): string {
   const parts = group.targets
     .filter((t) => t.weight > 0)
-    .map((t) => `${workflowLabel(t.workflow_id, t.workflow_name)} ${t.weight}%`);
-  return parts.length ? parts.join(" / ") : "No agents";
+    .map((t) =>
+      t.agent_name
+        ? `${agentLabel(t.agent_name, t.organization_label)} ${t.weight}%`
+        : `${workflowLabel(t.workflow_id, t.workflow_name)} ${t.weight}%`,
+    );
+  const paused = group.targets.filter((t) => t.weight === 0).length;
+  const text = parts.length ? parts.join(" / ") : "No agents";
+  return paused ? `${text} (${paused} paused at 0%)` : text;
 }
 
 /** Spread 100 across ``count`` agents; the remainder goes to the first ones. */

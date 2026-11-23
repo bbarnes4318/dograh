@@ -61,6 +61,7 @@ import { detailFromError } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
 
 import {
+  agentLabel,
   evenWeights,
   totalWeight,
   workflowLabel,
@@ -79,6 +80,8 @@ interface RoutingGroupEditorProps {
   group: InboundRoutingGroupResponse | null;
   workflows: WorkflowOption[];
   onSaved: (group: InboundRoutingGroupResponse) => void;
+  /** Someone else saved the group: reload it (the editor remounts fresh). */
+  onReload: () => void;
   /** Numbers were attached/detached (the list's counts are stale). */
   onNumbersChanged: () => void;
   onClose: () => void;
@@ -137,32 +140,41 @@ const ACTION_LABELS: Record<string, string> = {
   group_deleted: "Deleted group",
   numbers_attached: "Attached numbers",
   numbers_detached: "Detached numbers",
+  call_refused: "Call refused",
 };
 
-function formatWeights(weights: unknown): string {
+type AgentNames = Map<number, string>;
+
+function formatWeights(weights: unknown, names?: AgentNames): string {
   if (!weights || typeof weights !== "object") return "";
   return Object.entries(weights as Record<string, number>)
-    .map(([id, w]) => `${id}: ${w}%`)
+    .map(([id, w]) => `${names?.get(Number(id)) ?? id}: ${w}%`)
     .join(", ");
 }
 
-function describeAudit(entry: InboundRoutingAuditEntry): string {
+function describeAudit(entry: InboundRoutingAuditEntry, names?: AgentNames): string {
   const d = entry.details as Record<string, unknown>;
   switch (entry.action) {
     case "group_created":
-      return `Split ${formatWeights(d.weights)}`;
+      return `Split ${formatWeights(d.weights, names)}`;
     case "numbers_attached":
     case "numbers_detached":
       return `${d.count} number(s)`;
     case "group_deleted":
       return `${d.numbers_released ?? 0} number(s) released`;
+    case "call_refused":
+      return `to ${d.called_number ?? "a group number"}: ${String(d.reason ?? "unknown")}${
+        d.workflow_id
+          ? ` (${names?.get(Number(d.workflow_id)) ?? `agent ${String(d.workflow_id)}`})`
+          : ""
+      }`;
     case "group_updated":
       return Object.entries(d)
         .filter(([key]) => key !== "name")
         .map(([key, change]) => {
           const c = change as { from: unknown; to: unknown };
           if (key === "weights") {
-            return `split ${formatWeights(c.from)} → ${formatWeights(c.to)}`;
+            return `split ${formatWeights(c.from, names)} → ${formatWeights(c.to, names)}`;
           }
           return `${key.replace(/_/g, " ")} ${String(c.from)} → ${String(c.to)}`;
         })
@@ -176,6 +188,7 @@ export function RoutingGroupEditor({
   group,
   workflows,
   onSaved,
+  onReload,
   onNumbersChanged,
   onClose,
 }: RoutingGroupEditorProps) {
@@ -196,14 +209,33 @@ export function RoutingGroupEditor({
   const [stats, setStats] = useState<InboundRoutingStatsResponse | null>(null);
   const [audit, setAudit] = useState<InboundRoutingAuditEntry[]>([]);
 
-  // Saved targets may be archived agents that the picker no longer lists.
-  const workflowNames = useMemo(
+  // "Agent — Workspace" for every target. Saved targets may be archived
+  // agents that the picker no longer lists, so they come from the group too.
+  const agentNames = useMemo(
     () =>
-      new Map<number, string | null | undefined>([
+      new Map<number, string>([
         ...(group?.targets ?? []).map(
-          (t) => [t.workflow_id, t.workflow_name] as [number, string | null | undefined],
+          (t) =>
+            [
+              t.workflow_id,
+              t.agent_name
+                ? agentLabel(t.agent_name, t.organization_label)
+                : workflowLabel(t.workflow_id, t.workflow_name),
+            ] as [number, string],
         ),
-        ...workflows.map((w) => [w.id, w.name] as [number, string]),
+        ...workflows.map(
+          (w) => [w.id, agentLabel(w.name, w.organizationLabel)] as [number, string],
+        ),
+      ]),
+    [group, workflows],
+  );
+  const linkedIds = useMemo(
+    () =>
+      new Set<number>([
+        ...(group?.targets ?? [])
+          .filter((t) => t.is_linked_workspace)
+          .map((t) => t.workflow_id),
+        ...workflows.filter((w) => w.linked).map((w) => w.id),
       ]),
     [group, workflows],
   );
@@ -281,8 +313,16 @@ export function RoutingGroupEditor({
       : await updateInboundRoutingGroupApiV1InboundRoutingGroupsGroupIdPatch({
           headers,
           path: { group_id: group.id },
-          body,
+          // Refused (409) if someone saved the group after this editor opened.
+          body: { ...body, expected_updated_at: group.updated_at },
         });
+    if (res.response?.status === 409) {
+      toast.error(
+        "Someone else saved this routing group after you opened it. It has been reloaded with their change; make your change again.",
+      );
+      onReload();
+      return;
+    }
     if (res.error || !res.data) {
       toast.error(detailFromError(res.error, "Failed to save routing group"));
       return;
@@ -397,8 +437,12 @@ export function RoutingGroupEditor({
             <div>
               <Label htmlFor="rg-sticky">Sticky by caller</Label>
               <p className="text-sm text-muted-foreground">
-                The same person calling back reaches the same agent (as long as the
-                split doesn&apos;t change). Off: each call is picked at random by weight.
+                <strong>On:</strong> a repeat caller normally returns to the same agent
+                (while the split stays the same), so the actual percentages can drift
+                from the targets when some people call often.{" "}
+                <strong>Off:</strong> every call is picked independently by the
+                weights; over many calls the actual split comes close to the targets,
+                but small samples still vary.
               </p>
             </div>
             <Switch id="rg-sticky" checked={sticky} onCheckedChange={setSticky} />
@@ -426,7 +470,19 @@ export function RoutingGroupEditor({
             {targets.map((t) => (
               <div key={t.workflow_id} className="flex items-center gap-3">
                 <div className="min-w-0 flex-1 truncate text-sm font-medium">
-                  {workflowLabel(t.workflow_id, workflowNames.get(t.workflow_id))}
+                  {agentNames.get(t.workflow_id) ?? workflowLabel(t.workflow_id)}
+                  {linkedIds.has(t.workflow_id) && (
+                    <span className="text-xs font-normal text-muted-foreground">
+                      {" "}
+                      · linked workspace
+                    </span>
+                  )}
+                  {t.weight === 0 && (
+                    <span className="text-xs font-normal text-muted-foreground">
+                      {" "}
+                      · paused (0%)
+                    </span>
+                  )}
                 </div>
                 <input
                   type="range"
@@ -472,7 +528,7 @@ export function RoutingGroupEditor({
                 <SelectContent>
                   {available.map((w) => (
                     <SelectItem key={w.id} value={String(w.id)}>
-                      {workflowLabel(w.id, w.name)}
+                      {agentLabel(w.name, w.organizationLabel)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -485,6 +541,14 @@ export function RoutingGroupEditor({
             >
               Total: {total}%{total !== 100 && " — must equal 100% to save"}
             </div>
+            <p className="text-xs text-muted-foreground">
+              Set an agent to 0% to pause it without removing it. A call goes to a
+              linked workspace&apos;s agent in that workspace: its settings, its
+              recordings and transcripts. If the agent picked can&apos;t take a call
+              (archived, unlinked, not reachable), the next agent with a share above
+              0% takes it, then the number&apos;s own agent, and the call&apos;s record
+              says why.
+            </p>
           </div>
 
           <div className="flex justify-end gap-2">
@@ -576,8 +640,9 @@ export function RoutingGroupEditor({
             <div className="space-y-1.5">
               <CardTitle>Last 24 hours</CardTitle>
               <CardDescription>
-                {stats?.total_calls ?? 0} inbound call(s) routed through this group:
-                actual split vs target.
+                {stats?.eligible_calls ?? stats?.total_calls ?? 0} call(s) routed
+                through this group; {stats?.total_calls ?? 0} reached an agent. Actual
+                split vs target.
               </CardDescription>
             </div>
             <Button variant="ghost" size="icon" aria-label="Refresh" onClick={loadDetails}>
@@ -589,27 +654,68 @@ export function RoutingGroupEditor({
               <TableHeader>
                 <TableRow>
                   <TableHead>Agent</TableHead>
+                  <TableHead>Workspace</TableHead>
+                  <TableHead className="text-right">Picked</TableHead>
                   <TableHead className="text-right">Calls</TableHead>
                   <TableHead className="text-right">Actual</TableHead>
                   <TableHead className="text-right">Target</TableHead>
+                  <TableHead className="text-right">Unavailable</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {(stats?.targets ?? []).map((row) => (
                   <TableRow key={row.workflow_id}>
                     <TableCell>
-                      {workflowLabel(row.workflow_id, row.workflow_name)}
+                      {row.agent_name ?? workflowLabel(row.workflow_id, row.workflow_name)}
                       {!row.is_target && (
                         <span className="text-muted-foreground"> (fallback / removed)</span>
                       )}
+                      {(row.fallback_calls ?? 0) > 0 && (
+                        <span className="text-muted-foreground">
+                          {" "}
+                          · {row.fallback_calls} as fallback
+                        </span>
+                      )}
                     </TableCell>
+                    <TableCell>{row.organization_label ?? "—"}</TableCell>
+                    <TableCell className="text-right">{row.picked ?? 0}</TableCell>
                     <TableCell className="text-right">{row.calls}</TableCell>
                     <TableCell className="text-right">{row.actual_percent}%</TableCell>
                     <TableCell className="text-right">{row.target_percent}%</TableCell>
+                    <TableCell
+                      className="text-right"
+                      title={Object.entries(row.unavailable_reasons ?? {})
+                        .map(([reason, n]) => `${n}× ${reason}`)
+                        .join("\n")}
+                    >
+                      {row.unavailable ?? 0}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
+            <div className="mt-3 space-y-1 text-sm text-muted-foreground">
+              {(stats?.fallback_calls ?? 0) > 0 && (
+                <p>
+                  {stats?.fallback_calls} call(s) did not go to the agent picked first
+                  {(stats?.cross_workspace_fallbacks ?? 0) > 0 &&
+                    ` (${stats?.cross_workspace_fallbacks} ended in a different workspace)`}
+                  :{" "}
+                  {Object.entries(stats?.fallback_reasons ?? {})
+                    .map(([reason, n]) => `${n}× ${reason.replace(/_/g, " ")}`)
+                    .join("; ")}
+                </p>
+              )}
+              {(stats?.refused_calls ?? 0) > 0 && (
+                <p>
+                  {stats?.refused_calls} call(s) refused after routing:{" "}
+                  {(stats?.refusals ?? [])
+                    .map((r) => `${r.count}× ${r.reason}`)
+                    .join("; ")}
+                </p>
+              )}
+              {stats?.sample_note && <p>{stats.sample_note}</p>}
+            </div>
           </CardContent>
         </Card>
       )}
@@ -645,7 +751,9 @@ export function RoutingGroupEditor({
                         <span className="font-medium">
                           {ACTION_LABELS[entry.action] ?? entry.action}
                         </span>{" "}
-                        <span className="text-muted-foreground">{describeAudit(entry)}</span>
+                        <span className="text-muted-foreground">
+                          {describeAudit(entry, agentNames)}
+                        </span>
                       </TableCell>
                     </TableRow>
                   ))}
