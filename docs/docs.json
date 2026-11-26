@@ -132,6 +132,7 @@
               "integrations/tuner",
               "integrations/paygent",
               "integrations/hoppwhistle",
+              "integrations/hoppwhistle-recruiting",
               "integrations/holiday-voices"
             ]
           }

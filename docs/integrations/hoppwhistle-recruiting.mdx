@@ -1,0 +1,49 @@
+---
+title: "Hoppwhistle Recruiting"
+description: "AI phone interviews for Hoppwhistle's AI Recruiting Studio"
+---
+
+Hoppwhistle's AI Recruiting Studio runs **candidate-requested** AI phone
+interviews on Dograh. Hoppwhistle owns the candidate, consent, the interview
+framework, the approved agency facts, evidence and every decision; Dograh owns
+the conversation. This package is separate from the `hoppwhistle` (sales)
+package: different tools, a different secret, a different report endpoint.
+
+## Endpoints (organization API key)
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `POST` | `/api/v1/integrations/hoppwhistle-recruiting/install` | Install or refresh the recruiting tools (`base_url`, `service_secret` = Hoppwhistle's `RECRUITING_VOICE_ENGINE_SECRET`) |
+| `POST` | `/api/v1/integrations/hoppwhistle-recruiting/workflows` | Create or update, then publish, a workflow Hoppwhistle compiled (tool names resolved to this organization's tools) |
+| `GET` | `/api/v1/integrations/hoppwhistle-recruiting/workflows/{uuid}/inspect` | The published workflow's protected facts, verbatim |
+| `GET` | `/api/v1/integrations/hoppwhistle-recruiting/runs?session_id=&workflow_uuid=` | Runs started for a Hoppwhistle session (dispatch reconciliation) |
+
+## Tools
+
+Seventeen `http_api` tools posting to `/api/internal/recruiting-voice/tools/<name>`,
+`request_human_recruiter` (a `transfer_call` tool resolved by Hoppwhistle) and
+`end_interview`. Every tool carries two hidden presets the LLM cannot see or
+override: `session_id` = `{{initial_context.hr_session_id}}` and
+`session_token` = `{{initial_context.hr_session_token}}`. The session decides
+the agency, candidate and application.
+
+## Protected steps
+
+Recruiting workflows are compiled by Hoppwhistle from an interview framework.
+The AI-disclosure greeting, the locked rule blocks (`[[protected:<key>]]` …
+`[[/protected:<key>]]`), scored questions, edges, tools and extraction fields
+are protected. When Hoppwhistle publishes, the `hoppwhistle_recruiting` node
+stores a digest of them, and Dograh's publish gate refuses a change to any of
+them. Hoppwhistle independently compares the published workflow with what it
+compiled before every call and refuses to dial one that drifted. Conversation
+guidance outside the locked blocks, positions and model settings (voice,
+speed, LLM) can be edited here.
+
+## Post-call report
+
+For runs whose initial context carries `hr_session_id`/`hr_session_token`,
+the completion job posts a signed report (HMAC-SHA256 over
+`"<timestamp>.<body>"`, `X-Hopwhistle-Signature: v1=<hex>`) to
+`/api/internal/recruiting-voice/runs/complete`: steps visited, extracted
+variables, transcript, recording and transcript links, transfer attempts,
+timing, latency and usage. Hoppwhistle decides outcomes and retries.
