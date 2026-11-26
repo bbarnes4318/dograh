@@ -9,6 +9,7 @@ from dograh_sdk.typed.end_call import EndCall
 from dograh_sdk.typed.global_node import GlobalNode
 from dograh_sdk.typed.holiday_voices import Holiday_voices
 from dograh_sdk.typed.hoppwhistle import Hoppwhistle
+from dograh_sdk.typed.hoppwhistle_recruiting import Hoppwhistle_recruiting
 from dograh_sdk.typed.paygent import Paygent
 from dograh_sdk.typed.qa import Qa
 from dograh_sdk.typed.start_call import StartCall
@@ -23,6 +24,7 @@ __all__ = [
     "GlobalNode",
     "Holiday_voices",
     "Hoppwhistle",
+    "Hoppwhistle_recruiting",
     "Paygent",
     "Qa",
     "StartCall",
