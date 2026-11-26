@@ -371,3 +371,48 @@ async def test_completion_posts_signed_to_the_recruiting_endpoint_and_never_echo
     assert kwargs["secret"] == SECRET and kwargs["base_url"] == BASE
     assert "t1234567890123456" not in json.dumps(results)
     assert results["hoppwhistle_recruiting_recruiting_reporting"]["delivered"] is True
+
+
+@pytest.mark.asyncio
+async def test_signed_delivery_matches_hoppwhistles_scheme_and_retries_once_on_5xx():
+    import hashlib
+    import hmac
+
+    import httpx
+
+    from api.services.integrations.hoppwhistle_recruiting.client import deliver_report
+
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(503 if len(seen) == 1 else 201)
+
+    result = await deliver_report(
+        base_url=BASE,
+        secret=SECRET,
+        payload={"a": 1},
+        path=REPORT_PATH,
+        transport=httpx.MockTransport(handler),
+    )
+    assert result.ok and len(seen) == 2
+    request = seen[-1]
+    assert str(request.url) == f"{BASE}{REPORT_PATH}"
+    ts = request.headers["X-Hopwhistle-Timestamp"]
+    expected = hmac.new(
+        SECRET.encode(), f"{ts}.{request.content.decode()}".encode(), hashlib.sha256
+    ).hexdigest()
+    assert request.headers["X-Hopwhistle-Signature"] == f"v1={expected}"
+
+
+def test_package_does_not_depend_on_the_sales_package():
+    import pathlib
+
+    root = (
+        pathlib.Path(__file__).parents[2]
+        / "services"
+        / "integrations"
+        / "hoppwhistle_recruiting"
+    )
+    for path in root.glob("*.py"):
+        assert "integrations.hoppwhistle." not in path.read_text(), path.name

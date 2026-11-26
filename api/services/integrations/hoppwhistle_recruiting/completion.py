@@ -20,8 +20,8 @@ from loguru import logger
 
 from api.constants import BACKEND_API_ENDPOINT
 from api.services.integrations.base import IntegrationCompletionContext
-from api.services.integrations.hoppwhistle.client import deliver_report
 
+from .client import deliver_report
 from .node import HoppwhistleRecruitingNodeData
 from .tool_catalog import CONTRACT_VERSION
 

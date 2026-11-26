@@ -29,6 +29,8 @@ docs/recruiting/AI_VOICE_CONTRACT.md in Hoppwhistle.
 
 from __future__ import annotations
 
+from dataclasses import fields as _fields
+
 from api.services.integrations.base import IntegrationPackageSpec
 from api.services.integrations.registry import register_package
 
@@ -37,14 +39,18 @@ from .node import NODE
 from .protected import validate_recruiting_definition
 from .routes import router
 
-PACKAGE = register_package(
-    IntegrationPackageSpec(
-        name="hoppwhistle_recruiting",
-        nodes=(NODE,),
-        routers=(router,),
-        run_completion=run_completion,
-        validate_definition=validate_recruiting_definition,
-    )
+_spec_kwargs = dict(
+    name="hoppwhistle_recruiting",
+    nodes=(NODE,),
+    routers=(router,),
+    run_completion=run_completion,
 )
+# The publish-gate hook exists in this fork's framework; an engine running an
+# older image (the add-on mount in production) loads the package without it,
+# and Hoppwhistle's dial-time conformance check still refuses edited workflows.
+if "validate_definition" in {f.name for f in _fields(IntegrationPackageSpec)}:
+    _spec_kwargs["validate_definition"] = validate_recruiting_definition
+
+PACKAGE = register_package(IntegrationPackageSpec(**_spec_kwargs))
 
 __all__ = ["PACKAGE"]
