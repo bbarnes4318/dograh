@@ -50,6 +50,8 @@ CompletionHandler = Callable[
     [list[dict[str, Any]], IntegrationCompletionContext],
     Awaitable[dict[str, Any]],
 ]
+#: (node_id or None, message) problems an integration finds in a workflow definition.
+DefinitionValidator = Callable[[dict[str, Any]], list[tuple[str | None, str]]]
 
 
 @dataclass(frozen=True)
@@ -67,3 +69,7 @@ class IntegrationPackageSpec:
     routers: tuple[APIRouter, ...] = ()
     create_runtime_sessions: RuntimeFactory | None = None
     run_completion: CompletionHandler | None = None
+    #: Optional publish-gate check over a whole workflow definition. Called by
+    #: the workflow publish/validate route for every definition; return [] for
+    #: definitions the integration has nothing to say about.
+    validate_definition: DefinitionValidator | None = None

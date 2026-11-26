@@ -160,6 +160,19 @@ async def _validate_workflow_definition(
     except ValueError as e:
         errors.extend(e.args[0])
 
+    # ----------- Integration Checks (e.g. protected recruiting steps) ------------
+    from api.services.integrations.registry import all_packages
+
+    for package in all_packages():
+        if package.validate_definition is None:
+            continue
+        for node_id, message in package.validate_definition(workflow_definition):
+            errors.append(
+                WorkflowError(
+                    kind=ItemKind.node, id=node_id, field="data", message=message
+                )
+            )
+
     # ----------- Trigger Path Format Check ------------
     for issue in validate_trigger_paths(workflow_definition):
         errors.append(
